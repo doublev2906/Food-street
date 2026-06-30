@@ -1,0 +1,22 @@
+# systemd unit cho Phoenix release. Cài đặt:
+#   sudo cp deploy/food_street.service /etc/systemd/system/food_street.service
+#   (sửa User= và đường dẫn cho đúng), rồi:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now food_street
+[Unit]
+Description=Food Street Phoenix
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=pancake
+WorkingDirectory=/opt/food_street/backend
+# Biến môi trường (SECRET_KEY_BASE, DATABASE_URL, PHX_HOST, PORT...) lấy từ file:
+EnvironmentFile=/etc/food_street/env
+ExecStart=/opt/food_street/backend/_build/prod/rel/food_street/bin/food_street start
+ExecStop=/opt/food_street/backend/_build/prod/rel/food_street/bin/food_street stop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
