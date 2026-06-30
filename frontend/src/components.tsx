@@ -1,10 +1,17 @@
 import { useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
 import { api, formatVND } from "./api";
 
 export function Header({ subtitle }: { subtitle?: string }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const isAdmin = user?.role === "admin";
+  const onAdminPage = location.pathname.startsWith("/admin");
+
   return (
     <header className="app-header">
       <div className="brand">
@@ -16,6 +23,16 @@ export function Header({ subtitle }: { subtitle?: string }) {
         )}
       </div>
       <div className="header-user">
+        {isAdmin &&
+          (onAdminPage ? (
+            <button className="secondary small" onClick={() => navigate("/app")}>
+              ← Trang đặt món
+            </button>
+          ) : (
+            <button className="small" onClick={() => navigate("/admin")}>
+              🛠️ Trang quản trị
+            </button>
+          ))}
         <button className="ghost" onClick={() => setProfileOpen(true)} title="Tài khoản">
           {user?.name}{" "}
           <span className={`badge ${user?.role}`}>{user?.role}</span>

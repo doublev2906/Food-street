@@ -15,8 +15,9 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      const user = await login(username.trim(), password);
-      navigate(user.role === "admin" ? "/admin" : "/app", { replace: true });
+      await login(username.trim(), password);
+      // Mọi người vào trang đặt món; admin có nút chuyển sang quản trị.
+      navigate("/app", { replace: true });
     } catch (err: any) {
       setError(err.message || "Đăng nhập thất bại");
     } finally {
@@ -60,17 +61,6 @@ export default function Login() {
             {busy ? "Đang đăng nhập…" : "Đăng nhập"}
           </button>
         </form>
-
-        <div
-          className="small muted"
-          style={{ marginTop: 18, padding: 12, background: "var(--bg)", borderRadius: 8 }}
-        >
-          <strong>Tài khoản demo:</strong>
-          <br />
-          Admin: admin / admin123
-          <br />
-          User: an / user123 (hoặc binh, cuong)
-        </div>
       </div>
     </div>
   );

@@ -25,7 +25,8 @@ function Home() {
   const { user, loading } = useAuth();
   if (loading) return <div className="spinner">Đang tải…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === "admin" ? "/admin" : "/app"} replace />;
+  // Mọi người (kể cả admin) mặc định vào trang đặt món.
+  return <Navigate to="/app" replace />;
 }
 
 export default function App() {
@@ -35,7 +36,7 @@ export default function App() {
       <Route
         path="/app"
         element={
-          <Protected role="user">
+          <Protected>
             <UserDashboard />
           </Protected>
         }
