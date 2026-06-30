@@ -47,8 +47,9 @@ echo "==> Push '$BRANCH' lên '$GIT_REMOTE' (để server kéo được)"
 git push "$GIT_REMOTE" "$BRANCH"
 
 echo "==> SSH $REMOTE  →  deploy $APP_DIR (nhánh $BRANCH, mode=$DEPLOY_MODE)"
+# -A: forward SSH agent để server dùng key của máy dev khi 'git pull' repo private.
 # Heredoc không trích dẫn: các biến dưới đây được nội suy ở MÁY DEV trước khi gửi.
-ssh -p "$SSH_PORT" "$REMOTE" bash -s <<EOF
+ssh -A -p "$SSH_PORT" "$REMOTE" bash -s <<EOF
 set -euo pipefail
 cd "$APP_DIR"
 echo "    git fetch + checkout + pull"

@@ -37,9 +37,12 @@ export default function Login() {
 
         <form onSubmit={submit}>
           <div className="field">
-            <label>Tên đăng nhập</label>
+            <label htmlFor="username">Tên đăng nhập</label>
             <input
+              id="username"
+              name="username"
               type="text"
+              autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="VD: an (hoặc email)"
@@ -48,9 +51,12 @@ export default function Login() {
             />
           </div>
           <div className="field">
-            <label>Mật khẩu</label>
+            <label htmlFor="password">Mật khẩu</label>
             <input
+              id="password"
+              name="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••"
