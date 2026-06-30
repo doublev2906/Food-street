@@ -1,0 +1,9 @@
+_build/
+deps/
+.git/
+.gitignore
+*.log
+.elixir_ls/
+priv/static/
+.env
+Dockerfile*

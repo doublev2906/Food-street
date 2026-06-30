@@ -1,0 +1,47 @@
+# Môi trường DEV cho backend Food Street.
+#   docker compose up        -> chạy Postgres + Phoenix (code reload)
+#   docker compose down       -> dừng
+#   docker compose down -v    -> dừng + xóa dữ liệu DB
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: food_street_dev
+    ports:
+      - "5433:5432" # 5433 ở host để không đụng Postgres local (5432)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: food_street_dev
+      PORT: "4003"
+      PHX_IP: "0.0.0.0" # bind mọi interface để host truy cập được
+    ports:
+      - "4003:4003"
+    volumes:
+      - .:/app # mount source để code reload
+      - build:/app/_build # giữ _build trong container (tránh đụng NIF macOS)
+      - deps:/app/deps # giữ deps trong container
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  build:
+  deps:
