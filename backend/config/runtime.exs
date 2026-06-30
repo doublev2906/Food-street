@@ -23,6 +23,11 @@ end
 config :food_street, FoodStreetWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4003"))]
 
+# Link gốc của frontend trong lời mời gửi vào Panchat (override khi deploy).
+if frontend_url = System.get_env("FRONTEND_URL") do
+  config :food_street, :frontend_url, frontend_url
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

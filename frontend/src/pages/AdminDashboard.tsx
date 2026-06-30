@@ -7,12 +7,20 @@ import {
   type FundTransaction,
   type GroupOrder,
   type MenuItem,
+  type PanchatSettings,
   type Stats,
   type User,
 } from "../api";
 import { Header, Modal, Money, StatusBadge } from "../components";
 
-type Tab = "stats" | "users" | "categories" | "menu" | "groups" | "fund";
+type Tab =
+  | "stats"
+  | "users"
+  | "categories"
+  | "menu"
+  | "groups"
+  | "fund"
+  | "settings";
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>("stats");
@@ -23,6 +31,7 @@ export default function AdminDashboard() {
     ["categories", "🏷️ Danh mục"],
     ["menu", "🍽️ Thực đơn"],
     ["fund", "💰 Quỹ"],
+    ["settings", "⚙️ Cài đặt"],
   ];
   return (
     <>
@@ -45,6 +54,7 @@ export default function AdminDashboard() {
         {tab === "categories" && <CategoriesTab />}
         {tab === "menu" && <MenuTab />}
         {tab === "fund" && <FundTab />}
+        {tab === "settings" && <SettingsTab />}
       </div>
     </>
   );
@@ -1237,5 +1247,89 @@ function FundModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+// ---------- Cài đặt ----------
+function SettingsTab() {
+  const [settings, setSettings] = useState<PanchatSettings | null>(null);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null
+  );
+
+  const load = () => {
+    api.admin
+      .getPanchatSettings()
+      .then((r) => setSettings(r.data))
+      .catch((e) => setMsg({ type: "error", text: e.message || "Lỗi tải" }));
+  };
+  useEffect(load, []);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setBusy(true);
+    try {
+      const r = await api.admin.savePanchatToken(token);
+      setSettings(r.data);
+      setToken("");
+      setMsg({ type: "ok", text: "Đã lưu Panchat token." });
+    } catch (err: any) {
+      setMsg({ type: "error", text: err.message || "Lưu thất bại" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid">
+      <div className="card">
+        <h2>Panchat</h2>
+        <p className="small muted">
+          Token để gửi lời mời ăn sáng vào channel Panchat (workspace 4 / channel
+          11813). <strong>Bắt buộc phải có token</strong> thì admin mới tạo được
+          đợt đặt nhóm.
+        </p>
+
+        {settings && (
+          <p className="small">
+            Trạng thái:{" "}
+            {settings.panchat_configured ? (
+              <span className="badge admin">
+                Đã cấu hình ({settings.panchat_token_preview})
+              </span>
+            ) : (
+              <span className="badge">Chưa cấu hình</span>
+            )}
+          </p>
+        )}
+
+        {msg && (
+          <div className={`alert ${msg.type === "ok" ? "" : "error"}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <form onSubmit={save}>
+          <div className="field">
+            <label>Panchat token</label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Dán token Panchat vào đây…"
+              autoComplete="off"
+            />
+          </div>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button type="submit" disabled={busy || token.trim() === ""}>
+              {busy ? "Đang lưu…" : "Lưu token"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

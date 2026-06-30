@@ -11,6 +11,9 @@ config :food_street,
   ecto_repos: [FoodStreet.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+# URL gốc của frontend, dùng để dựng link trong lời mời gửi vào Panchat.
+config :food_street, :frontend_url, "http://localhost:5173"
+
 # Configure the endpoint
 config :food_street, FoodStreetWeb.Endpoint,
   url: [host: "localhost"],

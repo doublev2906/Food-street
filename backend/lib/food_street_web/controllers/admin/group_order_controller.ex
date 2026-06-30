@@ -3,6 +3,10 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
   alias FoodStreet.Ordering
   alias FoodStreet.Guardian
+  alias FoodStreet.Settings
+  alias FoodStreet.Panchat
+
+  require Logger
 
   action_fallback FoodStreetWeb.FallbackController
 
@@ -22,10 +26,39 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   def create(conn, params) do
     admin = Guardian.Plug.current_resource(conn)
 
-    with {:ok, go} <- Ordering.create_group_order(params, admin) do
-      conn |> put_status(:created) |> json(%{data: shape(go)})
+    # Bắt buộc có Panchat token: không có thì không cho mở đợt (vì không gửi
+    # được lời mời ăn sáng vào channel).
+    if Settings.panchat_configured?() do
+      with {:ok, go} <- Ordering.create_group_order(params, admin) do
+        panchat = send_invite(go)
+        conn |> put_status(:created) |> json(%{data: shape(go), panchat: panchat})
+      end
+    else
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{
+        error: "panchat_token_missing",
+        message: "Chưa cấu hình Panchat token. Vào tab Cài đặt để nhập token trước khi tạo đợt."
+      })
     end
   end
+
+  # Gửi lời mời vào Panchat (best-effort): lỗi mạng không rollback đợt đã tạo,
+  # chỉ báo lại trạng thái để admin biết.
+  defp send_invite(go) do
+    case Panchat.send_breakfast_invite(go) do
+      {:ok, _message} ->
+        %{sent: true}
+
+      {:error, reason} ->
+        Logger.warning("Không gửi được lời mời Panchat cho đợt #{go.id}: #{inspect(reason)}")
+        %{sent: false, error: format_error(reason)}
+    end
+  end
+
+  defp format_error(:panchat_token_missing), do: "Chưa cấu hình Panchat token."
+  defp format_error({:panchat, msg}) when is_binary(msg), do: msg
+  defp format_error(other), do: inspect(other)
 
   def update(conn, %{"id" => id} = params) do
     case Ordering.get_group_order(id) do

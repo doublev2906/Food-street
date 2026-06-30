@@ -77,5 +77,9 @@ defmodule FoodStreetWeb.Router do
     get "/fund/transactions", FundController, :index
     post "/fund/deposit", FundController, :deposit
     post "/fund/adjust", FundController, :adjust
+
+    # Cấu hình hệ thống (Panchat token)
+    get "/settings/panchat", SettingsController, :show
+    put "/settings/panchat", SettingsController, :update
   end
 end

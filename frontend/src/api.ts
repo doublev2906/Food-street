@@ -101,6 +101,11 @@ export interface Stats {
   top_items: { item_name: string; quantity: number; revenue: string }[];
 }
 
+export interface PanchatSettings {
+  panchat_configured: boolean;
+  panchat_token_preview: string;
+}
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -271,6 +276,15 @@ export const api = {
       request<{ data: any }>("/admin/fund/adjust", {
         method: "POST",
         body: JSON.stringify({ user_id, amount, description }),
+      }),
+
+    // Cấu hình Panchat token
+    getPanchatSettings: () =>
+      request<{ data: PanchatSettings }>("/admin/settings/panchat"),
+    savePanchatToken: (panchat_token: string) =>
+      request<{ data: PanchatSettings }>("/admin/settings/panchat", {
+        method: "PUT",
+        body: JSON.stringify({ panchat_token }),
       }),
   },
 };
