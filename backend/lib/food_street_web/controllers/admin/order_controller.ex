@@ -48,19 +48,4 @@ defmodule FoodStreetWeb.Admin.OrderController do
         end
     end
   end
-
-  def confirm_date(conn, %{"date" => date_str}) do
-    admin = Guardian.Plug.current_resource(conn)
-
-    case Date.from_iso8601(date_str) do
-      {:ok, date} ->
-        {:ok, result} = Ordering.confirm_orders_for_date(date, admin)
-        json(conn, %{data: result})
-
-      _ ->
-        {:error, :invalid_date}
-    end
-  end
-
-  def confirm_date(_conn, _params), do: {:error, :missing_date}
 end

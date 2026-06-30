@@ -4,6 +4,7 @@ defmodule FoodStreet.Ordering.Order do
 
   alias FoodStreet.Accounts.User
   alias FoodStreet.Ordering.OrderItem
+  alias FoodStreet.Ordering.GroupOrder
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -11,6 +12,7 @@ defmodule FoodStreet.Ordering.Order do
            only: [
              :id,
              :user_id,
+             :group_order_id,
              :order_date,
              :status,
              :total_amount,
@@ -30,6 +32,7 @@ defmodule FoodStreet.Ordering.Order do
     field :confirmed_at, :utc_datetime
 
     belongs_to :user, User
+    belongs_to :group_order, GroupOrder
     has_many :items, OrderItem, on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -37,10 +40,11 @@ defmodule FoodStreet.Ordering.Order do
 
   def changeset(order, attrs) do
     order
-    |> cast(attrs, [:user_id, :order_date, :status, :note, :total_amount])
+    |> cast(attrs, [:user_id, :group_order_id, :order_date, :status, :note, :total_amount])
     |> validate_required([:user_id, :order_date, :status])
     |> validate_inclusion(:status, @statuses)
     |> cast_assoc(:items, with: &OrderItem.changeset/2, required: true)
+    |> unique_constraint([:group_order_id, :user_id], name: :orders_group_order_user_index)
   end
 
   def status_changeset(order, attrs) do

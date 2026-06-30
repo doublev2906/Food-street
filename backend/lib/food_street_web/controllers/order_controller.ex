@@ -8,15 +8,35 @@ defmodule FoodStreetWeb.OrderController do
 
   def index(conn, _params) do
     user = Guardian.Plug.current_resource(conn)
-    json(conn, %{data: Ordering.list_user_orders(user.id)})
+    data = Enum.map(Ordering.list_user_orders(user.id), &embed_group/1)
+    json(conn, %{data: data})
   end
 
-  def create(conn, params) do
-    user = Guardian.Plug.current_resource(conn)
+  # Gắn kèm thông tin đợt (title + category) vào đơn.
+  defp embed_group(order) do
+    go =
+      case order.group_order do
+        %{id: id, title: title, status: status} = g ->
+          %{id: id, title: title, status: status, category: g.category}
 
-    with {:ok, order} <- Ordering.place_order(user, params) do
-      conn |> put_status(:created) |> json(%{data: order})
-    end
+        _ ->
+          nil
+      end
+
+    order
+    |> Map.take([
+      :id,
+      :user_id,
+      :group_order_id,
+      :order_date,
+      :status,
+      :total_amount,
+      :note,
+      :confirmed_at,
+      :inserted_at,
+      :items
+    ])
+    |> Map.put(:group_order, go)
   end
 
   def cancel(conn, %{"id" => id}) do

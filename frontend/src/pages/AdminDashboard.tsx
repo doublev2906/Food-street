@@ -3,23 +3,25 @@ import {
   api,
   formatVND,
   today,
+  type Category,
   type FundTransaction,
+  type GroupOrder,
   type MenuItem,
-  type Order,
   type Stats,
   type User,
 } from "../api";
 import { Header, Modal, Money, StatusBadge } from "../components";
 
-type Tab = "stats" | "users" | "menu" | "orders" | "fund";
+type Tab = "stats" | "users" | "categories" | "menu" | "groups" | "fund";
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>("stats");
   const tabs: [Tab, string][] = [
     ["stats", "📊 Tổng quan"],
+    ["groups", "🧾 Đơn nhóm"],
     ["users", "👥 Người dùng"],
+    ["categories", "🏷️ Danh mục"],
     ["menu", "🍽️ Thực đơn"],
-    ["orders", "📋 Đơn hàng"],
     ["fund", "💰 Quỹ"],
   ];
   return (
@@ -38,9 +40,10 @@ export default function AdminDashboard() {
           ))}
         </div>
         {tab === "stats" && <StatsTab />}
+        {tab === "groups" && <GroupOrdersTab />}
         {tab === "users" && <UsersTab />}
+        {tab === "categories" && <CategoriesTab />}
         {tab === "menu" && <MenuTab />}
-        {tab === "orders" && <OrdersTab />}
         {tab === "fund" && <FundTab />}
       </div>
     </>
@@ -62,12 +65,7 @@ function StatsTab() {
     <div className="grid">
       <div className="row between wrap">
         <h2 style={{ margin: 0 }}>Thống kê ngày</h2>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          style={{ width: "auto" }}
-        />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
       </div>
 
       <div className="grid grid-4">
@@ -132,6 +130,624 @@ function Stat({
         {value}
       </div>
     </div>
+  );
+}
+
+// ---------- Đơn nhóm ----------
+function GroupOrdersTab() {
+  const [groups, setGroups] = useState<GroupOrder[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    api.admin.groupOrders().then((r) => setGroups(r.data)).finally(() => setLoading(false));
+    api.admin.categories().then((r) => setCategories(r.data.filter((c) => c.active)));
+  };
+  useEffect(load, []);
+
+  if (detailId)
+    return <GroupDetail id={detailId} onBack={() => { setDetailId(null); load(); }} />;
+
+  return (
+    <div className="grid">
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Đợt đặt nhóm ({groups.length})</h2>
+        <button onClick={() => setCreating(true)} disabled={categories.length === 0}>
+          + Tạo đợt mới
+        </button>
+      </div>
+      {categories.length === 0 && (
+        <div className="alert error">Hãy tạo ít nhất 1 danh mục trước khi tạo đợt đặt.</div>
+      )}
+
+      {loading ? (
+        <div className="spinner">Đang tải…</div>
+      ) : groups.length === 0 ? (
+        <div className="card muted">Chưa có đợt đặt nào.</div>
+      ) : (
+        <div className="grid grid-2">
+          {groups.map((g) => (
+            <div key={g.id} className="card">
+              <div className="row between wrap">
+                <div>
+                  <h2 style={{ marginBottom: 4 }}>{g.title}</h2>
+                  <span className="badge admin">{g.category?.name}</span>{" "}
+                  <StatusBadge status={g.status} />
+                </div>
+              </div>
+              <div className="small muted mt">📅 {g.order_date}</div>
+              <div className="row between mt">
+                <span className="small">
+                  {g.order_count} đơn · <strong>{formatVND(g.total_amount || "0")}</strong>
+                </span>
+                <button className="secondary small" onClick={() => setDetailId(g.id)}>
+                  Xem & chốt
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {creating && (
+        <GroupModal
+          categories={categories}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function GroupModal({
+  categories,
+  onClose,
+  onSaved,
+}: {
+  categories: Category[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    title: "",
+    order_date: today(),
+    category_id: categories[0]?.id || "",
+    note: "",
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await api.admin.createGroupOrder(form);
+      onSaved();
+    } catch (err: any) {
+      setError(err.message || "Lưu thất bại");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Tạo đợt đặt nhóm" onClose={onClose}>
+      {error && <div className="alert error">{error}</div>}
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>Tiêu đề</label>
+          <input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="VD: Ăn sáng thứ 2"
+            required
+          />
+        </div>
+        <div className="grid grid-2">
+          <div className="field">
+            <label>Danh mục</label>
+            <select
+              value={form.category_id}
+              onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+              required
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Ngày</label>
+            <input
+              type="date"
+              value={form.order_date}
+              onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label>Ghi chú</label>
+          <input
+            value={form.note}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+            placeholder="VD: Chốt đơn lúc 8h"
+          />
+        </div>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="secondary" onClick={onClose}>
+            Hủy
+          </button>
+          <button type="submit" disabled={busy}>
+            {busy ? "Đang lưu…" : "Tạo đợt"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const [group, setGroup] = useState<GroupOrder | null>(null);
+  const [msg, setMsg] = useState("");
+
+  const load = () => api.admin.groupOrder(id).then((r) => setGroup(r.data));
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  if (!group) return <div className="spinner">Đang tải…</div>;
+
+  const orders = group.orders || [];
+  const pending = orders.filter((o) => o.status === "pending").length;
+  const open = group.status === "open";
+
+  const close = async () => {
+    if (!confirm(`Chốt đợt "${group.title}"? Sẽ trừ quỹ ${pending} đơn và đóng đợt.`)) return;
+    try {
+      const r = await api.admin.closeGroupOrder(id);
+      setMsg(`Đã chốt ${r.data.confirmed} đơn. Đợt đã đóng.`);
+      load();
+    } catch (e: any) {
+      setMsg(e.message);
+    }
+  };
+
+  const del = async () => {
+    if (!confirm("Xóa đợt này? Mọi đơn trong đợt cũng bị xóa.")) return;
+    await api.admin.deleteGroupOrder(id);
+    onBack();
+  };
+
+  return (
+    <div className="grid">
+      <button className="ghost" style={{ alignSelf: "start" }} onClick={onBack}>
+        ← Quay lại danh sách đợt
+      </button>
+
+      <div className="card">
+        <div className="row between wrap">
+          <div>
+            <h2 style={{ marginBottom: 4 }}>
+              {group.title} <StatusBadge status={group.status} />
+            </h2>
+            <span className="badge admin">{group.category?.name}</span>{" "}
+            <span className="small muted">📅 {group.order_date}</span>
+            {group.note && <div className="small muted mt">📌 {group.note}</div>}
+          </div>
+          <div className="row">
+            {open && (
+              <button className="success" onClick={close} disabled={pending === 0}>
+                Chốt đợt ({pending})
+              </button>
+            )}
+            <button className="danger" onClick={del}>
+              Xóa đợt
+            </button>
+          </div>
+        </div>
+        {msg && <div className="alert success mt">{msg}</div>}
+        <div className="row between mt">
+          <span className="muted small">{orders.length} đơn</span>
+          <strong>Tổng: {formatVND(group.total_amount || "0")}</strong>
+        </div>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="card muted">Chưa có ai đặt trong đợt này.</div>
+      ) : (
+        <div className="grid">
+          {orders.map((o) => (
+            <div key={o.id} className="card">
+              <div className="row between wrap">
+                <div>
+                  <strong>{o.user?.name || "?"}</strong>{" "}
+                  <span className="muted small">{o.user?.email}</span>
+                </div>
+                <div className="row">
+                  <StatusBadge status={o.status} />
+                  <strong>{formatVND(o.total_amount)}</strong>
+                </div>
+              </div>
+              <table className="mt">
+                <tbody>
+                  {o.items.map((it) => (
+                    <tr key={it.id}>
+                      <td>{it.item_name}</td>
+                      <td className="muted">×{it.quantity}</td>
+                      <td style={{ textAlign: "right" }}>{formatVND(it.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {o.note && <div className="small muted mt">Ghi chú: {o.note}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Danh mục ----------
+function CategoriesTab() {
+  const [items, setItems] = useState<Category[]>([]);
+  const [editing, setEditing] = useState<Category | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = () => api.admin.categories().then((r) => setItems(r.data));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const remove = async (c: Category) => {
+    if (!confirm(`Xóa danh mục "${c.name}"? Các món trong danh mục sẽ bị gỡ danh mục.`)) return;
+    await api.admin.deleteCategory(c.id);
+    load();
+  };
+
+  return (
+    <div className="grid">
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Danh mục ({items.length})</h2>
+        <button onClick={() => setCreating(true)}>+ Thêm danh mục</button>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Tên</th>
+              <th>Mô tả</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((c) => (
+              <tr key={c.id}>
+                <td>
+                  <strong>{c.name}</strong>
+                </td>
+                <td className="muted small">{c.description}</td>
+                <td>
+                  {c.active ? (
+                    <span className="badge confirmed">Hoạt động</span>
+                  ) : (
+                    <span className="badge inactive">Ẩn</span>
+                  )}
+                </td>
+                <td>
+                  <div className="row" style={{ justifyContent: "flex-end" }}>
+                    <button className="secondary small" onClick={() => setEditing(c)}>
+                      Sửa
+                    </button>
+                    <button className="danger small" onClick={() => remove(c)}>
+                      Xóa
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {(creating || editing) && (
+        <CategoryModal
+          category={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoryModal({
+  category,
+  onClose,
+  onSaved,
+}: {
+  category: Category | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: category?.name || "",
+    description: category?.description || "",
+    active: category?.active ?? true,
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      if (category) await api.admin.updateCategory(category.id, form);
+      else await api.admin.createCategory(form);
+      onSaved();
+    } catch (err: any) {
+      setError(err.message || "Lưu thất bại");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={category ? "Sửa danh mục" : "Thêm danh mục"} onClose={onClose}>
+      {error && <div className="alert error">{error}</div>}
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>Tên danh mục</label>
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="VD: Ăn sáng, Trà chiều, Mixue…"
+            required
+          />
+        </div>
+        <div className="field">
+          <label>Mô tả</label>
+          <input
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Trạng thái</label>
+          <select
+            value={form.active ? "1" : "0"}
+            onChange={(e) => setForm({ ...form, active: e.target.value === "1" })}
+          >
+            <option value="1">Hoạt động</option>
+            <option value="0">Ẩn</option>
+          </select>
+        </div>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="secondary" onClick={onClose}>
+            Hủy
+          </button>
+          <button type="submit" disabled={busy}>
+            {busy ? "Đang lưu…" : "Lưu"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ---------- Thực đơn ----------
+function MenuTab() {
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editing, setEditing] = useState<MenuItem | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = () => {
+    api.admin.menu().then((r) => setItems(r.data));
+    api.admin.categories().then((r) => setCategories(r.data));
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const catName = (id: string | null) =>
+    categories.find((c) => c.id === id)?.name || "—";
+
+  const remove = async (m: MenuItem) => {
+    if (!confirm(`Xóa món "${m.name}"?`)) return;
+    await api.admin.deleteMenu(m.id);
+    load();
+  };
+
+  return (
+    <div className="grid">
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Thực đơn ({items.length})</h2>
+        <button onClick={() => setCreating(true)}>+ Thêm món</button>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Tên món</th>
+              <th>Danh mục</th>
+              <th style={{ textAlign: "right" }}>Giá</th>
+              <th>Trạng thái</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((m) => (
+              <tr key={m.id}>
+                <td>
+                  <strong>{m.name}</strong>
+                  <div className="muted small">{m.description}</div>
+                </td>
+                <td>
+                  <span className="badge user">{catName(m.category_id)}</span>
+                </td>
+                <td style={{ textAlign: "right" }}>{formatVND(m.price)}</td>
+                <td>
+                  {m.available ? (
+                    <span className="badge confirmed">Còn bán</span>
+                  ) : (
+                    <span className="badge inactive">Ẩn</span>
+                  )}
+                </td>
+                <td>
+                  <div className="row" style={{ justifyContent: "flex-end" }}>
+                    <button className="secondary small" onClick={() => setEditing(m)}>
+                      Sửa
+                    </button>
+                    <button className="danger small" onClick={() => remove(m)}>
+                      Xóa
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {(creating || editing) && (
+        <MenuModal
+          item={editing}
+          categories={categories}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function MenuModal({
+  item,
+  categories,
+  onClose,
+  onSaved,
+}: {
+  item: MenuItem | null;
+  categories: Category[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: item?.name || "",
+    description: item?.description || "",
+    price: item?.price || "",
+    available: item?.available ?? true,
+    category_id: item?.category_id || categories[0]?.id || "",
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const payload = { ...form, price: String(form.price) };
+      if (item) await api.admin.updateMenu(item.id, payload);
+      else await api.admin.createMenu(payload);
+      onSaved();
+    } catch (err: any) {
+      setError(err.message || "Lưu thất bại");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={item ? "Sửa món" : "Thêm món"} onClose={onClose}>
+      {error && <div className="alert error">{error}</div>}
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>Tên món</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </div>
+        <div className="field">
+          <label>Mô tả</label>
+          <input
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </div>
+        <div className="grid grid-2">
+          <div className="field">
+            <label>Danh mục</label>
+            <select
+              value={form.category_id}
+              onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+            >
+              <option value="">— Không —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Giá (đ)</label>
+            <input
+              type="number"
+              min={0}
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label>Trạng thái</label>
+          <select
+            value={form.available ? "1" : "0"}
+            onChange={(e) => setForm({ ...form, available: e.target.value === "1" })}
+          >
+            <option value="1">Còn bán</option>
+            <option value="0">Ẩn</option>
+          </select>
+        </div>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="secondary" onClick={onClose}>
+            Hủy
+          </button>
+          <button type="submit" disabled={busy}>
+            {busy ? "Đang lưu…" : "Lưu"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -284,11 +900,7 @@ function UserModal({
       <form onSubmit={submit}>
         <div className="field">
           <label>Tên</label>
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         </div>
         <div className="field">
           <label>Email</label>
@@ -312,10 +924,7 @@ function UserModal({
         <div className="grid grid-2">
           <div className="field">
             <label>Vai trò</label>
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-            >
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="user">user</option>
               <option value="admin">admin</option>
             </select>
@@ -341,287 +950,6 @@ function UserModal({
         </div>
       </form>
     </Modal>
-  );
-}
-
-// ---------- Thực đơn ----------
-function MenuTab() {
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [editing, setEditing] = useState<MenuItem | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  const load = () => api.admin.menu().then((r) => setItems(r.data));
-  useEffect(() => {
-    load();
-  }, []);
-
-  const remove = async (m: MenuItem) => {
-    if (!confirm(`Xóa món "${m.name}"?`)) return;
-    await api.admin.deleteMenu(m.id);
-    load();
-  };
-
-  return (
-    <div className="grid">
-      <div className="row between">
-        <h2 style={{ margin: 0 }}>Thực đơn ({items.length})</h2>
-        <button onClick={() => setCreating(true)}>+ Thêm món</button>
-      </div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Tên món</th>
-              <th>Mô tả</th>
-              <th style={{ textAlign: "right" }}>Giá</th>
-              <th>Trạng thái</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((m) => (
-              <tr key={m.id}>
-                <td>
-                  <strong>{m.name}</strong>
-                </td>
-                <td className="muted small">{m.description}</td>
-                <td style={{ textAlign: "right" }}>{formatVND(m.price)}</td>
-                <td>
-                  {m.available ? (
-                    <span className="badge confirmed">Còn bán</span>
-                  ) : (
-                    <span className="badge inactive">Ẩn</span>
-                  )}
-                </td>
-                <td>
-                  <div className="row" style={{ justifyContent: "flex-end" }}>
-                    <button className="secondary small" onClick={() => setEditing(m)}>
-                      Sửa
-                    </button>
-                    <button className="danger small" onClick={() => remove(m)}>
-                      Xóa
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {(creating || editing) && (
-        <MenuModal
-          item={editing}
-          onClose={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
-          onSaved={() => {
-            setCreating(false);
-            setEditing(null);
-            load();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function MenuModal({
-  item,
-  onClose,
-  onSaved,
-}: {
-  item: MenuItem | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [form, setForm] = useState({
-    name: item?.name || "",
-    description: item?.description || "",
-    price: item?.price || "",
-    available: item?.available ?? true,
-  });
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      const payload = { ...form, price: String(form.price) };
-      if (item) await api.admin.updateMenu(item.id, payload);
-      else await api.admin.createMenu(payload);
-      onSaved();
-    } catch (err: any) {
-      setError(err.message || "Lưu thất bại");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal title={item ? "Sửa món" : "Thêm món"} onClose={onClose}>
-      {error && <div className="alert error">{error}</div>}
-      <form onSubmit={submit}>
-        <div className="field">
-          <label>Tên món</label>
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Mô tả</label>
-          <input
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </div>
-        <div className="grid grid-2">
-          <div className="field">
-            <label>Giá (đ)</label>
-            <input
-              type="number"
-              min={0}
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              required
-            />
-          </div>
-          <div className="field">
-            <label>Trạng thái</label>
-            <select
-              value={form.available ? "1" : "0"}
-              onChange={(e) => setForm({ ...form, available: e.target.value === "1" })}
-            >
-              <option value="1">Còn bán</option>
-              <option value="0">Ẩn</option>
-            </select>
-          </div>
-        </div>
-        <div className="row" style={{ justifyContent: "flex-end" }}>
-          <button type="button" className="secondary" onClick={onClose}>
-            Hủy
-          </button>
-          <button type="submit" disabled={busy}>
-            {busy ? "Đang lưu…" : "Lưu"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-// ---------- Đơn hàng ----------
-function OrdersTab() {
-  const [date, setDate] = useState(today());
-  const [status, setStatus] = useState("");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
-
-  const load = () => {
-    setLoading(true);
-    api.admin
-      .orders(date, status || undefined)
-      .then((r) => setOrders(r.data))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, [date, status]);
-
-  const confirmOne = async (o: Order) => {
-    try {
-      await api.admin.confirmOrder(o.id);
-      load();
-    } catch (e: any) {
-      alert(e.message);
-    }
-  };
-
-  const confirmAll = async () => {
-    const pending = orders.filter((o) => o.status === "pending").length;
-    if (pending === 0) return;
-    if (!confirm(`Chốt tất cả ${pending} đơn chờ của ngày ${date}?`)) return;
-    const r = await api.admin.confirmDate(date);
-    setMsg(`Đã chốt ${r.data.confirmed}/${r.data.total} đơn.`);
-    load();
-  };
-
-  const pendingCount = orders.filter((o) => o.status === "pending").length;
-
-  return (
-    <div className="grid">
-      <div className="row between wrap">
-        <h2 style={{ margin: 0 }}>Đơn hàng</h2>
-        <div className="row wrap">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={{ width: "auto" }}
-          />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            style={{ width: "auto" }}
-          >
-            <option value="">Tất cả</option>
-            <option value="pending">Chờ chốt</option>
-            <option value="confirmed">Đã chốt</option>
-            <option value="cancelled">Đã hủy</option>
-          </select>
-          <button className="success" onClick={confirmAll} disabled={pendingCount === 0}>
-            Chốt tất cả ({pendingCount})
-          </button>
-        </div>
-      </div>
-
-      {msg && <div className="alert success">{msg}</div>}
-
-      {loading ? (
-        <div className="spinner">Đang tải…</div>
-      ) : orders.length === 0 ? (
-        <div className="card muted">Không có đơn nào cho bộ lọc này.</div>
-      ) : (
-        <div className="grid">
-          {orders.map((o) => (
-            <div key={o.id} className="card">
-              <div className="row between wrap">
-                <div>
-                  <strong>{o.user?.name || "?"}</strong>{" "}
-                  <span className="muted small">{o.user?.email}</span>
-                  <div className="small muted">{o.order_date}</div>
-                </div>
-                <div className="row">
-                  <StatusBadge status={o.status} />
-                  <strong>{formatVND(o.total_amount)}</strong>
-                  {o.status === "pending" && (
-                    <button className="success small" onClick={() => confirmOne(o)}>
-                      Chốt đơn
-                    </button>
-                  )}
-                </div>
-              </div>
-              <table className="mt">
-                <tbody>
-                  {o.items.map((it) => (
-                    <tr key={it.id}>
-                      <td>{it.item_name}</td>
-                      <td className="muted">×{it.quantity}</td>
-                      <td style={{ textAlign: "right" }}>{formatVND(it.subtotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {o.note && <div className="small muted mt">Ghi chú: {o.note}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -705,9 +1033,7 @@ function FundTab() {
             <tbody>
               {txs.map((t) => (
                 <tr key={t.id}>
-                  <td className="small muted">
-                    {new Date(t.inserted_at).toLocaleString("vi-VN")}
-                  </td>
+                  <td className="small muted">{new Date(t.inserted_at).toLocaleString("vi-VN")}</td>
                   <td>{t.user?.name}</td>
                   <td>{typeLabel[t.type] || t.type}</td>
                   <td className="small">{t.description}</td>
@@ -785,10 +1111,7 @@ function FundModal({
         </div>
         <div className="field">
           <label>
-            Số tiền (đ){" "}
-            {mode === "adjust" && (
-              <span className="muted">— có thể âm để trừ</span>
-            )}
+            Số tiền (đ) {mode === "adjust" && <span className="muted">— có thể âm để trừ</span>}
           </label>
           <input
             type="number"

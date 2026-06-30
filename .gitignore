@@ -1,2 +1,8 @@
+# Claude Code session data & worktrees
+.claude/
+
+# OS
+.DS_Store
+
 # Cấu hình deploy chứa thông tin server — không commit.
 /deploy.config

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   api,
   formatVND,
-  today,
   type FundTransaction,
-  type MenuItem,
+  type GroupOrder,
+  type GroupOrderDetail,
   type Order,
 } from "../api";
 import { useAuth } from "../auth";
@@ -20,7 +20,7 @@ export default function UserDashboard() {
       <div className="container">
         <div className="tabs">
           <button className={`tab ${tab === "order" ? "active" : ""}`} onClick={() => setTab("order")}>
-            🥢 Đặt món
+            🥢 Đặt theo đợt
           </button>
           <button className={`tab ${tab === "orders" ? "active" : ""}`} onClick={() => setTab("orders")}>
             📋 Đơn của tôi
@@ -30,7 +30,7 @@ export default function UserDashboard() {
           </button>
         </div>
 
-        {tab === "order" && <OrderTab onPlaced={() => setTab("orders")} />}
+        {tab === "order" && <GroupOrdersTab onPlaced={() => setTab("orders")} />}
         {tab === "orders" && <MyOrdersTab />}
         {tab === "fund" && <FundTab />}
       </div>
@@ -38,18 +38,72 @@ export default function UserDashboard() {
   );
 }
 
-// ---------- Đặt món ----------
-function OrderTab({ onPlaced }: { onPlaced: () => void }) {
-  const [menu, setMenu] = useState<MenuItem[]>([]);
+// ---------- Danh sách đợt + đặt món ----------
+function GroupOrdersTab({ onPlaced }: { onPlaced: () => void }) {
+  const [groups, setGroups] = useState<GroupOrder[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.openGroupOrders().then((r) => setGroups(r.data)).finally(() => setLoading(false));
+  }, []);
+
+  if (selected)
+    return <OrderForm groupId={selected} onBack={() => setSelected(null)} onPlaced={onPlaced} />;
+
+  if (loading) return <div className="spinner">Đang tải…</div>;
+  if (groups.length === 0)
+    return <div className="card muted">Hiện chưa có đợt đặt nào đang mở. Chờ admin tạo đợt nhé.</div>;
+
+  return (
+    <div className="grid grid-2">
+      {groups.map((g) => (
+        <div key={g.id} className="card">
+          <div className="row between wrap">
+            <div>
+              <h2 style={{ marginBottom: 4 }}>{g.title}</h2>
+              <span className="badge admin">{g.category?.name}</span>{" "}
+              <span className="small muted">📅 {g.order_date}</span>
+            </div>
+          </div>
+          {g.note && <p className="small muted mt">📌 {g.note}</p>}
+          <button className="mt" style={{ width: "100%" }} onClick={() => setSelected(g.id)}>
+            Đặt món cho đợt này
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- Form đặt món trong 1 đợt ----------
+function OrderForm({
+  groupId,
+  onBack,
+  onPlaced,
+}: {
+  groupId: string;
+  onBack: () => void;
+  onPlaced: () => void;
+}) {
+  const [detail, setDetail] = useState<GroupOrderDetail | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.menu().then((r) => setMenu(r.data)).catch(() => {});
-  }, []);
+    api.groupOrder(groupId).then((r) => {
+      setDetail(r.data);
+      // nạp lại đơn cũ nếu đã đặt
+      if (r.data.my_order) {
+        const c: Record<string, number> = {};
+        r.data.my_order.items.forEach((it) => (c[it.menu_item_id] = it.quantity));
+        setCart(c);
+        setNote(r.data.my_order.note || "");
+      }
+    });
+  }, [groupId]);
 
   const setQty = (id: string, delta: number) =>
     setCart((c) => {
@@ -60,13 +114,17 @@ function OrderTab({ onPlaced }: { onPlaced: () => void }) {
       return next;
     });
 
-  const total = useMemo(
-    () =>
-      menu.reduce((sum, m) => sum + (cart[m.id] || 0) * parseFloat(m.price), 0),
-    [cart, menu]
-  );
+  const total = useMemo(() => {
+    if (!detail) return 0;
+    return detail.menu_items.reduce(
+      (sum, m) => sum + (cart[m.id] || 0) * parseFloat(m.price),
+      0
+    );
+  }, [cart, detail]);
 
-  const itemCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  if (!detail) return <div className="spinner">Đang tải…</div>;
+
+  const closed = detail.group_order.status !== "open";
 
   const submit = async () => {
     setMsg(null);
@@ -80,10 +138,8 @@ function OrderTab({ onPlaced }: { onPlaced: () => void }) {
     }
     setBusy(true);
     try {
-      await api.placeOrder({ order_date: date, note, items });
+      await api.orderInGroup(groupId, { note, items });
       setMsg({ type: "success", text: "Đặt món thành công!" });
-      setCart({});
-      setNote("");
       setTimeout(onPlaced, 600);
     } catch (e: any) {
       setMsg({ type: "error", text: e.message || "Đặt món thất bại" });
@@ -93,82 +149,93 @@ function OrderTab({ onPlaced }: { onPlaced: () => void }) {
   };
 
   return (
-    <div className="grid grid-2">
-      <div className="card">
-        <h2>Thực đơn</h2>
-        {menu.length === 0 && <p className="muted">Chưa có món nào.</p>}
-        {menu.map((m) => {
-          const q = cart[m.id] || 0;
-          return (
-            <div key={m.id} className={`menu-item ${q > 0 ? "selected" : ""}`}>
-              <div>
-                <strong>{m.name}</strong>
-                <div className="small muted">{m.description}</div>
-                <div className="small">{formatVND(m.price)}</div>
-              </div>
-              <div className="qty">
-                <button onClick={() => setQty(m.id, -1)} disabled={q === 0}>
-                  −
-                </button>
-                <span>{q}</span>
-                <button onClick={() => setQty(m.id, 1)}>+</button>
-              </div>
-            </div>
-          );
-        })}
+    <div>
+      <button className="ghost mb" onClick={onBack}>
+        ← Quay lại danh sách đợt
+      </button>
+      <div className="row between wrap mb">
+        <h2 style={{ margin: 0 }}>
+          {detail.group_order.title}{" "}
+          <span className="badge admin">{detail.group_order.category?.name}</span>
+        </h2>
+        <span className="small muted">📅 {detail.group_order.order_date}</span>
       </div>
 
-      <div className="card" style={{ alignSelf: "start", position: "sticky", top: 84 }}>
-        <h2>Giỏ đặt</h2>
-        {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+      {closed && <div className="alert error">Đợt này đã đóng, không thể đặt thêm.</div>}
 
-        <div className="field">
-          <label>Ngày đặt</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <div className="grid grid-2">
+        <div className="card">
+          <h2>Thực đơn — {detail.group_order.category?.name}</h2>
+          {detail.menu_items.length === 0 && <p className="muted">Đợt này chưa có món.</p>}
+          {detail.menu_items.map((m) => {
+            const q = cart[m.id] || 0;
+            return (
+              <div key={m.id} className={`menu-item ${q > 0 ? "selected" : ""}`}>
+                <div>
+                  <strong>{m.name}</strong>
+                  <div className="small muted">{m.description}</div>
+                  <div className="small">{formatVND(m.price)}</div>
+                </div>
+                <div className="qty">
+                  <button onClick={() => setQty(m.id, -1)} disabled={q === 0 || closed}>
+                    −
+                  </button>
+                  <span>{q}</span>
+                  <button onClick={() => setQty(m.id, 1)} disabled={closed}>
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {itemCount === 0 ? (
-          <p className="muted">Chưa chọn món nào.</p>
-        ) : (
-          <table>
-            <tbody>
-              {menu
-                .filter((m) => cart[m.id])
-                .map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.name}</td>
-                    <td className="muted">×{cart[m.id]}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {formatVND(parseFloat(m.price) * cart[m.id])}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        )}
+        <div className="card" style={{ alignSelf: "start", position: "sticky", top: 84 }}>
+          <h2>Giỏ đặt</h2>
+          {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
+          {detail.my_order && (
+            <p className="small muted">Bạn đã đặt đợt này — sửa lại sẽ thay thế đơn cũ.</p>
+          )}
 
-        <div className="field mt">
-          <label>Ghi chú</label>
-          <textarea
-            rows={2}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="VD: ít cay, không hành…"
-          />
-        </div>
+          {Object.keys(cart).length === 0 ? (
+            <p className="muted">Chưa chọn món nào.</p>
+          ) : (
+            <table>
+              <tbody>
+                {detail.menu_items
+                  .filter((m) => cart[m.id])
+                  .map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.name}</td>
+                      <td className="muted">×{cart[m.id]}</td>
+                      <td style={{ textAlign: "right" }}>
+                        {formatVND(parseFloat(m.price) * cart[m.id])}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
 
-        <div className="row between mt">
-          <strong>Tổng cộng</strong>
-          <strong style={{ fontSize: 18, color: "var(--primary)" }}>
-            {formatVND(total)}
-          </strong>
+          <div className="field mt">
+            <label>Ghi chú</label>
+            <textarea
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="VD: ít cay, không hành…"
+              disabled={closed}
+            />
+          </div>
+
+          <div className="row between mt">
+            <strong>Tổng cộng</strong>
+            <strong style={{ fontSize: 18, color: "var(--primary)" }}>{formatVND(total)}</strong>
+          </div>
+          <button className="mt" style={{ width: "100%" }} onClick={submit} disabled={busy || closed}>
+            {busy ? "Đang gửi…" : detail.my_order ? "Cập nhật đơn" : "Đặt món"}
+          </button>
         </div>
-        <button className="mt" style={{ width: "100%" }} onClick={submit} disabled={busy}>
-          {busy ? "Đang gửi…" : "Đặt món"}
-        </button>
-        <p className="small muted mt">
-          Nếu bạn đã đặt trong ngày này, đơn cũ (chưa chốt) sẽ được thay thế.
-        </p>
       </div>
     </div>
   );
@@ -192,8 +259,7 @@ function MyOrdersTab() {
   };
 
   if (loading) return <div className="spinner">Đang tải…</div>;
-  if (orders.length === 0)
-    return <div className="card muted">Bạn chưa có đơn nào.</div>;
+  if (orders.length === 0) return <div className="card muted">Bạn chưa có đơn nào.</div>;
 
   return (
     <div className="grid">
@@ -201,7 +267,14 @@ function MyOrdersTab() {
         <div key={o.id} className="card">
           <div className="row between wrap">
             <div>
-              <strong>{o.order_date}</strong> <StatusBadge status={o.status} />
+              <strong>{o.group_order?.title || o.order_date}</strong>{" "}
+              <StatusBadge status={o.status} />
+              {o.group_order?.category && (
+                <span className="badge admin" style={{ marginLeft: 6 }}>
+                  {o.group_order.category.name}
+                </span>
+              )}
+              <div className="small muted">📅 {o.order_date}</div>
             </div>
             <div className="row">
               <strong>{formatVND(o.total_amount)}</strong>

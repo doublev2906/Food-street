@@ -29,8 +29,12 @@ defmodule FoodStreetWeb.Router do
 
     get "/menu", MenuController, :index
 
+    # Đợt đặt nhóm (user)
+    get "/group_orders", GroupOrderController, :index
+    get "/group_orders/:id", GroupOrderController, :show
+    post "/group_orders/:id/order", GroupOrderController, :create_order
+
     get "/orders", OrderController, :index
-    post "/orders", OrderController, :create
     delete "/orders/:id", OrderController, :cancel
 
     get "/fund/balance", FundController, :balance
@@ -48,9 +52,22 @@ defmodule FoodStreetWeb.Router do
     put "/menu/:id", MenuController, :update
     delete "/menu/:id", MenuController, :delete
 
+    # Danh mục món
+    get "/categories", CategoryController, :index
+    post "/categories", CategoryController, :create
+    put "/categories/:id", CategoryController, :update
+    delete "/categories/:id", CategoryController, :delete
+
+    # Đợt đặt nhóm
+    get "/group_orders", GroupOrderController, :index
+    get "/group_orders/:id", GroupOrderController, :show
+    post "/group_orders", GroupOrderController, :create
+    put "/group_orders/:id", GroupOrderController, :update
+    delete "/group_orders/:id", GroupOrderController, :delete
+    post "/group_orders/:id/close", GroupOrderController, :close
+
     get "/orders", OrderController, :index
     post "/orders/:id/confirm", OrderController, :confirm
-    post "/orders/confirm_date", OrderController, :confirm_date
 
     get "/stats", StatsController, :summary
     get "/stats/revenue", StatsController, :revenue

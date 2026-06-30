@@ -1,5 +1,5 @@
 // API client cho hệ thống đặt đồ ăn sáng.
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:4003/api";
 
 // ---- Types ----
 export type Role = "user" | "admin";
@@ -14,12 +14,21 @@ export interface User {
   inserted_at?: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
   description: string | null;
   price: string;
   available: boolean;
+  category_id: string | null;
+  category?: Category | null;
 }
 
 export interface OrderItem {
@@ -34,6 +43,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   user_id: string;
+  group_order_id: string | null;
   order_date: string;
   status: "pending" | "confirmed" | "cancelled";
   total_amount: string;
@@ -42,6 +52,28 @@ export interface Order {
   inserted_at: string;
   items: OrderItem[];
   user?: { id: string; name: string; email: string } | null;
+  group_order?: GroupOrder | null;
+}
+
+export interface GroupOrder {
+  id: string;
+  title: string;
+  order_date: string;
+  status: "open" | "closed" | "cancelled";
+  note: string | null;
+  deadline: string | null;
+  closed_at?: string | null;
+  category_id?: string | null;
+  category?: Category | null;
+  orders?: Order[];
+  order_count?: number;
+  total_amount?: string;
+}
+
+export interface GroupOrderDetail {
+  group_order: GroupOrder;
+  menu_items: MenuItem[];
+  my_order: Order | null;
 }
 
 export interface FundTransaction {
@@ -86,10 +118,7 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -98,12 +127,10 @@ async function request<T>(
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
-
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();
   const body = text ? JSON.parse(text) : null;
-
   if (!res.ok) {
     if (res.status === 401) tokenStore.clear();
     throw new ApiError(res.status, body);
@@ -111,7 +138,6 @@ async function request<T>(
   return body as T;
 }
 
-// ---- Auth ----
 export const api = {
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>("/login", {
@@ -124,16 +150,24 @@ export const api = {
   // ---- User ----
   menu: () => request<{ data: MenuItem[] }>("/menu"),
   myOrders: () => request<{ data: Order[] }>("/orders"),
-  placeOrder: (payload: {
-    order_date: string;
-    note?: string;
-    items: { menu_item_id: string; quantity: number }[];
-  }) => request<{ data: Order }>("/orders", { method: "POST", body: JSON.stringify(payload) }),
   cancelOrder: (id: string) =>
     request<{ data: Order }>(`/orders/${id}`, { method: "DELETE" }),
   balance: () =>
     request<{ balance: string; user_id: string; name: string }>("/fund/balance"),
   myTransactions: () => request<{ data: FundTransaction[] }>("/fund/transactions"),
+
+  // Đợt đặt nhóm (user)
+  openGroupOrders: () => request<{ data: GroupOrder[] }>("/group_orders"),
+  groupOrder: (id: string) =>
+    request<{ data: GroupOrderDetail }>(`/group_orders/${id}`),
+  orderInGroup: (
+    id: string,
+    payload: { note?: string; items: { menu_item_id: string; quantity: number }[] }
+  ) =>
+    request<{ data: Order }>(`/group_orders/${id}/order`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   // ---- Admin ----
   admin: {
@@ -165,24 +199,54 @@ export const api = {
     deleteMenu: (id: string) =>
       request<void>(`/admin/menu/${id}`, { method: "DELETE" }),
 
-    orders: (date?: string, status?: string) => {
-      const q = new URLSearchParams();
-      if (date) q.set("date", date);
-      if (status) q.set("status", status);
-      const qs = q.toString();
-      return request<{ data: Order[] }>(`/admin/orders${qs ? `?${qs}` : ""}`);
-    },
-    confirmOrder: (id: string) =>
-      request<{ data: Order }>(`/admin/orders/${id}/confirm`, { method: "POST" }),
-    confirmDate: (date: string) =>
-      request<{ data: { confirmed: number; failed: number; total: number } }>(
-        "/admin/orders/confirm_date",
-        { method: "POST", body: JSON.stringify({ date }) }
+    // Danh mục
+    categories: () => request<{ data: Category[] }>("/admin/categories"),
+    createCategory: (payload: Partial<Category>) =>
+      request<{ data: Category }>("/admin/categories", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    updateCategory: (id: string, payload: Partial<Category>) =>
+      request<{ data: Category }>(`/admin/categories/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    deleteCategory: (id: string) =>
+      request<void>(`/admin/categories/${id}`, { method: "DELETE" }),
+
+    // Đợt đặt nhóm
+    groupOrders: (status?: string) =>
+      request<{ data: GroupOrder[] }>(
+        `/admin/group_orders${status ? `?status=${status}` : ""}`
+      ),
+    groupOrder: (id: string) =>
+      request<{ data: GroupOrder }>(`/admin/group_orders/${id}`),
+    createGroupOrder: (payload: {
+      title: string;
+      order_date: string;
+      category_id: string;
+      note?: string;
+      deadline?: string;
+    }) =>
+      request<{ data: GroupOrder }>("/admin/group_orders", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    updateGroupOrder: (id: string, payload: Partial<GroupOrder>) =>
+      request<{ data: GroupOrder }>(`/admin/group_orders/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    deleteGroupOrder: (id: string) =>
+      request<void>(`/admin/group_orders/${id}`, { method: "DELETE" }),
+    closeGroupOrder: (id: string) =>
+      request<{ data: { confirmed: number; group_order: GroupOrder } }>(
+        `/admin/group_orders/${id}/close`,
+        { method: "POST" }
       ),
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),
-
     fundTransactions: () =>
       request<{ data: FundTransaction[] }>("/admin/fund/transactions"),
     deposit: (user_id: string, amount: string, description?: string) =>
