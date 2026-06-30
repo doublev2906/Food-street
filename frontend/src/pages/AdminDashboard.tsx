@@ -752,7 +752,14 @@ function MenuModal({
 }
 
 // ---------- Người dùng ----------
-const emptyUser = { name: "", email: "", password: "", role: "user" as const, active: true };
+const emptyUser = {
+  name: "",
+  username: "",
+  email: "",
+  password: "",
+  role: "user" as const,
+  active: true,
+};
 
 function UsersTab() {
   const [users, setUsers] = useState<User[]>([]);
@@ -803,6 +810,7 @@ function UsersTab() {
                 <tr key={u.id}>
                   <td>
                     <strong>{u.name}</strong>
+                    <div className="muted small">@{u.username}</div>
                   </td>
                   <td className="muted">{u.email}</td>
                   <td>
@@ -899,8 +907,17 @@ function UserModal({
       {error && <div className="alert error">{error}</div>}
       <form onSubmit={submit}>
         <div className="field">
-          <label>Tên</label>
+          <label>Tên hiển thị</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </div>
+        <div className="field">
+          <label>Tên đăng nhập</label>
+          <input
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+            placeholder="chữ thường, số, _ hoặc ."
+            required
+          />
         </div>
         <div className="field">
           <label>Email</label>

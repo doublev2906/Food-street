@@ -7,6 +7,7 @@ export type Role = "user" | "admin";
 export interface User {
   id: string;
   name: string;
+  username: string;
   email: string;
   role: Role;
   balance: string;
@@ -139,13 +140,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login: (email: string, password: string) =>
+  login: (username: string, password: string) =>
     request<{ token: string; user: User }>("/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }),
 
   me: () => request<{ user: User }>("/me"),
+
+  // Người dùng tự cập nhật hồ sơ
+  updateProfile: (name: string) =>
+    request<{ user: User }>("/profile", {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    }),
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ ok: boolean; message: string }>("/password", {
+      method: "PUT",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
 
   // ---- User ----
   menu: () => request<{ data: MenuItem[] }>("/menu"),

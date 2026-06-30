@@ -6,8 +6,19 @@ defmodule FoodStreetWeb.AuthController do
 
   action_fallback FoodStreetWeb.FallbackController
 
-  def login(conn, %{"email" => email, "password" => password}) do
-    case Accounts.authenticate(email, password) do
+  def login(conn, %{"password" => password} = params) do
+    identifier = params["username"] || params["email"]
+    do_login(conn, identifier, password)
+  end
+
+  def login(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "missing_params", message: "Cần username và password"})
+  end
+
+  defp do_login(conn, identifier, password) when is_binary(identifier) do
+    case Accounts.authenticate(identifier, password) do
       {:ok, user} ->
         token = Guardian.create_token(user)
         json(conn, %{token: token, user: user})
@@ -20,14 +31,14 @@ defmodule FoodStreetWeb.AuthController do
       {:error, _} ->
         conn
         |> put_status(:unauthorized)
-        |> json(%{error: "invalid_credentials", message: "Email hoặc mật khẩu không đúng"})
+        |> json(%{error: "invalid_credentials", message: "Tên đăng nhập hoặc mật khẩu không đúng"})
     end
   end
 
-  def login(conn, _params) do
+  defp do_login(conn, _identifier, _password) do
     conn
     |> put_status(:bad_request)
-    |> json(%{error: "missing_params", message: "Cần email và password"})
+    |> json(%{error: "missing_params", message: "Cần username và password"})
   end
 
   def me(conn, _params) do

@@ -4,12 +4,14 @@ defmodule FoodStreet.Accounts.User do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  @derive {Jason.Encoder, only: [:id, :name, :email, :role, :balance, :active, :inserted_at]}
+  @derive {Jason.Encoder,
+           only: [:id, :name, :username, :email, :role, :balance, :active, :inserted_at]}
 
   @roles ~w(user admin)
 
   schema "users" do
     field :name, :string
+    field :username, :string
     field :email, :string
     field :password_hash, :string
     field :role, :string, default: "user"
@@ -24,28 +26,56 @@ defmodule FoodStreet.Accounts.User do
   @doc "Changeset for creating a user (admin creates users)."
   def create_changeset(user, attrs) do
     user
-    |> cast(attrs, [:name, :email, :role, :active, :password, :balance])
-    |> validate_required([:name, :email, :password])
+    |> cast(attrs, [:name, :username, :email, :role, :active, :password, :balance])
+    |> validate_required([:name, :username, :email, :password])
     |> validate_inclusion(:role, @roles)
+    |> validate_username()
     |> validate_email()
     |> validate_password()
     |> put_password_hash()
   end
 
-  @doc "Changeset for updating a user's profile (admin)."
+  @doc "Changeset for updating a user (admin)."
   def update_changeset(user, attrs) do
     user
-    |> cast(attrs, [:name, :email, :role, :active, :password])
-    |> validate_required([:name, :email])
+    |> cast(attrs, [:name, :username, :email, :role, :active, :password])
+    |> validate_required([:name, :username, :email])
     |> validate_inclusion(:role, @roles)
+    |> validate_username()
     |> validate_email()
     |> maybe_validate_password()
     |> maybe_put_password_hash()
   end
 
+  @doc "Người dùng tự cập nhật hồ sơ (chỉ tên)."
+  def profile_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:name])
+    |> validate_required([:name])
+  end
+
+  @doc "Đặt mật khẩu mới (đã xác thực mật khẩu cũ ở context)."
+  def password_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:password])
+    |> validate_required([:password])
+    |> validate_password()
+    |> put_password_hash()
+  end
+
   @doc "Changeset that only updates the balance (used by Fund context)."
   def balance_changeset(user, new_balance) do
     change(user, balance: new_balance)
+  end
+
+  defp validate_username(changeset) do
+    changeset
+    |> update_change(:username, &String.downcase(String.trim(&1 || "")))
+    |> validate_format(:username, ~r/^[a-z0-9_.]+$/,
+      message: "chỉ gồm chữ thường, số, dấu chấm hoặc gạch dưới"
+    )
+    |> validate_length(:username, min: 3, max: 30)
+    |> unique_constraint(:username)
   end
 
   defp validate_email(changeset) do

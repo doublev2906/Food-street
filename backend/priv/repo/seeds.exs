@@ -58,19 +58,21 @@ IO.puts("== Seeding users ==")
 admin =
   Seeds.upsert_user(%{
     "name" => "Quản trị viên",
+    "username" => "admin",
     "email" => "admin@foodstreet.vn",
     "password" => "admin123",
     "role" => "admin"
   })
 
 users =
-  for {name, email} <- [
-        {"Nguyễn Văn An", "an@foodstreet.vn"},
-        {"Trần Thị Bình", "binh@foodstreet.vn"},
-        {"Lê Văn Cường", "cuong@foodstreet.vn"}
+  for {name, username, email} <- [
+        {"Nguyễn Văn An", "an", "an@foodstreet.vn"},
+        {"Trần Thị Bình", "binh", "binh@foodstreet.vn"},
+        {"Lê Văn Cường", "cuong", "cuong@foodstreet.vn"}
       ] do
     Seeds.upsert_user(%{
       "name" => name,
+      "username" => username,
       "email" => email,
       "password" => "user123",
       "role" => "user"

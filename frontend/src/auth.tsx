@@ -10,7 +10,7 @@ import { api, tokenStore, type User } from "./api";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await api.login(email, password);
+  const login = async (username: string, password: string) => {
+    const res = await api.login(username, password);
     tokenStore.set(res.token);
     setUser(res.user);
     return res.user;

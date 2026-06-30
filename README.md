@@ -83,12 +83,15 @@ Mở http://localhost:5173
 
 ### Tài khoản demo (tạo bởi seed)
 
-| Vai trò | Email | Mật khẩu |
-|--------|-------|----------|
-| Admin | `admin@foodstreet.vn` | `admin123` |
-| User | `an@foodstreet.vn` | `user123` |
-| User | `binh@foodstreet.vn` | `user123` |
-| User | `cuong@foodstreet.vn` | `user123` |
+Đăng nhập bằng **tên đăng nhập** (hoặc email). Người dùng có thể tự đổi tên
+hiển thị và mật khẩu trong mục **Tài khoản** (bấm tên ở góc phải header).
+
+| Vai trò | Tên đăng nhập | Mật khẩu |
+|--------|----------------|----------|
+| Admin | `admin` | `admin123` |
+| User | `an` | `user123` |
+| User | `binh` | `user123` |
+| User | `cuong` | `user123` |
 
 ---
 
@@ -102,6 +105,7 @@ Base URL: `http://localhost:4003/api`
 
 ### Cần đăng nhập (header `Authorization: Bearer <token>`)
 - `GET /me`
+- `PUT /profile` (đổi tên hiển thị) · `PUT /password` (đổi mật khẩu)
 - `GET /menu`
 - `GET /orders` · `POST /orders` · `DELETE /orders/:id`
 - `GET /fund/balance` · `GET /fund/transactions`

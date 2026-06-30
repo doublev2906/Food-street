@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,7 +15,7 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = await login(username.trim(), password);
       navigate(user.role === "admin" ? "/admin" : "/app", { replace: true });
     } catch (err: any) {
       setError(err.message || "Đăng nhập thất bại");
@@ -36,12 +36,12 @@ export default function Login() {
 
         <form onSubmit={submit}>
           <div className="field">
-            <label>Email</label>
+            <label>Tên đăng nhập</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@foodstreet.vn"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="VD: an (hoặc email)"
               required
               autoFocus
             />
@@ -67,9 +67,9 @@ export default function Login() {
         >
           <strong>Tài khoản demo:</strong>
           <br />
-          Admin: admin@foodstreet.vn / admin123
+          Admin: admin / admin123
           <br />
-          User: an@foodstreet.vn / user123
+          User: an / user123 (hoặc binh, cuong)
         </div>
       </div>
     </div>

@@ -16,6 +16,15 @@ defmodule FoodStreet.Accounts do
     Repo.get_by(User, email: String.downcase(String.trim(email)))
   end
 
+  def get_user_by_username(username) when is_binary(username) do
+    Repo.get_by(User, username: String.downcase(String.trim(username)))
+  end
+
+  @doc "Tìm theo username trước, không có thì thử email."
+  def get_user_by_identifier(identifier) when is_binary(identifier) do
+    get_user_by_username(identifier) || get_user_by_email(identifier)
+  end
+
   def create_user(attrs) do
     %User{}
     |> User.create_changeset(attrs)
@@ -30,9 +39,30 @@ defmodule FoodStreet.Accounts do
 
   def delete_user(%User{} = user), do: Repo.delete(user)
 
-  @doc "Xác thực bằng email + mật khẩu. Trả về {:ok, user} hoặc {:error, reason}."
-  def authenticate(email, password) when is_binary(email) and is_binary(password) do
-    user = get_user_by_email(email)
+  @doc "Người dùng tự đổi tên hiển thị."
+  def update_profile(%User{} = user, attrs) do
+    user
+    |> User.profile_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Người dùng tự đổi mật khẩu: phải nhập đúng mật khẩu hiện tại.
+  Trả về {:ok, user} | {:error, :invalid_current_password} | {:error, changeset}.
+  """
+  def change_password(%User{} = user, current_password, new_password) do
+    if is_binary(current_password) and Bcrypt.verify_pass(current_password, user.password_hash) do
+      user
+      |> User.password_changeset(%{"password" => new_password})
+      |> Repo.update()
+    else
+      {:error, :invalid_current_password}
+    end
+  end
+
+  @doc "Xác thực bằng username hoặc email + mật khẩu. {:ok, user} | {:error, reason}."
+  def authenticate(identifier, password) when is_binary(identifier) and is_binary(password) do
+    user = get_user_by_identifier(identifier)
 
     cond do
       user && user.active && Bcrypt.verify_pass(password, user.password_hash) ->

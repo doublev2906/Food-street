@@ -26,6 +26,8 @@ defmodule FoodStreetWeb.Router do
     pipe_through [:api, :auth]
 
     get "/me", AuthController, :me
+    put "/profile", ProfileController, :update
+    put "/password", ProfileController, :change_password
 
     get "/menu", MenuController, :index
 
