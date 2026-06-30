@@ -3,6 +3,12 @@
 # {$CADDY_EXTRA_TLS}:
 #   - Có domain  -> để trống  => Caddy tự xin Let's Encrypt (HTTPS thật).
 #   - Chỉ có IP  -> "tls internal" => Caddy tự ký (HTTPS, trình duyệt cảnh báo).
+{
+	# Khi truy cập bằng IP, client KHÔNG gửi SNI → coi như SNI = {$DOMAIN}
+	# để Caddy chọn đúng chứng chỉ (bắt buộc khi dùng HTTPS với IP).
+	default_sni {$DOMAIN}
+}
+
 {$DOMAIN} {
 	{$CADDY_EXTRA_TLS}
 	encode zstd gzip

@@ -42,9 +42,9 @@ services:
       DOMAIN: ${PHX_HOST}
       CADDY_EXTRA_TLS: ${CADDY_EXTRA_TLS:-} # "tls internal" khi dùng IP; để trống khi có domain
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # HTTP/3
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp" # HTTP/3
     volumes:
       - caddy_data:/data # giữ chứng chỉ TLS qua các lần restart
       - caddy_config:/config
