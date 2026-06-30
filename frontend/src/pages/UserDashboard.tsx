@@ -88,6 +88,7 @@ function OrderForm({
 }) {
   const [detail, setDetail] = useState<GroupOrderDetail | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -98,8 +99,13 @@ function OrderForm({
       // nạp lại đơn cũ nếu đã đặt
       if (r.data.my_order) {
         const c: Record<string, number> = {};
-        r.data.my_order.items.forEach((it) => (c[it.menu_item_id] = it.quantity));
+        const n: Record<string, string> = {};
+        r.data.my_order.items.forEach((it) => {
+          c[it.menu_item_id] = it.quantity;
+          if (it.note) n[it.menu_item_id] = it.note;
+        });
         setCart(c);
+        setItemNotes(n);
         setNote(r.data.my_order.note || "");
       }
     });
@@ -131,6 +137,7 @@ function OrderForm({
     const items = Object.entries(cart).map(([menu_item_id, quantity]) => ({
       menu_item_id,
       quantity,
+      note: itemNotes[menu_item_id]?.trim() || undefined,
     }));
     if (items.length === 0) {
       setMsg({ type: "error", text: "Hãy chọn ít nhất 1 món" });
@@ -200,30 +207,43 @@ function OrderForm({
           {Object.keys(cart).length === 0 ? (
             <p className="muted">Chưa chọn món nào.</p>
           ) : (
-            <table>
-              <tbody>
-                {detail.menu_items
-                  .filter((m) => cart[m.id])
-                  .map((m) => (
-                    <tr key={m.id}>
-                      <td>{m.name}</td>
-                      <td className="muted">×{cart[m.id]}</td>
-                      <td style={{ textAlign: "right" }}>
-                        {formatVND(parseFloat(m.price) * cart[m.id])}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+            <div className="grid" style={{ gap: 10 }}>
+              {detail.menu_items
+                .filter((m) => cart[m.id])
+                .map((m) => (
+                  <div
+                    key={m.id}
+                    style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}
+                  >
+                    <div className="row between">
+                      <span>
+                        <strong>{m.name}</strong>{" "}
+                        <span className="muted small">×{cart[m.id]}</span>
+                      </span>
+                      <span>{formatVND(parseFloat(m.price) * cart[m.id])}</span>
+                    </div>
+                    <input
+                      className="mt"
+                      style={{ fontSize: 13, padding: "6px 10px" }}
+                      value={itemNotes[m.id] || ""}
+                      onChange={(e) =>
+                        setItemNotes((n) => ({ ...n, [m.id]: e.target.value }))
+                      }
+                      placeholder="Ghi chú món này (vd: ít cay, không hành…)"
+                      disabled={closed}
+                    />
+                  </div>
+                ))}
+            </div>
           )}
 
           <div className="field mt">
-            <label>Ghi chú</label>
+            <label>Ghi chú chung (tùy chọn)</label>
             <textarea
               rows={2}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="VD: ít cay, không hành…"
+              placeholder="Ghi chú cho cả đơn, vd: giao trước 8h…"
               disabled={closed}
             />
           </div>
@@ -289,14 +309,21 @@ function MyOrdersTab() {
             <tbody>
               {o.items.map((it) => (
                 <tr key={it.id}>
-                  <td>{it.item_name}</td>
+                  <td>
+                    {it.item_name}
+                    {it.note && (
+                      <div className="small" style={{ color: "var(--primary)" }}>
+                        ↳ {it.note}
+                      </div>
+                    )}
+                  </td>
                   <td className="muted">×{it.quantity}</td>
                   <td style={{ textAlign: "right" }}>{formatVND(it.subtotal)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {o.note && <div className="small muted mt">Ghi chú: {o.note}</div>}
+          {o.note && <div className="small muted mt">Ghi chú chung: {o.note}</div>}
         </div>
       ))}
     </div>

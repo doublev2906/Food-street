@@ -8,13 +8,14 @@ defmodule FoodStreet.Ordering.OrderItem do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @derive {Jason.Encoder,
-           only: [:id, :menu_item_id, :item_name, :quantity, :unit_price, :subtotal]}
+           only: [:id, :menu_item_id, :item_name, :quantity, :unit_price, :subtotal, :note]}
 
   schema "order_items" do
     field :item_name, :string
     field :quantity, :integer, default: 1
     field :unit_price, :decimal
     field :subtotal, :decimal
+    field :note, :string
 
     belongs_to :order, Order
     belongs_to :menu_item, MenuItem
@@ -24,7 +25,7 @@ defmodule FoodStreet.Ordering.OrderItem do
 
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:menu_item_id, :item_name, :quantity, :unit_price, :subtotal])
+    |> cast(attrs, [:menu_item_id, :item_name, :quantity, :unit_price, :subtotal, :note])
     |> validate_required([:menu_item_id, :item_name, :quantity, :unit_price])
     |> validate_number(:quantity, greater_than: 0)
     |> put_subtotal()

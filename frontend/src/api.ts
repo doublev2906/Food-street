@@ -39,6 +39,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: string;
   subtotal: string;
+  note?: string | null;
 }
 
 export interface Order {
@@ -175,7 +176,10 @@ export const api = {
     request<{ data: GroupOrderDetail }>(`/group_orders/${id}`),
   orderInGroup: (
     id: string,
-    payload: { note?: string; items: { menu_item_id: string; quantity: number }[] }
+    payload: {
+      note?: string;
+      items: { menu_item_id: string; quantity: number; note?: string }[];
+    }
   ) =>
     request<{ data: Order }>(`/group_orders/${id}/order`, {
       method: "POST",

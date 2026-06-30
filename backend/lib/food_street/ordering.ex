@@ -233,6 +233,7 @@ defmodule FoodStreet.Ordering do
       Enum.map(raw_items, fn item ->
         menu_item_id = item["menu_item_id"] || item[:menu_item_id]
         quantity = to_int(item["quantity"] || item[:quantity] || 1)
+        note = item["note"] || item[:note]
 
         case Repo.get(MenuItem, menu_item_id) do
           %MenuItem{available: true, category_id: ^category_id} = mi when quantity > 0 ->
@@ -241,7 +242,8 @@ defmodule FoodStreet.Ordering do
               item_name: mi.name,
               quantity: quantity,
               unit_price: mi.price,
-              subtotal: Decimal.mult(mi.price, quantity)
+              subtotal: Decimal.mult(mi.price, quantity),
+              note: note
             }
 
           _ ->

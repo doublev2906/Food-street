@@ -392,14 +392,21 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 <tbody>
                   {o.items.map((it) => (
                     <tr key={it.id}>
-                      <td>{it.item_name}</td>
+                      <td>
+                        {it.item_name}
+                        {it.note && (
+                          <div className="small" style={{ color: "var(--primary)" }}>
+                            ↳ {it.note}
+                          </div>
+                        )}
+                      </td>
                       <td className="muted">×{it.quantity}</td>
                       <td style={{ textAlign: "right" }}>{formatVND(it.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {o.note && <div className="small muted mt">Ghi chú: {o.note}</div>}
+              {o.note && <div className="small muted mt">Ghi chú chung: {o.note}</div>}
             </div>
           ))}
         </div>
@@ -410,19 +417,30 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
-// Gộp đơn của 1 đợt thành text gửi người bán: tên món + số lượng + ghi chú.
+// Gộp đơn của 1 đợt thành text gửi người bán: gộp số lượng theo món, ghi chú
+// hiển thị ngay dưới đúng món (kèm người đặt + số lượng).
 function buildOrderExport(group: GroupOrder): string {
   const orders = (group.orders || []).filter((o) => o.status !== "cancelled");
 
-  const agg: Record<string, number> = {};
-  const order_names: string[] = []; // giữ thứ tự món xuất hiện
+  const names: string[] = []; // giữ thứ tự món xuất hiện
+  const totals: Record<string, number> = {};
+  const itemNotes: Record<string, string[]> = {}; // tên món -> các dòng ghi chú
   let totalItems = 0;
   let totalAmount = 0;
+
   orders.forEach((o) => {
+    const who = o.user?.name || "?";
     o.items.forEach((it) => {
-      if (!(it.item_name in agg)) order_names.push(it.item_name);
-      agg[it.item_name] = (agg[it.item_name] || 0) + it.quantity;
+      if (!(it.item_name in totals)) {
+        names.push(it.item_name);
+        totals[it.item_name] = 0;
+        itemNotes[it.item_name] = [];
+      }
+      totals[it.item_name] += it.quantity;
       totalItems += it.quantity;
+      if (it.note && it.note.trim()) {
+        itemNotes[it.item_name].push(`   • ${who} ×${it.quantity}: ${it.note.trim()}`);
+      }
     });
     totalAmount += parseFloat(o.total_amount);
   });
@@ -430,13 +448,16 @@ function buildOrderExport(group: GroupOrder): string {
   const lines: string[] = [];
   lines.push(`🍜 ${group.title} — ${group.order_date}`);
   lines.push("");
-  order_names.forEach((name) => lines.push(`${name} x${agg[name]}`));
+  names.forEach((name) => {
+    lines.push(`${name} x${totals[name]}`);
+    itemNotes[name].forEach((l) => lines.push(l));
+  });
 
-  const notes = orders.filter((o) => o.note && o.note.trim());
-  if (notes.length) {
+  const general = orders.filter((o) => o.note && o.note.trim());
+  if (general.length) {
     lines.push("");
-    lines.push("Ghi chú:");
-    notes.forEach((o) => lines.push(`- ${o.user?.name || "?"}: ${o.note}`));
+    lines.push("Ghi chú chung:");
+    general.forEach((o) => lines.push(`- ${o.user?.name || "?"}: ${o.note!.trim()}`));
   }
 
   lines.push("");
