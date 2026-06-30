@@ -39,18 +39,11 @@ services:
       context: ./frontend
     restart: unless-stopped
     environment:
-      DOMAIN: ${PHX_HOST} # tên miền trỏ tới server
-      WEB_PORT: ${WEB_PORT:-3200} # Caddy serve HTTPS thẳng cổng này
-      CADDY_EXTRA_TLS: ${CADDY_EXTRA_TLS:-} # cấu hình tls (xem .env.prod.example)
+      WEB_PORT: ${WEB_PORT:-3200} # Caddy serve HTTP thuần cổng này (TLS do nginx ngoài lo)
     ports:
       - "${WEB_PORT:-3200}:${WEB_PORT:-3200}"
-    volumes:
-      - caddy_data:/data # giữ chứng chỉ TLS qua các lần restart
-      - caddy_config:/config
     depends_on:
       - backend
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
