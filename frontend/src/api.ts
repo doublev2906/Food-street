@@ -102,6 +102,14 @@ export interface Stats {
   top_items: { item_name: string; quantity: number; revenue: string }[];
 }
 
+export interface Paginated<T> {
+  data: T[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
 export interface PanchatSettings {
   panchat_configured: boolean;
   panchat_token_preview: string;
@@ -269,8 +277,10 @@ export const api = {
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),
-    fundTransactions: () =>
-      request<{ data: FundTransaction[] }>("/admin/fund/transactions"),
+    fundTransactions: (page = 1, pageSize = 20) =>
+      request<Paginated<FundTransaction>>(
+        `/admin/fund/transactions?page=${page}&page_size=${pageSize}`
+      ),
     deposit: (user_id: string, amount: string, description?: string) =>
       request<{ data: any }>("/admin/fund/deposit", {
         method: "POST",

@@ -1086,13 +1086,31 @@ function UserModal({
 function FundTab() {
   const [users, setUsers] = useState<User[]>([]);
   const [txs, setTxs] = useState<FundTransaction[]>([]);
+  const [page, setPage] = useState(1);
+  const [txMeta, setTxMeta] = useState({ total_pages: 1, total: 0 });
   const [modal, setModal] = useState<"deposit" | "adjust" | null>(null);
 
-  const load = () => {
-    api.admin.users().then((r) => setUsers(r.data));
-    api.admin.fundTransactions().then((r) => setTxs(r.data));
+  const loadUsers = () => api.admin.users().then((r) => setUsers(r.data));
+  const loadTxs = (p: number) =>
+    api.admin.fundTransactions(p).then((r) => {
+      setTxs(r.data);
+      setTxMeta({ total_pages: r.total_pages, total: r.total });
+    });
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+  useEffect(() => {
+    loadTxs(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  // Sau khi nạp/điều chỉnh: cập nhật số dư + về trang 1 để thấy giao dịch mới.
+  const afterMutation = () => {
+    loadUsers();
+    if (page === 1) loadTxs(1);
+    else setPage(1);
   };
-  useEffect(load, []);
 
   const typeLabel: Record<string, string> = {
     deposit: "Nạp quỹ",
@@ -1144,11 +1162,18 @@ function FundTab() {
       </div>
 
       <div className="card">
-        <h2>Lịch sử giao dịch quỹ</h2>
+        <div className="row between wrap">
+          <h2 style={{ margin: 0 }}>Lịch sử giao dịch quỹ</h2>
+          {txMeta.total > 0 && (
+            <span className="small muted">
+              Trang {page}/{txMeta.total_pages} · {txMeta.total} giao dịch
+            </span>
+          )}
+        </div>
         {txs.length === 0 ? (
-          <p className="muted">Chưa có giao dịch.</p>
+          <p className="muted mt">Chưa có giao dịch.</p>
         ) : (
-          <table>
+          <table className="mt">
             <thead>
               <tr>
                 <th>Thời gian</th>
@@ -1175,6 +1200,28 @@ function FundTab() {
             </tbody>
           </table>
         )}
+
+        {txMeta.total_pages > 1 && (
+          <div className="row between mt">
+            <button
+              className="secondary small"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ← Trước
+            </button>
+            <span className="small muted">
+              Trang {page}/{txMeta.total_pages}
+            </span>
+            <button
+              className="secondary small"
+              disabled={page >= txMeta.total_pages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau →
+            </button>
+          </div>
+        )}
       </div>
 
       {modal && (
@@ -1184,7 +1231,7 @@ function FundTab() {
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
-            load();
+            afterMutation();
           }}
         />
       )}

@@ -21,13 +21,39 @@ defmodule FoodStreet.Fund do
     |> Repo.all()
   end
 
-  @doc "Toàn bộ giao dịch quỹ (admin)."
-  def list_transactions do
-    FundTransaction
-    |> order_by([t], desc: t.inserted_at)
-    |> preload([:user, :created_by])
-    |> Repo.all()
+  @doc "Toàn bộ giao dịch quỹ (admin) — có phân trang."
+  def list_transactions(page \\ 1, page_size \\ 20) do
+    page = max(to_int(page, 1), 1)
+    page_size = page_size |> to_int(20) |> min(100) |> max(1)
+    total = Repo.aggregate(FundTransaction, :count, :id)
+
+    entries =
+      FundTransaction
+      |> order_by([t], desc: t.inserted_at)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> preload([:user, :created_by])
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total: total,
+      total_pages: max(ceil(total / page_size), 1)
+    }
   end
+
+  defp to_int(v, _default) when is_integer(v), do: v
+
+  defp to_int(v, default) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, _} -> n
+      _ -> default
+    end
+  end
+
+  defp to_int(_, default), do: default
 
   @doc "Nạp tiền vào quỹ cho 1 user. `amount` > 0."
   def deposit(%User{} = user, amount, %User{} = admin, description \\ nil) do
