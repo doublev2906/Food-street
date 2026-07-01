@@ -7,6 +7,7 @@ import {
   type FundTransaction,
   type GroupOrder,
   type MenuItem,
+  type OrderSchedule,
   type PanchatSettings,
   type Stats,
   type User,
@@ -20,6 +21,7 @@ type Tab =
   | "menu"
   | "groups"
   | "fund"
+  | "schedule"
   | "settings";
 
 export default function AdminDashboard() {
@@ -31,6 +33,7 @@ export default function AdminDashboard() {
     ["categories", "🏷️ Danh mục"],
     ["menu", "🍽️ Thực đơn"],
     ["fund", "💰 Quỹ"],
+    ["schedule", "📅 Lịch hẹn"],
     ["settings", "⚙️ Cài đặt"],
   ];
   return (
@@ -54,6 +57,7 @@ export default function AdminDashboard() {
         {tab === "categories" && <CategoriesTab />}
         {tab === "menu" && <MenuTab />}
         {tab === "fund" && <FundTab />}
+        {tab === "schedule" && <ScheduleTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </>
@@ -1421,6 +1425,247 @@ function SettingsTab() {
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <button type="submit" disabled={busy || token.trim() === ""}>
               {busy ? "Đang lưu…" : "Lưu token"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAYS: [number, string][] = [
+  [1, "T2"],
+  [2, "T3"],
+  [3, "T4"],
+  [4, "T5"],
+  [5, "T6"],
+  [6, "T7"],
+  [7, "CN"],
+];
+
+// "HH:MM:SS" -> "HH:MM" cho input type=time; "" nếu rỗng.
+const toHHMM = (s: string | null) => (s ? s.slice(0, 5) : "");
+// "HH:MM" -> "HH:MM:SS" khi gửi lên (Ecto :time cần đủ giây).
+const toSeconds = (s: string) => (s.length === 5 ? `${s}:00` : s);
+
+function ScheduleTab() {
+  const [schedule, setSchedule] = useState<OrderSchedule | null>(null);
+  const [admins, setAdmins] = useState<User[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null
+  );
+
+  const [form, setForm] = useState({
+    enabled: false,
+    owner_id: "",
+    category_id: "",
+    title: "Ăn sáng",
+    note: "",
+    weekdays: [1, 2, 3, 4, 5] as number[],
+    create_time: "07:00",
+    deadline_time: "08:30",
+  });
+
+  const load = () => {
+    api.admin
+      .getOrderSchedule()
+      .then((r) => {
+        const s = r.data;
+        setSchedule(s);
+        setForm({
+          enabled: s.enabled,
+          owner_id: s.owner_id || "",
+          category_id: s.category_id || "",
+          title: s.title || "Ăn sáng",
+          note: s.note || "",
+          weekdays: s.weekdays?.length ? s.weekdays : [1, 2, 3, 4, 5],
+          create_time: toHHMM(s.create_time) || "07:00",
+          deadline_time: toHHMM(s.deadline_time) || "08:30",
+        });
+      })
+      .catch((e) => setMsg({ type: "error", text: e.message || "Lỗi tải" }));
+    api.admin
+      .users()
+      .then((r) => setAdmins(r.data.filter((u) => u.role === "admin")));
+    api.admin
+      .categories()
+      .then((r) => setCategories(r.data.filter((c) => c.active)));
+  };
+  useEffect(load, []);
+
+  const toggleDay = (d: number) =>
+    setForm((f) => ({
+      ...f,
+      weekdays: f.weekdays.includes(d)
+        ? f.weekdays.filter((x) => x !== d)
+        : [...f.weekdays, d].sort((a, b) => a - b),
+    }));
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setBusy(true);
+    try {
+      const r = await api.admin.saveOrderSchedule({
+        enabled: form.enabled,
+        owner_id: form.owner_id || null,
+        category_id: form.category_id || null,
+        title: form.title,
+        note: form.note,
+        weekdays: form.weekdays,
+        create_time: toSeconds(form.create_time),
+        deadline_time: toSeconds(form.deadline_time),
+      });
+      setSchedule(r.data);
+      setMsg({ type: "ok", text: "Đã lưu lịch hẹn." });
+    } catch (err: any) {
+      setMsg({ type: "error", text: err.message || "Lưu thất bại" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid">
+      <div className="card">
+        <h2>📅 Lịch hẹn mở đợt tự động</h2>
+        <p className="small muted">
+          Hệ thống tự mở đợt đặt món vào giờ đã hẹn theo các ngày trong tuần, kèm
+          giờ chốt đơn, rồi gửi lời mời Panchat bằng token của{" "}
+          <strong>admin đứng tên</strong>. Chỉ 1 lịch dùng chung. Admin đứng tên{" "}
+          <strong>phải có Panchat token</strong> thì mới bật được.
+        </p>
+
+        {schedule && form.enabled && !schedule.panchat_ready && (
+          <div className="alert error">
+            Admin đứng tên hiện chưa cấu hình Panchat token — lịch sẽ không chạy tới
+            khi có token.
+          </div>
+        )}
+        {schedule?.last_run_on && (
+          <p className="small muted">Lần chạy gần nhất: {schedule.last_run_on}</p>
+        )}
+        {msg && (
+          <div className={`alert ${msg.type === "ok" ? "" : "error"}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <form onSubmit={save}>
+          <div className="grid grid-2">
+            <div className="field">
+              <label>Trạng thái</label>
+              <select
+                value={form.enabled ? "1" : "0"}
+                onChange={(e) =>
+                  setForm({ ...form, enabled: e.target.value === "1" })
+                }
+              >
+                <option value="1">Bật</option>
+                <option value="0">Tắt</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Admin đứng tên</label>
+              <select
+                value={form.owner_id}
+                onChange={(e) => setForm({ ...form, owner_id: e.target.value })}
+                required={form.enabled}
+              >
+                <option value="">— Chọn admin —</option>
+                {admins.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-2">
+            <div className="field">
+              <label>Danh mục</label>
+              <select
+                value={form.category_id}
+                onChange={(e) =>
+                  setForm({ ...form, category_id: e.target.value })
+                }
+                required={form.enabled}
+              >
+                <option value="">— Chọn danh mục —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Tiêu đề đợt</label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="VD: Ăn sáng"
+                required={form.enabled}
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Ghi chú (tuỳ chọn)</label>
+            <input
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              placeholder="VD: Chốt đơn lúc 8h30"
+            />
+          </div>
+
+          <div className="field">
+            <label>Các ngày trong tuần</label>
+            <div className="row" style={{ flexWrap: "wrap", gap: 12 }}>
+              {WEEKDAYS.map(([d, label]) => (
+                <label key={d} className="row" style={{ gap: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.weekdays.includes(d)}
+                    onChange={() => toggleDay(d)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-2">
+            <div className="field">
+              <label>Giờ mở đợt</label>
+              <input
+                type="time"
+                value={form.create_time}
+                onChange={(e) =>
+                  setForm({ ...form, create_time: e.target.value })
+                }
+                required={form.enabled}
+              />
+            </div>
+            <div className="field">
+              <label>Giờ chốt đơn</label>
+              <input
+                type="time"
+                value={form.deadline_time}
+                onChange={(e) =>
+                  setForm({ ...form, deadline_time: e.target.value })
+                }
+                required={form.enabled}
+              />
+            </div>
+          </div>
+
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button type="submit" disabled={busy}>
+              {busy ? "Đang lưu…" : "Lưu lịch hẹn"}
             </button>
           </div>
         </form>

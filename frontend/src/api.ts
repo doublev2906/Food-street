@@ -116,6 +116,31 @@ export interface PanchatSettings {
   panchat_token_preview: string;
 }
 
+export interface OrderSchedule {
+  id: string | null;
+  enabled: boolean;
+  owner_id: string | null;
+  category_id: string | null;
+  title: string | null;
+  note: string | null;
+  weekdays: number[]; // ISO: 1=T2 … 7=CN
+  create_time: string | null; // "HH:MM:SS"
+  deadline_time: string | null;
+  last_run_on: string | null;
+  panchat_ready: boolean;
+}
+
+export interface OrderSchedulePayload {
+  enabled: boolean;
+  owner_id: string | null;
+  category_id: string | null;
+  title: string;
+  note?: string;
+  weekdays: number[];
+  create_time: string; // "HH:MM"
+  deadline_time: string;
+}
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -300,6 +325,15 @@ export const api = {
       request<{ data: PanchatSettings }>("/admin/settings/panchat", {
         method: "PUT",
         body: JSON.stringify({ panchat_token }),
+      }),
+
+    // Lịch hẹn tự động mở đợt đặt món hằng ngày (dùng chung)
+    getOrderSchedule: () =>
+      request<{ data: OrderSchedule }>("/admin/order_schedule"),
+    saveOrderSchedule: (payload: OrderSchedulePayload) =>
+      request<{ data: OrderSchedule }>("/admin/order_schedule", {
+        method: "PUT",
+        body: JSON.stringify(payload),
       }),
   },
 };

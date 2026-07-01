@@ -68,7 +68,9 @@ defmodule FoodStreet.Ordering do
 
   def delete_group_order(%GroupOrder{} = go), do: Repo.delete(go)
 
-  defp preload_group({:ok, go}), do: {:ok, Repo.preload(go, [:category, orders: [:items, :user]], force: true)}
+  defp preload_group({:ok, go}),
+    do: {:ok, Repo.preload(go, [:category, orders: [:items, :user]], force: true)}
+
   defp preload_group(error), do: error
 
   @doc """
@@ -284,7 +286,10 @@ defmodule FoodStreet.Ordering do
 
     Multi.new()
     |> Multi.update(:user, User.balance_changeset(user, new_balance))
-    |> Multi.update(:order, Order.status_changeset(order, %{status: "confirmed", confirmed_at: now}))
+    |> Multi.update(
+      :order,
+      Order.status_changeset(order, %{status: "confirmed", confirmed_at: now})
+    )
     |> Multi.insert(:tx, fn _ ->
       FundTransaction.changeset(%FundTransaction{}, %{
         user_id: user.id,

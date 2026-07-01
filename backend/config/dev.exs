@@ -24,10 +24,10 @@ config :food_street, FoodStreetWeb.Endpoint,
   # truy cập được qua port mapping.
   http: [
     ip:
-      (case System.get_env("PHX_IP") do
-         nil -> {127, 0, 0, 1}
-         ip -> ip |> String.split(".") |> Enum.map(&String.to_integer/1) |> List.to_tuple()
-       end)
+      case System.get_env("PHX_IP") do
+        nil -> {127, 0, 0, 1}
+        ip -> ip |> String.split(".") |> Enum.map(&String.to_integer/1) |> List.to_tuple()
+      end
   ],
   check_origin: false,
   code_reloader: true,

@@ -14,6 +14,9 @@ config :food_street,
 # URL gốc của frontend, dùng để dựng link trong lời mời gửi vào Panchat.
 config :food_street, :frontend_url, "https://dev.pancake.vn:3200"
 
+# Ticker lịch hẹn tự động mở đợt đặt món (bật theo mặc định; kiểm tra mỗi 60s).
+config :food_street, FoodStreet.OrderScheduler, enabled: true, interval_ms: 60_000
+
 # Configure the endpoint
 config :food_street, FoodStreetWeb.Endpoint,
   url: [host: "localhost"],

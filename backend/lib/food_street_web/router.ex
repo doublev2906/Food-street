@@ -81,5 +81,9 @@ defmodule FoodStreetWeb.Router do
     # Cấu hình hệ thống (Panchat token)
     get "/settings/panchat", SettingsController, :show
     put "/settings/panchat", SettingsController, :update
+
+    # Lịch hẹn tự động mở đợt đặt món hằng ngày (dùng chung)
+    get "/order_schedule", OrderScheduleController, :show
+    put "/order_schedule", OrderScheduleController, :update
   end
 end

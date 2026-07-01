@@ -20,6 +20,12 @@ config :food_street, FoodStreetWeb.Endpoint,
   secret_key_base: "qPqYelLQwiv5kUYbUiOuQUhDUypKrGiDdHTGaZTiaBDf6gQx8fqz/L9p1o0ZOaBL",
   server: false
 
+# Không chạy ticker lịch hẹn trong test (gọi Scheduling.run_tick/1 trực tiếp thay vì).
+config :food_street, FoodStreet.OrderScheduler, enabled: false
+
+# Không gọi HTTP Panchat thật trong test — định tuyến qua Req.Test stub.
+config :food_street, :panchat_req_options, plug: {Req.Test, FoodStreet.Panchat}
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

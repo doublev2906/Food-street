@@ -31,7 +31,10 @@ defmodule FoodStreetWeb.AuthController do
       {:error, _} ->
         conn
         |> put_status(:unauthorized)
-        |> json(%{error: "invalid_credentials", message: "Tên đăng nhập hoặc mật khẩu không đúng"})
+        |> json(%{
+          error: "invalid_credentials",
+          message: "Tên đăng nhập hoặc mật khẩu không đúng"
+        })
     end
   end
 

@@ -71,7 +71,12 @@ defmodule FoodStreet.Panchat do
   def send_channel_message(token, message) do
     url = "#{@base_url}/api/workspaces/#{@workspace_id}/channels/#{@channel_id}/messages"
 
-    case Req.post(url, params: [token: token], json: build_body(message), receive_timeout: 10_000) do
+    # `:panchat_req_options` cho phép test tiêm Req.Test plug thay vì gọi mạng thật.
+    opts =
+      [params: [token: token], json: build_body(message), receive_timeout: 10_000] ++
+        Application.get_env(:food_street, :panchat_req_options, [])
+
+    case Req.post(url, opts) do
       {:ok, %{body: %{"success" => true} = body}} ->
         {:ok, Map.get(body, "message")}
 
