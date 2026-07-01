@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   api,
   formatVND,
@@ -40,16 +41,26 @@ export default function UserDashboard() {
 
 // ---------- Danh sách đợt + đặt món ----------
 function GroupOrdersTab({ onPlaced }: { onPlaced: () => void }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<GroupOrder[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Deep-link: ?group=<id> mở thẳng form đặt của đợt đó.
+  const [selected, setSelected] = useState<string | null>(searchParams.get("group"));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.openGroupOrders().then((r) => setGroups(r.data)).finally(() => setLoading(false));
   }, []);
 
+  const back = () => {
+    setSelected(null);
+    if (searchParams.has("group")) {
+      searchParams.delete("group");
+      setSearchParams(searchParams, { replace: true });
+    }
+  };
+
   if (selected)
-    return <OrderForm groupId={selected} onBack={() => setSelected(null)} onPlaced={onPlaced} />;
+    return <OrderForm groupId={selected} onBack={back} onPlaced={onPlaced} />;
 
   if (loading) return <div className="spinner">Đang tải…</div>;
   if (groups.length === 0)

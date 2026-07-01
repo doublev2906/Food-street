@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,8 +17,9 @@ export default function Login() {
     setBusy(true);
     try {
       await login(username.trim(), password);
-      // Mọi người vào trang đặt món; admin có nút chuyển sang quản trị.
-      navigate("/app", { replace: true });
+      // Quay lại đường dẫn deep-link (nếu có, vd /app?group=…), mặc định /app.
+      const next = searchParams.get("next");
+      navigate(next ? decodeURIComponent(next) : "/app", { replace: true });
     } catch (err: any) {
       setError(err.message || "Đăng nhập thất bại");
     } finally {

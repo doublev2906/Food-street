@@ -45,7 +45,8 @@ defmodule FoodStreet.Panchat do
 
   @doc "Nội dung tin mời ăn sáng (thuần, không gọi mạng — tách ra để dễ test)."
   def invite_text(%GroupOrder{} = go) do
-    link = "#{frontend_url()}/app"
+    # Deep-link: mở thẳng đợt này để user chọn món ngay.
+    link = "#{frontend_url()}/app?group=#{go.id}"
 
     note_line =
       case go.note do
@@ -95,12 +96,24 @@ defmodule FoodStreet.Panchat do
   `@all` được kích hoạt qua **text thuần** trong `message`, không cần attachment.
   """
   def build_body(message) do
+    mention_all = %{
+      "type" => "mention",
+      "data" => [
+        %{
+          "type" => "all",
+          "trigger" => "@",
+          "name" => "all",
+          "value" => @channel_id
+        }
+      ]
+    }
+
     %{
       workspace_id: @workspace_id,
       channel_id: @channel_id,
       channel_thread_id: nil,
       message: message,
-      attachments: [],
+      attachments: [mention_all],
       current_time: System.os_time(:microsecond),
       key: Ecto.UUID.generate()
     }

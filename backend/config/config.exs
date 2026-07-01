@@ -12,7 +12,7 @@ config :food_street,
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
 # URL gốc của frontend, dùng để dựng link trong lời mời gửi vào Panchat.
-config :food_street, :frontend_url, "http://localhost:5173"
+config :food_street, :frontend_url, "https://dev.pancake.vn:3200"
 
 # Configure the endpoint
 config :food_street, FoodStreetWeb.Endpoint,
