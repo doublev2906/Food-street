@@ -56,7 +56,7 @@ defmodule FoodStreet.Panchat do
       end
 
     """
-    @all 🍜 Đã mở đợt đặt đồ ăn sáng: "#{go.title}" (📅 #{go.order_date})
+    🍜 Đã mở đợt đặt đồ ăn: "#{go.title}" (📅 #{go.order_date})
     Mọi người vào đặt món nhé 👉 #{link}#{note_line}
     """
     |> String.trim_trailing()
@@ -90,10 +90,6 @@ defmodule FoodStreet.Panchat do
 
   @doc """
   Dựng body gửi cho Panchat.
-
-  `attachments: []` giống hệt Panchat MCP `sendChannelMessage` — kiểm chứng từ các
-  tin thật trong channel 11813 (vd "@all ăn sáng", "@all mixue") cho thấy mention
-  `@all` được kích hoạt qua **text thuần** trong `message`, không cần attachment.
   """
   def build_body(message) do
     mention_all = %{
