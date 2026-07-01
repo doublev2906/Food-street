@@ -778,6 +778,7 @@ function MenuModal({
     description: item?.description || "",
     price: item?.price || "",
     available: item?.available ?? true,
+    image_url: item?.image_url || "",
     category_id: item?.category_id || categories[0]?.id || "",
   });
   const [error, setError] = useState("");
@@ -813,6 +814,31 @@ function MenuModal({
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
+        </div>
+        <div className="field">
+          <label>Ảnh món (URL)</label>
+          <div className="row" style={{ alignItems: "flex-start" }}>
+            {form.image_url && (
+              <img
+                src={form.image_url}
+                alt=""
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                  border: "1px solid var(--border)",
+                  flexShrink: 0,
+                }}
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            )}
+            <input
+              value={form.image_url}
+              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+              placeholder="https://content.pancake.vn/…"
+            />
+          </div>
         </div>
         <div className="grid grid-2">
           <div className="field">

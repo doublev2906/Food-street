@@ -28,6 +28,7 @@ export interface MenuItem {
   description: string | null;
   price: string;
   available: boolean;
+  image_url: string | null;
   category_id: string | null;
   category?: Category | null;
 }
