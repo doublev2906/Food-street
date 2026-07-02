@@ -142,6 +142,7 @@ defmodule FoodStreet.Panchat do
     """
     💰 Số dư quỹ ăn sáng (📅 #{date}):
     #{lines}
+    Ace âm tiền nhớ donate quỹ để tránh gián đoạn việc ăn uống nhé
     """
     |> String.trim_trailing()
   end
