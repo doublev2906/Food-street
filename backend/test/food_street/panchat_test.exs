@@ -3,6 +3,8 @@ defmodule FoodStreet.PanchatTest do
 
   alias FoodStreet.Panchat
   alias FoodStreet.Ordering.GroupOrder
+  alias FoodStreet.Fund.{ExternalPurchase, FundTransaction}
+  alias FoodStreet.Accounts.User
 
   describe "invite_text/1" do
     test "contains title, date and app link (@all is sent via mention attachment, not text)" do
@@ -72,6 +74,40 @@ defmodule FoodStreet.PanchatTest do
 
       assert Panchat.send_group_deleted(go, nil) == {:error, :panchat_token_missing}
       assert Panchat.send_group_deleted(go, "  ") == {:error, :panchat_token_missing}
+    end
+  end
+
+  describe "external_purchase_text/1 và send_external_purchase/2" do
+    defp purchase do
+      %ExternalPurchase{
+        id: "p1",
+        description: "Bún chả cô Tâm",
+        total_amount: Decimal.new("50000"),
+        purchase_date: ~D[2026-07-02],
+        transactions: [
+          %FundTransaction{amount: Decimal.new("-30000"), user: %User{name: "An"}},
+          %FundTransaction{amount: Decimal.new("-20000"), user: %User{name: "Bình"}}
+        ]
+      }
+    end
+
+    test "external_purchase_text chứa mô tả, tổng, và từng người + số tiền" do
+      text = Panchat.external_purchase_text(purchase())
+
+      assert text =~ "Bún chả cô Tâm"
+      assert text =~ "50.000đ"
+      assert text =~ "An: 30.000đ"
+      assert text =~ "Bình: 20.000đ"
+    end
+
+    test "@all được gắn qua build_body cho tin chia tiền" do
+      body = Panchat.build_body(Panchat.external_purchase_text(purchase()))
+      assert [%{"type" => "mention", "data" => [%{"type" => "all"}]}] = body.attachments
+    end
+
+    test "send_external_purchase lỗi khi thiếu token, không gọi mạng" do
+      assert Panchat.send_external_purchase(purchase(), nil) == {:error, :panchat_token_missing}
+      assert Panchat.send_external_purchase(purchase(), " ") == {:error, :panchat_token_missing}
     end
   end
 

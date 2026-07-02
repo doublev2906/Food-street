@@ -18,6 +18,7 @@ defmodule FoodStreet.Panchat do
   require Logger
 
   alias FoodStreet.Ordering.GroupOrder
+  alias FoodStreet.Fund.ExternalPurchase
 
   @base_url "https://pancakework.vn"
   @workspace_id 4
@@ -93,6 +94,41 @@ defmodule FoodStreet.Panchat do
           send_channel_message(token, deleted_text(go))
         end
     end
+  end
+
+  @doc """
+  Gửi tin chia tiền mua ngoài (tag @all qua `build_body/1`), bằng `token` của
+  admin thực hiện. `purchase` cần preload `transactions: :user`.
+  """
+  def send_external_purchase(%ExternalPurchase{} = purchase, token) do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
+
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          send_channel_message(token, external_purchase_text(purchase))
+        end
+    end
+  end
+
+  @doc "Nội dung tin chia tiền mua ngoài (thuần, không gọi mạng)."
+  def external_purchase_text(%ExternalPurchase{} = p) do
+    lines =
+      (p.transactions || [])
+      |> Enum.map_join("\n", fn tx ->
+        name = (tx.user && tx.user.name) || "?"
+        "• #{name}: #{format_vnd(Decimal.abs(tx.amount))}"
+      end)
+
+    """
+    💸 Chia tiền mua ngoài: "#{p.description}" (📅 #{p.purchase_date})
+    Tổng #{format_vnd(p.total_amount)} — mỗi người:
+    #{lines}
+    """
+    |> String.trim_trailing()
   end
 
   @doc "Nội dung tin báo xoá đợt (thuần, không gọi mạng)."

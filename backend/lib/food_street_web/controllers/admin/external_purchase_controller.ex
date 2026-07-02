@@ -4,6 +4,10 @@ defmodule FoodStreetWeb.Admin.ExternalPurchaseController do
 
   alias FoodStreet.Fund
   alias FoodStreet.Guardian
+  alias FoodStreet.Settings
+  alias FoodStreet.Panchat
+
+  require Logger
 
   action_fallback FoodStreetWeb.FallbackController
 
@@ -24,12 +28,25 @@ defmodule FoodStreetWeb.Admin.ExternalPurchaseController do
 
     case Fund.record_external_purchase(admin, params) do
       {:ok, purchase} ->
-        conn |> put_status(:created) |> json(%{data: shape(purchase)})
+        panchat = notify_split(purchase, admin)
+        conn |> put_status(:created) |> json(%{data: shape(purchase), panchat: panchat})
 
       {:error, reason} ->
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{error: to_string(reason), message: message(reason)})
+    end
+  end
+
+  # Báo Panchat khi chia tiền (best-effort, tag @all, token admin thực hiện).
+  defp notify_split(purchase, admin) do
+    case Panchat.send_external_purchase(purchase, Settings.panchat_token(admin.id)) do
+      {:ok, _} ->
+        %{sent: true}
+
+      {:error, reason} ->
+        Logger.warning("Không gửi được tin chia tiền #{purchase.id}: #{inspect(reason)}")
+        %{sent: false}
     end
   end
 
