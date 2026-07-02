@@ -745,61 +745,70 @@ function AdminEditOrderModal({
   );
 }
 
-// Gộp đơn của 1 đợt thành text gửi người bán: gộp số lượng theo món, ghi chú
-// hiển thị ngay dưới đúng món (kèm người đặt + số lượng).
-function buildOrderExport(group: GroupOrder): string {
+// Gộp đơn của 1 đợt thành text gửi người bán. Trả về 2 phần:
+//  - display: đầy đủ (tiêu đề + món + ghi chú chung + tổng) để admin xem.
+//  - copy: chỉ phần món (+ ghi chú chung), bỏ tiêu đề và dòng tổng — đây là
+//    nội dung thực sự copy gửi người bán.
+function buildOrderExport(group: GroupOrder): { display: string; copy: string } {
   const orders = (group.orders || []).filter((o) => o.status !== "cancelled");
 
+  // Gom theo tên món để các dòng cùng món nằm cạnh nhau, nhưng mỗi lượt đặt
+  // (kèm ghi chú riêng) là 1 dòng độc lập: "số-lượng tên-món ghi-chú".
   const names: string[] = []; // giữ thứ tự món xuất hiện
-  const totals: Record<string, number> = {};
-  const itemNotes: Record<string, string[]> = {}; // tên món -> các dòng ghi chú
+  const rows: Record<string, string[]> = {}; // tên món -> các dòng đã dựng
   let totalItems = 0;
   let totalAmount = 0;
 
   orders.forEach((o) => {
-    const who = o.user?.name || "?";
     o.items.forEach((it) => {
-      if (!(it.item_name in totals)) {
+      if (!(it.item_name in rows)) {
         names.push(it.item_name);
-        totals[it.item_name] = 0;
-        itemNotes[it.item_name] = [];
+        rows[it.item_name] = [];
       }
-      totals[it.item_name] += it.quantity;
+      const note = it.note?.trim();
+      rows[it.item_name].push(
+        `${it.quantity} ${it.item_name}${note ? ` ${note}` : ""}`
+      );
       totalItems += it.quantity;
-      if (it.note && it.note.trim()) {
-        itemNotes[it.item_name].push(`   • ${who} ×${it.quantity}: ${it.note.trim()}`);
-      }
     });
     totalAmount += parseFloat(o.total_amount);
   });
 
-  const lines: string[] = [];
-  lines.push(`🍜 ${group.title} — ${group.order_date}`);
-  lines.push("");
+  const itemLines: string[] = [];
   names.forEach((name) => {
-    lines.push(`${name} x${totals[name]}`);
-    itemNotes[name].forEach((l) => lines.push(l));
+    rows[name].forEach((l) => itemLines.push(l));
   });
 
+  const generalLines: string[] = [];
   const general = orders.filter((o) => o.note && o.note.trim());
   if (general.length) {
-    lines.push("");
-    lines.push("Ghi chú chung:");
-    general.forEach((o) => lines.push(`- ${o.user?.name || "?"}: ${o.note!.trim()}`));
+    generalLines.push("Ghi chú chung:");
+    general.forEach((o) => generalLines.push(`- ${o.user?.name || "?"}: ${o.note!.trim()}`));
   }
 
-  lines.push("");
-  lines.push(`Tổng: ${totalItems} món · ${formatVND(totalAmount)}`);
-  return lines.join("\n");
+  // Phần copy: món + ghi chú chung (không tiêu đề, không tổng).
+  const copyParts = [...itemLines];
+  if (generalLines.length) copyParts.push("", ...generalLines);
+
+  // Phần hiển thị: bọc thêm tiêu đề ở đầu và tổng ở cuối.
+  const displayParts = [
+    `🍜 ${group.title} — ${group.order_date}`,
+    "",
+    ...copyParts,
+    "",
+    `Tổng: ${totalItems} món · ${formatVND(totalAmount)}`,
+  ];
+
+  return { display: displayParts.join("\n"), copy: copyParts.join("\n") };
 }
 
 function ExportModal({ group, onClose }: { group: GroupOrder; onClose: () => void }) {
-  const text = buildOrderExport(group);
+  const { display, copy: copyText } = buildOrderExport(group);
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(copyText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -815,9 +824,9 @@ function ExportModal({ group, onClose }: { group: GroupOrder; onClose: () => voi
       </p>
       <textarea
         readOnly
-        value={text}
+        value={display}
         onFocus={(e) => e.currentTarget.select()}
-        rows={Math.min(20, text.split("\n").length + 1)}
+        rows={Math.min(20, display.split("\n").length + 1)}
         style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, resize: "vertical" }}
       />
       <div className="row mt" style={{ justifyContent: "flex-end" }}>
