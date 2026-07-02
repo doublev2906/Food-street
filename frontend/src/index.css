@@ -705,3 +705,79 @@ tr:last-child td {
     width: 100%;
   }
 }
+
+/* ================= Mobile ( điện thoại ) ================= */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* --- Header gọn lại --- */
+  .app-header {
+    padding: 0 14px;
+    height: 54px;
+  }
+  .brand-name {
+    font-size: 17px;
+  }
+  /* Ẩn "📍 Khu vực…" để nhường chỗ cho các nút */
+  .brand-sub {
+    display: none;
+  }
+  .header-user {
+    gap: 8px;
+    font-size: 13px;
+  }
+  /* Tên tài khoản dài không được đẩy vỡ header */
+  .header-user button.ghost {
+    max-width: 46vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* --- Khoảng cách trang --- */
+  .container {
+    padding: 16px 12px;
+  }
+  .card {
+    padding: 16px;
+  }
+
+  /* --- Tab bar: cuộn ngang thay vì xuống nhiều dòng --- */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 10px 12px;
+  }
+
+  /* Cho item trong grid co lại để bảng tự cuộn, tránh kéo giãn tràn ngang trang */
+  .grid > * {
+    min-width: 0;
+  }
+
+  /* --- Bảng: cho cuộn ngang, tránh bị cắt / tràn trang --- */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Modal chiếm gần hết bề ngang --- */
+  .modal-overlay {
+    padding: 12px;
+  }
+  .modal {
+    padding: 18px;
+  }
+}
