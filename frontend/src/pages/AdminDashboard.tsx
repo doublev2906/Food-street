@@ -1614,7 +1614,12 @@ function ExternalPurchaseTab() {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   const load = () => {
-    api.admin.users().then((r) => setUsers(r.data.filter((u) => u.active)));
+    api.admin.users().then((r) => {
+      const active = r.data.filter((u) => u.active);
+      setUsers(active);
+      // Mặc định chọn tất cả người ăn.
+      setChecked(Object.fromEntries(active.map((u) => [u.id, true])));
+    });
     api.admin.listExternalPurchases().then((r) => setPurchases(r.data));
   };
   useEffect(load, []);
@@ -1730,20 +1735,23 @@ function ExternalPurchaseTab() {
             </div>
             <div className="grid">
               {users.map((u) => (
-                <div key={u.id} className="row between">
-                  <label className="row" style={{ gap: 6 }}>
+                <div key={u.id} className="row" style={{ gap: 10 }}>
+                  <label
+                    className="row"
+                    style={{ gap: 8, flex: 1, marginBottom: 0, cursor: "pointer" }}
+                  >
                     <input
                       type="checkbox"
                       checked={!!checked[u.id]}
                       onChange={() => toggle(u.id)}
                     />
-                    {u.name}
+                    <span>{u.name}</span>
                     <span className="badge">{u.role}</span>
                   </label>
                   <input
                     type="number"
                     min={0}
-                    style={{ maxWidth: 140 }}
+                    style={{ width: 130, flex: "none" }}
                     value={amounts[u.id] ?? ""}
                     disabled={!checked[u.id]}
                     onChange={(e) =>
