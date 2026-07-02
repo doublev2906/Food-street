@@ -4,6 +4,7 @@ import {
   formatVND,
   today,
   type Category,
+  type ExternalPurchase,
   type FundTransaction,
   type GroupOrder,
   type MenuItem,
@@ -21,6 +22,7 @@ type Tab =
   | "menu"
   | "groups"
   | "fund"
+  | "external"
   | "schedule"
   | "settings";
 
@@ -33,6 +35,7 @@ export default function AdminDashboard() {
     ["categories", "🏷️ Danh mục"],
     ["menu", "🍽️ Thực đơn"],
     ["fund", "💰 Quỹ"],
+    ["external", "🍜 Mua ngoài"],
     ["schedule", "📅 Lịch hẹn"],
     ["settings", "⚙️ Cài đặt"],
   ];
@@ -57,6 +60,7 @@ export default function AdminDashboard() {
         {tab === "categories" && <CategoriesTab />}
         {tab === "menu" && <MenuTab />}
         {tab === "fund" && <FundTab />}
+        {tab === "external" && <ExternalPurchaseTab />}
         {tab === "schedule" && <ScheduleTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
@@ -1428,6 +1432,198 @@ function SettingsTab() {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function ExternalPurchaseTab() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [purchases, setPurchases] = useState<ExternalPurchase[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null
+  );
+
+  const [description, setDescription] = useState("");
+  const [total, setTotal] = useState("");
+  const [date, setDate] = useState(today());
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+
+  const load = () => {
+    api.admin.users().then((r) => setUsers(r.data.filter((u) => u.active)));
+    api.admin.listExternalPurchases().then((r) => setPurchases(r.data));
+  };
+  useEffect(load, []);
+
+  const selectedIds = users.filter((u) => checked[u.id]).map((u) => u.id);
+  const totalNum = Math.round(Number(total) || 0);
+  const sumShares = selectedIds.reduce(
+    (acc, id) => acc + (Number(amounts[id]) || 0),
+    0
+  );
+  const matched = selectedIds.length > 0 && sumShares === totalNum;
+
+  const splitEven = () => {
+    const n = selectedIds.length;
+    if (n === 0 || totalNum <= 0) return;
+    const base = Math.floor(totalNum / n);
+    const remainder = totalNum - base * n;
+    const next: Record<string, string> = { ...amounts };
+    selectedIds.forEach((id, i) => {
+      next[id] = String(base + (i === 0 ? remainder : 0));
+    });
+    setAmounts(next);
+  };
+
+  const toggle = (id: string) =>
+    setChecked((c) => ({ ...c, [id]: !c[id] }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    setBusy(true);
+    try {
+      await api.admin.createExternalPurchase({
+        description,
+        total_amount: String(totalNum),
+        purchase_date: date,
+        shares: selectedIds.map((id) => ({
+          user_id: id,
+          amount: String(Number(amounts[id]) || 0),
+        })),
+      });
+      setMsg({ type: "ok", text: "Đã lưu khoản mua ngoài." });
+      setDescription("");
+      setTotal("");
+      setChecked({});
+      setAmounts({});
+      load();
+    } catch (err: any) {
+      setMsg({ type: "error", text: err.message || "Lưu thất bại" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid">
+      <div className="card">
+        <h2>🍜 Chia tiền mua ngoài</h2>
+        <p className="small muted">
+          Ghi nhận món mua ngoài menu và chia tiền cho những người cùng ăn — số dư
+          từng người sẽ bị trừ phần tương ứng.
+        </p>
+
+        {msg && (
+          <div className={`alert ${msg.type === "ok" ? "" : "error"}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Mô tả</label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="VD: Bún chả cô Tâm"
+              required
+            />
+          </div>
+          <div className="grid grid-2">
+            <div className="field">
+              <label>Tổng tiền (đ)</label>
+              <input
+                type="number"
+                min={0}
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Ngày</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <div className="row between">
+              <label>Người ăn ({selectedIds.length})</label>
+              <button
+                type="button"
+                className="secondary"
+                onClick={splitEven}
+                disabled={selectedIds.length === 0 || totalNum <= 0}
+              >
+                Chia đều
+              </button>
+            </div>
+            <div className="grid">
+              {users.map((u) => (
+                <div key={u.id} className="row between">
+                  <label className="row" style={{ gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!checked[u.id]}
+                      onChange={() => toggle(u.id)}
+                    />
+                    {u.name}
+                    <span className="badge">{u.role}</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    style={{ maxWidth: 140 }}
+                    value={amounts[u.id] ?? ""}
+                    disabled={!checked[u.id]}
+                    onChange={(e) =>
+                      setAmounts((a) => ({ ...a, [u.id]: e.target.value }))
+                    }
+                    placeholder="0"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className={`small ${matched ? "muted" : "danger"}`}>
+            Tổng đã chia: {formatVND(String(sumShares))} / {formatVND(String(totalNum))}
+            {!matched && selectedIds.length > 0 && " — chưa khớp"}
+          </p>
+
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button type="submit" disabled={busy || !matched || !description}>
+              {busy ? "Đang lưu…" : "Lưu & chia tiền"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Khoản mua gần đây</h3>
+        {purchases.length === 0 && (
+          <p className="small muted">Chưa có khoản mua ngoài nào.</p>
+        )}
+        {purchases.map((p) => (
+          <div key={p.id} className="row between" style={{ padding: "8px 0" }}>
+            <div>
+              <strong>{p.description}</strong>
+              <div className="small muted">
+                {p.purchase_date} ·{" "}
+                {p.eaters.map((e) => `${e.name} (${formatVND(e.amount)})`).join(", ")}
+              </div>
+            </div>
+            <Money value={p.total_amount} />
+          </div>
+        ))}
       </div>
     </div>
   );

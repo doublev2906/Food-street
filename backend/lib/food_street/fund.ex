@@ -12,6 +12,7 @@ defmodule FoodStreet.Fund do
   alias FoodStreet.Repo
   alias FoodStreet.Accounts.User
   alias FoodStreet.Fund.FundTransaction
+  alias FoodStreet.Fund.ExternalPurchase
 
   @doc "Lịch sử giao dịch quỹ của 1 user."
   def list_user_transactions(user_id) do
@@ -94,6 +95,149 @@ defmodule FoodStreet.Fund do
   @doc "Tổng số dư toàn quỹ (cộng balance của mọi user)."
   def total_balance do
     Repo.aggregate(User, :sum, :balance) || Decimal.new(0)
+  end
+
+  @doc """
+  Ghi nhận 1 khoản mua đồ ăn ngoài menu và chia tiền cho những người ăn.
+
+  `attrs`: `%{"description", "total_amount", "purchase_date" (tuỳ chọn),
+  "shares" => [%{"user_id", "amount"}]}`. Chỉ trừ số dư người ăn (không hoàn admin).
+  Tổng các phần phải khớp đúng `total_amount`. Toàn bộ chạy trong 1 transaction.
+  """
+  def record_external_purchase(%User{} = admin, attrs) do
+    description = attrs["description"] || attrs[:description]
+    date = attrs["purchase_date"] || attrs[:purchase_date] || vn_today()
+    raw_shares = attrs["shares"] || attrs[:shares] || []
+
+    with {:ok, total} <- to_decimal(attrs["total_amount"] || attrs[:total_amount]),
+         :ok <- ensure_positive(total),
+         {:ok, shares} <- parse_shares(raw_shares),
+         :ok <- ensure_sum_matches(shares, total),
+         {:ok, users} <- load_users(shares) do
+      run_external_purchase(admin, description, date, total, shares, users)
+    end
+  end
+
+  @doc "Danh sách khoản mua ngoài (admin) — có phân trang."
+  def list_external_purchases(page \\ 1, page_size \\ 20) do
+    page = max(to_int(page, 1), 1)
+    page_size = page_size |> to_int(20) |> min(100) |> max(1)
+    total = Repo.aggregate(ExternalPurchase, :count, :id)
+
+    entries =
+      ExternalPurchase
+      |> order_by([p], desc: p.inserted_at)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> preload([:created_by, transactions: :user])
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total: total,
+      total_pages: max(ceil(total / page_size), 1)
+    }
+  end
+
+  defp run_external_purchase(admin, description, date, total, shares, users) do
+    purchase_cs =
+      ExternalPurchase.changeset(%ExternalPurchase{}, %{
+        description: description,
+        total_amount: total,
+        purchase_date: date,
+        created_by_id: admin.id
+      })
+
+    shares
+    |> Enum.reduce(Multi.insert(Multi.new(), :purchase, purchase_cs), fn %{
+                                                                           user_id: uid,
+                                                                           amount: amt
+                                                                         },
+                                                                         m ->
+      user = Map.fetch!(users, uid)
+      new_balance = Decimal.sub(user.balance, amt)
+
+      m
+      |> Multi.update({:user, uid}, User.balance_changeset(user, new_balance))
+      |> Multi.insert({:tx, uid}, fn %{purchase: p} ->
+        FundTransaction.changeset(%FundTransaction{}, %{
+          user_id: uid,
+          amount: Decimal.negate(amt),
+          type: "split",
+          description: p.description,
+          balance_after: new_balance,
+          external_purchase_id: p.id,
+          created_by_id: admin.id
+        })
+      end)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{purchase: p}} ->
+        {:ok, Repo.preload(p, [:created_by, transactions: :user], force: true)}
+
+      {:error, _step, reason, _} ->
+        {:error, reason}
+    end
+  end
+
+  defp ensure_positive(total) do
+    if Decimal.compare(total, 0) == :gt, do: :ok, else: {:error, :invalid_amount}
+  end
+
+  defp parse_shares(raw) when is_list(raw) and raw != [] do
+    raw
+    |> Enum.reduce_while({:ok, []}, fn s, {:ok, acc} ->
+      uid = s["user_id"] || s[:user_id]
+
+      case to_decimal(s["amount"] || s[:amount]) do
+        {:ok, amt} ->
+          if is_binary(uid) and Decimal.compare(amt, 0) == :gt do
+            {:cont, {:ok, [%{user_id: uid, amount: amt} | acc]}}
+          else
+            {:halt, {:error, :invalid_share}}
+          end
+
+        _ ->
+          {:halt, {:error, :invalid_amount}}
+      end
+    end)
+    |> case do
+      {:ok, list} -> {:ok, Enum.reverse(list)}
+      err -> err
+    end
+  end
+
+  defp parse_shares(_), do: {:error, :no_shares}
+
+  defp ensure_sum_matches(shares, total) do
+    sum = Enum.reduce(shares, Decimal.new(0), fn s, acc -> Decimal.add(acc, s.amount) end)
+    if Decimal.equal?(sum, total), do: :ok, else: {:error, :amount_mismatch}
+  end
+
+  defp load_users(shares) do
+    ids = Enum.map(shares, & &1.user_id)
+    uniq_ids = Enum.uniq(ids)
+
+    cond do
+      length(uniq_ids) != length(ids) ->
+        {:error, :duplicate_user}
+
+      true ->
+        users = Repo.all(from u in User, where: u.id in ^uniq_ids)
+
+        if length(users) == length(uniq_ids) do
+          {:ok, Map.new(users, &{&1.id, &1})}
+        else
+          {:error, :user_not_found}
+        end
+    end
+  end
+
+  defp vn_today do
+    DateTime.utc_now() |> DateTime.add(7 * 3600, :second) |> DateTime.to_date()
   end
 
   defp to_decimal(%Decimal{} = d), do: {:ok, d}

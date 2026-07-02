@@ -4,6 +4,7 @@ defmodule FoodStreet.Fund.FundTransaction do
 
   alias FoodStreet.Accounts.User
   alias FoodStreet.Ordering.Order
+  alias FoodStreet.Fund.ExternalPurchase
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -16,11 +17,12 @@ defmodule FoodStreet.Fund.FundTransaction do
              :description,
              :balance_after,
              :order_id,
+             :external_purchase_id,
              :created_by_id,
              :inserted_at
            ]}
 
-  @types ~w(deposit order adjustment)
+  @types ~w(deposit order adjustment split)
 
   schema "fund_transactions" do
     field :amount, :decimal
@@ -30,6 +32,7 @@ defmodule FoodStreet.Fund.FundTransaction do
 
     belongs_to :user, User
     belongs_to :order, Order
+    belongs_to :external_purchase, ExternalPurchase
     belongs_to :created_by, User
 
     timestamps(type: :utc_datetime)
@@ -44,6 +47,7 @@ defmodule FoodStreet.Fund.FundTransaction do
       :description,
       :balance_after,
       :order_id,
+      :external_purchase_id,
       :created_by_id
     ])
     |> validate_required([:user_id, :amount, :type, :balance_after])

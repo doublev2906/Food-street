@@ -78,6 +78,10 @@ defmodule FoodStreetWeb.Router do
     post "/fund/deposit", FundController, :deposit
     post "/fund/adjust", FundController, :adjust
 
+    # Mua đồ ăn ngoài menu — chia tiền cho người ăn
+    get "/external_purchases", ExternalPurchaseController, :index
+    post "/external_purchases", ExternalPurchaseController, :create
+
     # Cấu hình hệ thống (Panchat token)
     get "/settings/panchat", SettingsController, :show
     put "/settings/panchat", SettingsController, :update

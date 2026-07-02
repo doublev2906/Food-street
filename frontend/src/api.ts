@@ -141,6 +141,29 @@ export interface OrderSchedulePayload {
   deadline_time: string;
 }
 
+export interface ExternalPurchaseEater {
+  user_id: string;
+  name: string | null;
+  amount: string;
+}
+
+export interface ExternalPurchase {
+  id: string;
+  description: string;
+  total_amount: string;
+  purchase_date: string;
+  created_by_id: string | null;
+  inserted_at?: string;
+  eaters: ExternalPurchaseEater[];
+}
+
+export interface ExternalPurchasePayload {
+  description: string;
+  total_amount: string;
+  purchase_date: string;
+  shares: { user_id: string; amount: string }[];
+}
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -333,6 +356,15 @@ export const api = {
     saveOrderSchedule: (payload: OrderSchedulePayload) =>
       request<{ data: OrderSchedule }>("/admin/order_schedule", {
         method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+
+    // Mua đồ ăn ngoài menu — chia tiền cho người ăn
+    listExternalPurchases: () =>
+      request<{ data: ExternalPurchase[] }>("/admin/external_purchases"),
+    createExternalPurchase: (payload: ExternalPurchasePayload) =>
+      request<{ data: ExternalPurchase }>("/admin/external_purchases", {
+        method: "POST",
         body: JSON.stringify(payload),
       }),
   },
