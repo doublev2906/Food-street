@@ -10,7 +10,7 @@ defmodule FoodStreet.Scheduling do
   require Logger
 
   alias FoodStreet.Repo
-  alias FoodStreet.Scheduling.DailyOrderSchedule
+  alias FoodStreet.Scheduling.{DailyOrderSchedule, JobRun}
   alias FoodStreet.{Accounts, Ordering, Settings, Panchat}
 
   # Việt Nam: UTC+7 cố định, không có DST → không cần tzdata.
@@ -27,6 +27,24 @@ defmodule FoodStreet.Scheduling do
     get_schedule()
     |> DailyOrderSchedule.changeset(attrs)
     |> Repo.insert_or_update()
+  end
+
+  @doc "Ngày (VN) job `key` chạy gần nhất, hoặc nil."
+  def job_ran_on(key) do
+    case Repo.get_by(JobRun, key: key) do
+      nil -> nil
+      %JobRun{last_run_on: date} -> date
+    end
+  end
+
+  @doc "Đánh dấu job `key` đã chạy vào `date`."
+  def mark_job_ran(key, date) do
+    %JobRun{}
+    |> JobRun.changeset(%{key: key, last_run_on: date})
+    |> Repo.insert(
+      on_conflict: [set: [last_run_on: date, updated_at: DateTime.utc_now(:second)]],
+      conflict_target: :key
+    )
   end
 
   @doc """

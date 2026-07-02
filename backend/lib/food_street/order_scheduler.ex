@@ -31,6 +31,12 @@ defmodule FoodStreet.OrderScheduler do
       e -> Logger.error("[OrderScheduler] tick lỗi: #{Exception.message(e)}")
     end
 
+    try do
+      FoodStreet.BalanceReport.run_tick()
+    rescue
+      e -> Logger.error("[OrderScheduler] báo số dư lỗi: #{Exception.message(e)}")
+    end
+
     schedule_tick(interval)
     {:noreply, state}
   end

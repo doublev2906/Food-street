@@ -111,6 +111,28 @@ defmodule FoodStreet.PanchatTest do
     end
   end
 
+  describe "balance_report_text/2 và send_balance_report/3" do
+    test "liệt kê từng người + số dư, sắp theo tên" do
+      users = [
+        %User{name: "Bình", balance: Decimal.new("20000")},
+        %User{name: "An", balance: Decimal.new("50000")}
+      ]
+
+      text = Panchat.balance_report_text(users, ~D[2026-07-02])
+
+      assert text =~ "Số dư quỹ"
+      assert text =~ "An: 50.000đ"
+      assert text =~ "Bình: 20.000đ"
+      # Sắp theo tên: An đứng trước Bình.
+      assert :binary.match(text, "An") < :binary.match(text, "Bình")
+    end
+
+    test "send_balance_report lỗi khi thiếu token, không gọi mạng" do
+      assert Panchat.send_balance_report([], ~D[2026-07-02], nil) ==
+               {:error, :panchat_token_missing}
+    end
+  end
+
   describe "build_body/1" do
     test "builds the Panchat payload (uuid key, @all via mention attachment)" do
       body = Panchat.build_body("hello")

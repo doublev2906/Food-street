@@ -114,6 +114,38 @@ defmodule FoodStreet.Panchat do
     end
   end
 
+  @doc """
+  Gửi tin báo số dư từng người (tag @all qua `build_body/1`), bằng `token` truyền vào.
+  `users` là danh sách `%User{}` (có `name`, `balance`).
+  """
+  def send_balance_report(users, date, token) do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
+
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          send_channel_message(token, balance_report_text(users, date))
+        end
+    end
+  end
+
+  @doc "Nội dung tin báo số dư quỹ (thuần, không gọi mạng)."
+  def balance_report_text(users, date) do
+    lines =
+      users
+      |> Enum.sort_by(& &1.name)
+      |> Enum.map_join("\n", fn u -> "• #{u.name}: #{format_vnd(u.balance)}" end)
+
+    """
+    💰 Số dư quỹ ăn sáng (📅 #{date}):
+    #{lines}
+    """
+    |> String.trim_trailing()
+  end
+
   @doc "Nội dung tin chia tiền mua ngoài (thuần, không gọi mạng)."
   def external_purchase_text(%ExternalPurchase{} = p) do
     lines =
