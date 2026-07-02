@@ -14,41 +14,59 @@ defmodule FoodStreet.Stats do
       total_users: Repo.aggregate(User, :count, :id),
       active_users: Repo.aggregate(from(u in User, where: u.active == true), :count, :id),
       fund_total: Repo.aggregate(User, :sum, :balance) || Decimal.new(0),
-      orders_today: count_orders(date),
-      pending_today: count_orders(date, "pending"),
-      confirmed_today: count_orders(date, "confirmed"),
-      revenue_today: revenue(date),
-      top_items: top_items(date)
+      orders_today: count_orders(date, date),
+      pending_today: count_orders(date, date, "pending"),
+      confirmed_today: count_orders(date, date, "confirmed"),
+      revenue_today: revenue(date, date),
+      top_items: top_items(date, date)
     }
   end
 
-  defp count_orders(date) do
-    Repo.aggregate(from(o in Order, where: o.order_date == ^date), :count, :id)
+  @doc """
+  Thống kê tổng hợp cho một khoảng ngày `[from_date, to_date]`.
+
+  Dùng cho báo cáo theo ngày / tháng / năm — FE tự quy đổi lựa chọn thành
+  khoảng ngày rồi gọi vào đây (ngày = [d, d], tháng = [đầu tháng, cuối tháng]…).
+  """
+  def period_summary(from_date, to_date) do
+    %{
+      from: from_date,
+      to: to_date,
+      orders: count_orders(from_date, to_date),
+      pending: count_orders(from_date, to_date, "pending"),
+      confirmed: count_orders(from_date, to_date, "confirmed"),
+      revenue: revenue(from_date, to_date),
+      top_items: top_items(from_date, to_date)
+    }
   end
 
-  defp count_orders(date, status) do
-    Repo.aggregate(
-      from(o in Order, where: o.order_date == ^date and o.status == ^status),
-      :count,
-      :id
-    )
+  # Đếm đơn trong khoảng [from, to], tuỳ chọn lọc theo trạng thái.
+  defp count_orders(from_date, to_date, status \\ nil) do
+    from(o in Order, where: o.order_date >= ^from_date and o.order_date <= ^to_date)
+    |> maybe_status(status)
+    |> Repo.aggregate(:count, :id)
   end
 
-  @doc "Doanh thu (tổng tiền đã chốt) của 1 ngày."
-  def revenue(date) do
+  defp maybe_status(query, nil), do: query
+  defp maybe_status(query, status), do: from(o in query, where: o.status == ^status)
+
+  # Doanh thu (tổng tiền đã chốt) trong khoảng [from, to].
+  defp revenue(from_date, to_date) do
     Repo.one(
       from o in Order,
-        where: o.order_date == ^date and o.status == "confirmed",
+        where:
+          o.order_date >= ^from_date and o.order_date <= ^to_date and o.status == "confirmed",
         select: coalesce(sum(o.total_amount), 0)
     )
   end
 
-  @doc "Các món được đặt nhiều nhất trong ngày (mọi đơn không bị hủy)."
-  def top_items(date, limit \\ 10) do
+  # Các món được đặt nhiều nhất trong khoảng [from, to] (mọi đơn không bị hủy).
+  defp top_items(from_date, to_date, limit \\ 10) do
     from(oi in OrderItem,
       join: o in Order,
       on: o.id == oi.order_id,
-      where: o.order_date == ^date and o.status != "cancelled",
+      where:
+        o.order_date >= ^from_date and o.order_date <= ^to_date and o.status != "cancelled",
       group_by: oi.item_name,
       order_by: [desc: sum(oi.quantity)],
       limit: ^limit,

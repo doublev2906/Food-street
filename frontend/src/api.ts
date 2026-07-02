@@ -103,6 +103,17 @@ export interface Stats {
   top_items: { item_name: string; quantity: number; revenue: string }[];
 }
 
+// Thống kê theo khoảng ngày (ngày / tháng / năm).
+export interface PeriodStats {
+  from: string;
+  to: string;
+  orders: number;
+  pending: number;
+  confirmed: number;
+  revenue: string;
+  top_items: { item_name: string; quantity: number; revenue: string }[];
+}
+
 export interface Paginated<T> {
   data: T[];
   page: number;
@@ -337,6 +348,8 @@ export const api = {
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),
+    statsPeriod: (from: string, to: string) =>
+      request<{ data: PeriodStats }>(`/admin/stats/period?from=${from}&to=${to}`),
     fundTransactions: (page = 1, pageSize = 20) =>
       request<Paginated<FundTransaction>>(
         `/admin/fund/transactions?page=${page}&page_size=${pageSize}`

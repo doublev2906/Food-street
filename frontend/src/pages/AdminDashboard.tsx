@@ -11,6 +11,7 @@ import {
   type Order,
   type OrderSchedule,
   type PanchatSettings,
+  type PeriodStats,
   type Stats,
   type User,
 } from "../api";
@@ -18,6 +19,7 @@ import { Header, Modal, Money, StatusBadge } from "../components";
 
 type Tab =
   | "stats"
+  | "report"
   | "users"
   | "categories"
   | "menu"
@@ -31,6 +33,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>("stats");
   const tabs: [Tab, string][] = [
     ["stats", "📊 Tổng quan"],
+    ["report", "📈 Thống kê"],
     ["groups", "🧾 Đơn nhóm"],
     ["users", "👥 Người dùng"],
     ["categories", "🏷️ Danh mục"],
@@ -56,6 +59,7 @@ export default function AdminDashboard() {
           ))}
         </div>
         {tab === "stats" && <StatsTab />}
+        {tab === "report" && <ReportTab />}
         {tab === "groups" && <GroupOrdersTab />}
         {tab === "users" && <UsersTab />}
         {tab === "categories" && <CategoriesTab />}
@@ -148,6 +152,150 @@ function Stat({
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+// ---------- Thống kê theo ngày / tháng / năm ----------
+type ReportMode = "day" | "month" | "year";
+
+// Quy đổi lựa chọn ngày/tháng/năm thành khoảng [from, to] (ISO) + nhãn hiển thị.
+function periodRange(
+  mode: ReportMode,
+  day: string,
+  month: string,
+  year: number
+): { from: string; to: string; label: string } {
+  if (mode === "day") {
+    const [y, m, d] = day.split("-");
+    return { from: day, to: day, label: `Ngày ${d}/${m}/${y}` };
+  }
+  if (mode === "month") {
+    const [y, m] = month.split("-").map(Number);
+    const mm = String(m).padStart(2, "0");
+    const lastDay = new Date(y, m, 0).getDate(); // ngày cuối của tháng m
+    return {
+      from: `${y}-${mm}-01`,
+      to: `${y}-${mm}-${String(lastDay).padStart(2, "0")}`,
+      label: `Tháng ${m}/${y}`,
+    };
+  }
+  return { from: `${year}-01-01`, to: `${year}-12-31`, label: `Năm ${year}` };
+}
+
+function ReportTab() {
+  const [mode, setMode] = useState<ReportMode>("day");
+  const [day, setDay] = useState(today());
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const [year, setYear] = useState(Number(today().slice(0, 4)));
+  const [data, setData] = useState<PeriodStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const { from, to, label } = periodRange(mode, day, month, year);
+
+  useEffect(() => {
+    setLoading(true);
+    api.admin
+      .statsPeriod(from, to)
+      .then((r) => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [from, to]);
+
+  const curYear = Number(today().slice(0, 4));
+  const years = Array.from({ length: 6 }, (_, i) => curYear - i);
+  const modes: [ReportMode, string][] = [
+    ["day", "Ngày"],
+    ["month", "Tháng"],
+    ["year", "Năm"],
+  ];
+
+  return (
+    <div className="grid">
+      <div className="row between wrap">
+        <h2 style={{ margin: 0 }}>Thống kê · {label}</h2>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <div className="filter-tabs" style={{ marginBottom: 0 }}>
+            {modes.map(([m, lbl]) => (
+              <button
+                key={m}
+                className={`chip ${mode === m ? "active" : ""}`}
+                onClick={() => setMode(m)}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+          {mode === "day" && (
+            <input
+              type="date"
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+              style={{ width: "auto" }}
+            />
+          )}
+          {mode === "month" && (
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              style={{ width: "auto" }}
+            />
+          )}
+          {mode === "year" && (
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              style={{ width: "auto" }}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+
+      {loading || !data ? (
+        <div className="spinner">Đang tải…</div>
+      ) : (
+        <>
+          <div className="grid grid-4">
+            <Stat label="Tổng đơn" value={data.orders} />
+            <Stat label="Chờ chốt" value={data.pending} warn={data.pending > 0} />
+            <Stat label="Đã chốt" value={data.confirmed} />
+            <Stat label="Doanh thu (đã chốt)" value={formatVND(data.revenue)} accent />
+          </div>
+
+          <div className="card">
+            <h2>Món đặt nhiều nhất</h2>
+            {data.top_items.length === 0 ? (
+              <p className="muted">Chưa có dữ liệu cho khoảng thời gian này.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Món</th>
+                    <th style={{ textAlign: "right" }}>Số lượng</th>
+                    <th style={{ textAlign: "right" }}>Doanh thu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.top_items.map((it) => (
+                    <tr key={it.item_name}>
+                      <td>{it.item_name}</td>
+                      <td style={{ textAlign: "right" }}>{it.quantity}</td>
+                      <td style={{ textAlign: "right" }}>{formatVND(it.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

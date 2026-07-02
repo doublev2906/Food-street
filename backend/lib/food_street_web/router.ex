@@ -74,6 +74,7 @@ defmodule FoodStreetWeb.Router do
 
     get "/stats", StatsController, :summary
     get "/stats/revenue", StatsController, :revenue
+    get "/stats/period", StatsController, :period
 
     get "/fund/transactions", FundController, :index
     post "/fund/deposit", FundController, :deposit

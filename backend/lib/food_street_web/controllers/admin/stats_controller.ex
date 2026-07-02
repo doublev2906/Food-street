@@ -22,6 +22,14 @@ defmodule FoodStreetWeb.Admin.StatsController do
     json(conn, %{data: Stats.revenue_by_day(from, to)})
   end
 
+  @doc "Thống kê tổng hợp theo khoảng ngày (ngày / tháng / năm)."
+  def period(conn, params) do
+    today = Date.utc_today()
+    from = parse_date(params["from"], today)
+    to = parse_date(params["to"], today)
+    json(conn, %{data: Stats.period_summary(from, to)})
+  end
+
   defp parse_date(nil, default), do: default
 
   defp parse_date(str, default) do
