@@ -97,6 +97,16 @@ function StatsTab() {
         <Stat label="Tổng quỹ" value={formatVND(stats.fund_total)} accent />
         <Stat label="Doanh thu (đã chốt)" value={formatVND(stats.revenue_today)} accent />
       </div>
+      <div className="grid grid-4">
+        <Stat label="Nạp trong ngày" value={formatVND(stats.fund_deposited)} />
+        <Stat label="Chi trong ngày" value={formatVND(stats.fund_spent)} />
+        <Stat label="Người âm quỹ" value={stats.negative_count} warn={stats.negative_count > 0} />
+        <Stat
+          label="Tổng đang nợ"
+          value={formatVND(stats.negative_debt)}
+          warn={stats.negative_count > 0}
+        />
+      </div>
       <div className="grid grid-3">
         <Stat label="Đơn trong ngày" value={stats.orders_today} />
         <Stat label="Chờ chốt" value={stats.pending_today} warn={stats.pending_today > 0} />
@@ -267,6 +277,17 @@ function ReportTab() {
             <Stat label="Chờ chốt" value={data.pending} warn={data.pending > 0} />
             <Stat label="Đã chốt" value={data.confirmed} />
             <Stat label="Doanh thu (đã chốt)" value={formatVND(data.revenue)} accent />
+          </div>
+
+          <div className="grid grid-4">
+            <Stat label="Tổng quỹ hiện tại" value={formatVND(data.fund_total)} accent />
+            <Stat label="Nạp trong kỳ" value={formatVND(data.fund_deposited)} />
+            <Stat label="Chi trong kỳ" value={formatVND(data.fund_spent)} />
+            <Stat
+              label={`Đang nợ · ${data.negative_count} người`}
+              value={formatVND(data.negative_debt)}
+              warn={data.negative_count > 0}
+            />
           </div>
 
           <div className="card">

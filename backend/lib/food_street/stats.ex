@@ -6,14 +6,24 @@ defmodule FoodStreet.Stats do
   alias FoodStreet.Accounts.User
   alias FoodStreet.Ordering.Order
   alias FoodStreet.Ordering.OrderItem
+  alias FoodStreet.Fund.FundTransaction
+
+  @vn_offset_seconds 7 * 3600
 
   @doc "Tổng quan dashboard cho 1 ngày (mặc định hôm nay)."
   def summary(date \\ Date.utc_today()) do
+    flow = fund_flow(date, date)
+    neg = negative_balances()
+
     %{
       date: date,
       total_users: Repo.aggregate(User, :count, :id),
       active_users: Repo.aggregate(from(u in User, where: u.active == true), :count, :id),
       fund_total: Repo.aggregate(User, :sum, :balance) || Decimal.new(0),
+      fund_deposited: flow.deposited,
+      fund_spent: flow.spent,
+      negative_count: neg.count,
+      negative_debt: neg.debt,
       orders_today: count_orders(date, date),
       pending_today: count_orders(date, date, "pending"),
       confirmed_today: count_orders(date, date, "confirmed"),
@@ -29,6 +39,9 @@ defmodule FoodStreet.Stats do
   khoảng ngày rồi gọi vào đây (ngày = [d, d], tháng = [đầu tháng, cuối tháng]…).
   """
   def period_summary(from_date, to_date) do
+    flow = fund_flow(from_date, to_date)
+    neg = negative_balances()
+
     %{
       from: from_date,
       to: to_date,
@@ -36,9 +49,73 @@ defmodule FoodStreet.Stats do
       pending: count_orders(from_date, to_date, "pending"),
       confirmed: count_orders(from_date, to_date, "confirmed"),
       revenue: revenue(from_date, to_date),
+      fund_total: Repo.aggregate(User, :sum, :balance) || Decimal.new(0),
+      fund_deposited: flow.deposited,
+      fund_spent: flow.spent,
+      negative_count: neg.count,
+      negative_debt: neg.debt,
       top_items: top_items(from_date, to_date)
     }
   end
+
+  # Dòng tiền quỹ trong khoảng [from, to] (theo giờ VN):
+  #   deposited = tổng khoản nạp (type "deposit")
+  #   spent     = tổng khoản trừ (type "order" + "split"), trả về số dương
+  # Lọc theo `inserted_at` — mốc thời gian thật của giao dịch, quy về ranh giới VN.
+  defp fund_flow(from_date, to_date) do
+    {start_utc, end_utc} = vn_day_bounds(from_date, to_date)
+
+    deposited =
+      Repo.one(
+        from t in FundTransaction,
+          where:
+            t.type == "deposit" and t.inserted_at >= ^start_utc and t.inserted_at < ^end_utc,
+          select: coalesce(sum(t.amount), 0)
+      )
+
+    spent =
+      Repo.one(
+        from t in FundTransaction,
+          where:
+            t.type in ["order", "split"] and t.inserted_at >= ^start_utc and
+              t.inserted_at < ^end_utc,
+          select: coalesce(sum(t.amount), 0)
+      )
+
+    %{deposited: as_decimal(deposited), spent: spent |> as_decimal() |> Decimal.abs()}
+  end
+
+  # Số người và tổng số tiền đang âm quỹ (trả về nợ dưới dạng số dương).
+  defp negative_balances do
+    debtors = from(u in User, where: u.balance < 0)
+
+    debt =
+      Repo.one(from u in User, where: u.balance < 0, select: coalesce(sum(u.balance), 0))
+
+    %{count: Repo.aggregate(debtors, :count, :id), debt: debt |> as_decimal() |> Decimal.abs()}
+  end
+
+  # Ranh giới UTC cho các ngày VN [from, to] (bao gồm cả 2 đầu): ngày VN X bắt đầu
+  # lúc X 00:00 (UTC+7) = X 00:00 UTC trừ 7 giờ. Cận trên là 00:00 của (to + 1).
+  defp vn_day_bounds(from_date, to_date) do
+    start_utc =
+      from_date
+      |> NaiveDateTime.new!(~T[00:00:00])
+      |> DateTime.from_naive!("Etc/UTC")
+      |> DateTime.add(-@vn_offset_seconds, :second)
+
+    end_utc =
+      to_date
+      |> Date.add(1)
+      |> NaiveDateTime.new!(~T[00:00:00])
+      |> DateTime.from_naive!("Etc/UTC")
+      |> DateTime.add(-@vn_offset_seconds, :second)
+
+    {start_utc, end_utc}
+  end
+
+  defp as_decimal(%Decimal{} = d), do: d
+  defp as_decimal(n), do: Decimal.new(n)
 
   # Đếm đơn trong khoảng [from, to], tuỳ chọn lọc theo trạng thái.
   defp count_orders(from_date, to_date, status \\ nil) do

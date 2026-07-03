@@ -215,6 +215,8 @@ defmodule FoodStreet.Panchat do
   """
   def send_channel_message(token, message) do
     url = "#{@base_url}/api/workspaces/#{@workspace_id}/channels/#{@channel_id}/messages"
+    IO.inspect(url, label: "panchat url")
+    IO.inspect(build_body(message), label: "panchat body")
 
     # `:panchat_req_options` cho phép test tiêm Req.Test plug thay vì gọi mạng thật.
     opts =

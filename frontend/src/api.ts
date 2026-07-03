@@ -96,6 +96,10 @@ export interface Stats {
   total_users: number;
   active_users: number;
   fund_total: string;
+  fund_deposited: string;
+  fund_spent: string;
+  negative_count: number;
+  negative_debt: string;
   orders_today: number;
   pending_today: number;
   confirmed_today: number;
@@ -111,6 +115,11 @@ export interface PeriodStats {
   pending: number;
   confirmed: number;
   revenue: string;
+  fund_total: string;
+  fund_deposited: string;
+  fund_spent: string;
+  negative_count: number;
+  negative_debt: string;
   top_items: { item_name: string; quantity: number; revenue: string }[];
 }
 
