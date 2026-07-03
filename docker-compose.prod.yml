@@ -11,6 +11,10 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
+    # Chỉ bind vào loopback của server (KHÔNG lộ ra mạng ngoài) để truy cập DB
+    # qua SSH tunnel bằng client như TablePlus. Host 5433 -> container 5432.
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
