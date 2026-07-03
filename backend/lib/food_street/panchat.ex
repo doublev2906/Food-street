@@ -7,12 +7,12 @@ defmodule FoodStreet.Panchat do
   link để mọi người vào đặt món.
 
   Token của admin tạo đợt (mỗi admin một token riêng — xem
-  `FoodStreet.Settings.panchat_token/1`) được truyền vào khi gửi. Endpoint và
-  payload tham chiếu theo Panchat MCP:
+  `FoodStreet.Settings.panchat_token/1`) được gửi qua header Bearer. Endpoint và
+  payload theo Pancake Work API v2 (operation `sendChannelMessage`):
 
-      POST https://pancakework.vn/api/workspaces/4/channels/11813/messages?token=<TOKEN>
-      body: %{workspace_id, channel_id, channel_thread_id: nil, message,
-              attachments, current_time (micro giây), key (uuid)}
+      POST https://pancakework.vn/api/v2/channels/11813/messages?workspace_id=4
+      Authorization: Bearer <TOKEN>
+      body: %{text: [%{type: "paragraph", content: ..., spans: [mention @all]}]}
   """
 
   require Logger
@@ -209,27 +209,30 @@ defmodule FoodStreet.Panchat do
   end
 
   @doc """
-  Gửi 1 tin gốc bất kỳ vào channel Panchat cố định.
+  Gửi 1 tin gốc bất kỳ vào channel Panchat cố định (Pancake Work API v2).
 
-  Tách `build_body/1` ra để test thuần được payload mà không cần gọi mạng.
+      POST #{@base_url}/api/v2/channels/{channel_id}/messages?workspace_id={ws}
+      Authorization: Bearer <token>
+
+  `token` là JWT của admin (xem `FoodStreet.Settings.panchat_token/1`), gửi qua
+  header Bearer. Thành công khi HTTP 2xx (200 trả về message vừa tạo, 204 khi là
+  lệnh không tạo tin). Tách `build_body/1` ra để test thuần payload không gọi mạng.
   """
   def send_channel_message(token, message) do
-    url = "#{@base_url}/api/workspaces/#{@workspace_id}/channels/#{@channel_id}/messages"
-    IO.inspect(url, label: "panchat url")
-    IO.inspect(build_body(message), label: "panchat body")
+    url = "#{@base_url}/api/v2/channels/#{@channel_id}/messages"
 
     # `:panchat_req_options` cho phép test tiêm Req.Test plug thay vì gọi mạng thật.
     opts =
-      [params: [token: token], json: build_body(message), receive_timeout: 10_000] ++
-        Application.get_env(:food_street, :panchat_req_options, [])
+      [
+        params: [workspace_id: @workspace_id],
+        auth: {:bearer, token},
+        json: build_body(message),
+        receive_timeout: 10_000
+      ] ++ Application.get_env(:food_street, :panchat_req_options, [])
 
     case Req.post(url, opts) do
-      {:ok, %{body: %{"success" => true} = body}} ->
-        {:ok, Map.get(body, "message")}
-
-      {:ok, %{body: %{"success" => false} = body}} ->
-        Logger.warning("Panchat gửi tin thất bại: #{inspect(body)}")
-        {:error, {:panchat, Map.get(body, "message", "unknown")}}
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        {:ok, body}
 
       {:ok, %{status: status, body: body}} ->
         Logger.warning("Panchat trả về bất ngờ (#{status}): #{inspect(body)}")
@@ -242,30 +245,32 @@ defmodule FoodStreet.Panchat do
   end
 
   @doc """
-  Dựng body gửi cho Panchat.
+  Dựng body `SendMessageRequest` cho Pancake Work API v2.
+
+  Nội dung là RichText — danh sách paragraph node. Mỗi dòng của `message` thành 1
+  paragraph; @all được gắn bằng 1 `mention` span (ref `all`) ở đầu paragraph thứ
+  nhất, offset 0..4 ứng với đúng chữ "@all" (grapheme offset).
   """
   def build_body(message) do
-    mention_all = %{
-      "type" => "mention",
-      "data" => [
+    [first | rest] = String.split(message, "\n")
+
+    mention_paragraph = %{
+      "type" => "paragraph",
+      "content" => "@all " <> first,
+      "spans" => [
         %{
-          "type" => "all",
-          "trigger" => "@",
-          "name" => "all",
-          "value" => @channel_id
+          "type" => "mention",
+          "from" => 0,
+          "to" => 4,
+          "ref" => %{"type" => "all", "channel_id" => @channel_id}
         }
       ]
     }
 
-    %{
-      workspace_id: @workspace_id,
-      channel_id: @channel_id,
-      channel_thread_id: nil,
-      message: message,
-      attachments: [mention_all],
-      current_time: System.os_time(:microsecond),
-      key: Ecto.UUID.generate()
-    }
+    rest_paragraphs =
+      Enum.map(rest, fn line -> %{"type" => "paragraph", "content" => line} end)
+
+    %{"text" => [mention_paragraph | rest_paragraphs]}
   end
 
   defp frontend_url do

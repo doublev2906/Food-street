@@ -102,7 +102,7 @@ defmodule FoodStreet.PanchatTest do
 
     test "@all được gắn qua build_body cho tin chia tiền" do
       body = Panchat.build_body(Panchat.external_purchase_text(purchase()))
-      assert [%{"type" => "mention", "data" => [%{"type" => "all"}]}] = body.attachments
+      assert [%{"spans" => [%{"type" => "mention", "ref" => %{"type" => "all"}}]} | _] = body["text"]
     end
 
     test "send_external_purchase lỗi khi thiếu token, không gọi mạng" do
@@ -134,22 +134,61 @@ defmodule FoodStreet.PanchatTest do
   end
 
   describe "build_body/1" do
-    test "builds the Panchat payload (uuid key, @all via mention attachment)" do
-      body = Panchat.build_body("hello")
+    test "dựng RichText SendMessageRequest với @all mention span" do
+      body = Panchat.build_body("hello\nworld")
 
-      assert body.workspace_id == 4
-      assert body.channel_id == 11_813
-      assert body.channel_thread_id == nil
-      assert body.message == "hello"
-      assert is_integer(body.current_time)
-      assert {:ok, _} = Ecto.UUID.cast(body.key)
+      # text là danh sách paragraph node; @all nằm ở paragraph đầu.
+      assert %{"text" => [first | rest]} = body
+      assert first["type"] == "paragraph"
+      assert first["content"] == "@all hello"
 
-      # @all được gửi qua mention attachment (không nhét vào text).
-      assert [mention] = body.attachments
-      assert mention["type"] == "mention"
+      assert [%{"type" => "mention", "from" => 0, "to" => 4, "ref" => ref}] = first["spans"]
+      assert ref == %{"type" => "all", "channel_id" => 11_813}
 
-      assert [%{"type" => "all", "trigger" => "@", "name" => "all", "value" => 11_813}] =
-               mention["data"]
+      # Mỗi dòng tiếp theo là 1 paragraph riêng, không span.
+      assert [%{"type" => "paragraph", "content" => "world"}] = rest
+    end
+  end
+
+  describe "send_channel_message/2 — HTTP request v2" do
+    test "POST /api/v2/channels/:id/messages, workspace_id query, Bearer token, body RichText" do
+      test_pid = self()
+
+      Req.Test.stub(FoodStreet.Panchat, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+
+        send(
+          test_pid,
+          {:req, conn.method, conn.request_path, conn.query_string,
+           Plug.Conn.get_req_header(conn, "authorization"), Jason.decode!(raw)}
+        )
+
+        Req.Test.json(conn, %{"id" => "m1"})
+      end)
+
+      assert {:ok, _} = Panchat.send_channel_message("tok123", "xin chào\ndòng 2")
+
+      assert_received {:req, "POST", path, qs, auth, body}
+      assert path == "/api/v2/channels/11813/messages"
+      assert qs =~ "workspace_id=4"
+      assert auth == ["Bearer tok123"]
+
+      assert [
+               %{
+                 "type" => "paragraph",
+                 "content" => "@all xin chào",
+                 "spans" => [%{"type" => "mention", "ref" => %{"type" => "all"}}]
+               },
+               %{"type" => "paragraph", "content" => "dòng 2"}
+             ] = body["text"]
+    end
+
+    test "HTTP 4xx từ Panchat trả {:error, {:panchat, ...}}" do
+      Req.Test.stub(FoodStreet.Panchat, fn conn ->
+        conn |> Plug.Conn.put_status(422) |> Req.Test.json(%{"error" => "bad"})
+      end)
+
+      assert {:error, {:panchat, "http_422"}} = Panchat.send_channel_message("tok", "hi")
     end
   end
 end
