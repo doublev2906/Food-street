@@ -446,6 +446,10 @@ tr:last-child td {
   width: 100%;
   max-width: 440px;
   box-shadow: 0 20px 40px rgba(16, 24, 40, 0.2);
+  /* Không để modal dài (vd danh sách món khi sửa đơn) tràn khỏi màn hình khiến
+     nút Lưu/Hủy ở dưới cùng không bấm được — giới hạn chiều cao + cuộn nội bộ. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .spinner {
@@ -779,5 +783,6 @@ tr:last-child td {
   }
   .modal {
     padding: 18px;
+    max-height: calc(100vh - 24px);
   }
 }

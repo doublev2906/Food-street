@@ -144,8 +144,24 @@ defmodule FoodStreet.Ordering do
     |> Repo.all()
   end
 
-  @doc "Đơn của user trong 1 đợt cụ thể (hoặc nil)."
+  @doc """
+  Đơn ĐANG HOẠT ĐỘNG của user trong đợt (pending/confirmed) — dùng để hiển thị
+  "đơn của tôi". Bỏ qua đơn đã huỷ để user đặt lại được như đơn mới.
+  """
   def get_user_order_in_group(user_id, group_order_id) do
+    Order
+    |> where(
+      [o],
+      o.user_id == ^user_id and o.group_order_id == ^group_order_id and o.status != "cancelled"
+    )
+    |> preload(:items)
+    |> Repo.one()
+  end
+
+  # Bản ghi đơn của user trong đợt BẤT KỂ trạng thái. Cần cho upsert vì
+  # unique index (group_order_id, user_id) chỉ cho 1 dòng — kể cả đã huỷ — nên
+  # đặt lại phải tái dùng chính dòng đó thay vì insert mới (sẽ vi phạm ràng buộc).
+  defp get_reusable_order_in_group(user_id, group_order_id) do
     Order
     |> where([o], o.user_id == ^user_id and o.group_order_id == ^group_order_id)
     |> preload(:items)
@@ -198,8 +214,8 @@ defmodule FoodStreet.Ordering do
 
     with %GroupOrder{} = go <- Repo.get(GroupOrder, group_order_id),
          :ok <- ensure_open(go),
-         existing = get_user_order_in_group(user.id, go.id),
-         :ok <- ensure_editable(existing),
+         existing = get_reusable_order_in_group(user.id, go.id),
+         :ok <- ensure_reorderable(existing),
          {:ok, items} <- build_items(raw_items, go.category_id) do
       total = Enum.reduce(items, Decimal.new(0), &Decimal.add(&2, &1.subtotal))
       base = existing || %Order{}
@@ -232,6 +248,12 @@ defmodule FoodStreet.Ordering do
   defp ensure_editable(nil), do: :ok
   defp ensure_editable(%Order{status: "pending"}), do: :ok
   defp ensure_editable(%Order{}), do: {:error, :order_not_editable}
+
+  # Đặt lại: cho phép khi chưa có đơn, đơn còn pending (sửa), hoặc đơn đã huỷ
+  # (tái kích hoạt chính dòng đó về pending). Đơn đã chốt thì không đụng được.
+  defp ensure_reorderable(nil), do: :ok
+  defp ensure_reorderable(%Order{status: status}) when status in ["pending", "cancelled"], do: :ok
+  defp ensure_reorderable(%Order{}), do: {:error, :order_not_editable}
 
   @doc """
   Admin sửa 1 đơn bất kỳ khi đơn chưa chốt và đợt còn mở.

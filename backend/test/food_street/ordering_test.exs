@@ -86,6 +86,26 @@ defmodule FoodStreet.OrderingTest do
       assert {:error, :order_not_editable} =
                Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi1, 2}])})
     end
+
+    test "huỷ đơn rồi đặt lại → tái dùng dòng cũ về pending, không kẹt đơn đã huỷ" do
+      %{go: go, mi1: mi1, mi2: mi2} = setup_group()
+      u = user("usr1")
+
+      {:ok, o1} = Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, cancelled} = Ordering.cancel_order(o1)
+      assert cancelled.status == "cancelled"
+
+      # Đơn "đang hoạt động" phải là nil sau khi huỷ → FE hiện form đặt mới, trống.
+      assert Ordering.get_user_order_in_group(u.id, go.id) == nil
+
+      # Đặt lại: tái dùng chính dòng cũ (tôn trọng unique index), về pending,
+      # món mới thay hẳn món của đơn đã huỷ.
+      {:ok, o2} = Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi2, 2}])})
+      assert o2.id == o1.id
+      assert o2.status == "pending"
+      assert Decimal.equal?(o2.total_amount, Decimal.new("30000"))
+      assert [%{item_name: "Bánh mì", quantity: 2}] = o2.items
+    end
   end
 
   describe "update_order/2 (admin sửa đơn người khác)" do
