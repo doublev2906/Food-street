@@ -287,7 +287,7 @@ function ReportTab() {
             className="grid"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
           >
-            <Stat label="Tổng quỹ hiện tại" value={formatVND(data.fund_total)} accent />
+            <Stat label="Tổng quỹ cuối kỳ" value={formatVND(data.fund_total)} accent />
             <Stat label="Nạp trong kỳ" value={formatVND(data.fund_deposited)} />
             <Stat label="Chi trong kỳ" value={formatVND(data.fund_spent)} />
             <Stat label="Điều chỉnh trong kỳ" value={formatVND(data.fund_adjusted)} />

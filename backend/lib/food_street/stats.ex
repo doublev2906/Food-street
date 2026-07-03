@@ -50,7 +50,7 @@ defmodule FoodStreet.Stats do
       pending: count_orders(from_date, to_date, "pending"),
       confirmed: count_orders(from_date, to_date, "confirmed"),
       revenue: revenue(from_date, to_date),
-      fund_total: Repo.aggregate(User, :sum, :balance) || Decimal.new(0),
+      fund_total: fund_total_until(to_date),
       fund_deposited: flow.deposited,
       fund_spent: flow.spent,
       fund_adjusted: flow.adjusted,
@@ -98,6 +98,20 @@ defmodule FoodStreet.Stats do
       spent: spent |> as_decimal() |> Decimal.abs(),
       adjusted: as_decimal(adjusted)
     }
+  end
+
+  # Tổng quỹ LŨY KẾ đến hết ngày `to_date` (giờ VN): cộng mọi giao dịch có
+  # `inserted_at` trước 00:00 của (to_date + 1). Tái dựng số dư quỹ tại thời điểm
+  # cuối kỳ từ lịch sử giao dịch (giả định số dư chỉ đổi qua giao dịch).
+  defp fund_total_until(to_date) do
+    {_start, end_utc} = vn_day_bounds(to_date, to_date)
+
+    Repo.one(
+      from t in FundTransaction,
+        where: t.inserted_at < ^end_utc,
+        select: coalesce(sum(t.amount), 0)
+    )
+    |> as_decimal()
   end
 
   # Số người và tổng số tiền đang âm quỹ (trả về nợ dưới dạng số dương).
