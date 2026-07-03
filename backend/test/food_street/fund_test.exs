@@ -122,4 +122,51 @@ defmodule FoodStreet.FundTest do
                })
     end
   end
+
+  describe "list_transactions/1 — lọc" do
+    setup do
+      a = admin()
+      u1 = make("usr1", "user", "0")
+      u2 = make("usr2", "user", "0")
+      {:ok, _} = Fund.deposit(u1, "100000", a)
+      {:ok, _} = Fund.adjust(u1, "-20000", a)
+      {:ok, _} = Fund.deposit(u2, "50000", a)
+      %{u1: u1, u2: u2}
+    end
+
+    test "không filter → trả tất cả" do
+      assert Fund.list_transactions().total == 3
+    end
+
+    test "lọc theo loại giao dịch" do
+      r = Fund.list_transactions(%{"type" => "deposit"})
+      assert r.total == 2
+      assert Enum.all?(r.entries, &(&1.type == "deposit"))
+    end
+
+    test "lọc theo người dùng", %{u1: u1} do
+      r = Fund.list_transactions(%{"user_id" => u1.id})
+      assert r.total == 2
+      assert Enum.all?(r.entries, &(&1.user_id == u1.id))
+    end
+
+    test "loại/không hợp lệ bị bỏ qua → trả tất cả" do
+      assert Fund.list_transactions(%{"type" => "bogus"}).total == 3
+      assert Fund.list_transactions(%{"user_id" => "not-a-uuid"}).total == 3
+    end
+
+    test "lọc khoảng ngày: from tương lai loại hết, from quá khứ giữ hết" do
+      future = Date.utc_today() |> Date.add(2) |> Date.to_iso8601()
+      past = Date.utc_today() |> Date.add(-2) |> Date.to_iso8601()
+      assert Fund.list_transactions(%{"from" => future}).total == 0
+      assert Fund.list_transactions(%{"from" => past}).total == 3
+    end
+
+    test "kết hợp loại + người dùng", %{u1: u1} do
+      r = Fund.list_transactions(%{"type" => "adjustment", "user_id" => u1.id})
+      assert r.total == 1
+      assert [%{type: "adjustment", user_id: uid}] = r.entries
+      assert uid == u1.id
+    end
+  end
 end

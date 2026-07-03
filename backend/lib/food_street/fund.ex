@@ -22,14 +22,24 @@ defmodule FoodStreet.Fund do
     |> Repo.all()
   end
 
-  @doc "Toàn bộ giao dịch quỹ (admin) — có phân trang."
-  def list_transactions(page \\ 1, page_size \\ 20) do
-    page = max(to_int(page, 1), 1)
-    page_size = page_size |> to_int(20) |> min(100) |> max(1)
-    total = Repo.aggregate(FundTransaction, :count, :id)
+  @tx_types ~w(deposit order adjustment split)
+
+  @doc """
+  Toàn bộ giao dịch quỹ (admin) — phân trang + lọc.
+
+  `params` (map string-key, đều tuỳ chọn): `"page"`, `"page_size"`, `"type"`
+  (1 trong #{inspect(@tx_types)}), `"user_id"`, `"from"`/`"to"` (ISO date, lọc
+  theo `inserted_at` quy về ngày VN UTC+7). Filter không hợp lệ bị bỏ qua.
+  """
+  def list_transactions(params \\ %{}) do
+    page = params |> Map.get("page", 1) |> to_int(1) |> max(1)
+    page_size = params |> Map.get("page_size", 20) |> to_int(20) |> min(100) |> max(1)
+
+    query = filter_transactions(FundTransaction, params)
+    total = Repo.aggregate(query, :count, :id)
 
     entries =
-      FundTransaction
+      query
       |> order_by([t], desc: t.inserted_at)
       |> limit(^page_size)
       |> offset(^((page - 1) * page_size))
@@ -44,6 +54,61 @@ defmodule FoodStreet.Fund do
       total_pages: max(ceil(total / page_size), 1)
     }
   end
+
+  defp filter_transactions(query, params) do
+    query
+    |> filter_tx_type(params["type"])
+    |> filter_tx_user(params["user_id"])
+    |> filter_tx_from(params["from"])
+    |> filter_tx_to(params["to"])
+  end
+
+  defp filter_tx_type(query, type) when type in @tx_types,
+    do: where(query, [t], t.type == ^type)
+
+  defp filter_tx_type(query, _), do: query
+
+  defp filter_tx_user(query, user_id) when is_binary(user_id) and user_id != "" do
+    case Ecto.UUID.cast(user_id) do
+      {:ok, uid} -> where(query, [t], t.user_id == ^uid)
+      :error -> query
+    end
+  end
+
+  defp filter_tx_user(query, _), do: query
+
+  defp filter_tx_from(query, date) do
+    case parse_date(date) do
+      {:ok, d} -> where(query, [t], t.inserted_at >= ^vn_day_start(d))
+      :error -> query
+    end
+  end
+
+  defp filter_tx_to(query, date) do
+    case parse_date(date) do
+      {:ok, d} -> where(query, [t], t.inserted_at < ^vn_day_start(Date.add(d, 1)))
+      :error -> query
+    end
+  end
+
+  # 00:00 giờ VN của `date` quy về UTC (= 00:00 UTC trừ 7 giờ).
+  defp vn_day_start(date) do
+    date
+    |> NaiveDateTime.new!(~T[00:00:00])
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.add(-7 * 3600, :second)
+  end
+
+  defp parse_date(%Date{} = d), do: {:ok, d}
+
+  defp parse_date(s) when is_binary(s) and s != "" do
+    case Date.from_iso8601(s) do
+      {:ok, d} -> {:ok, d}
+      _ -> :error
+    end
+  end
+
+  defp parse_date(_), do: :error
 
   defp to_int(v, _default) when is_integer(v), do: v
 

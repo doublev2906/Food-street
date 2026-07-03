@@ -83,7 +83,7 @@ export interface FundTransaction {
   id: string;
   user_id: string;
   amount: string;
-  type: "deposit" | "order" | "adjustment";
+  type: "deposit" | "order" | "adjustment" | "split";
   description: string | null;
   balance_after: string;
   order_id: string | null;
@@ -361,10 +361,18 @@ export const api = {
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),
     statsPeriod: (from: string, to: string) =>
       request<{ data: PeriodStats }>(`/admin/stats/period?from=${from}&to=${to}`),
-    fundTransactions: (page = 1, pageSize = 20) =>
-      request<Paginated<FundTransaction>>(
-        `/admin/fund/transactions?page=${page}&page_size=${pageSize}`
-      ),
+    fundTransactions: (
+      page = 1,
+      filters: { type?: string; user_id?: string; from?: string; to?: string } = {},
+      pageSize = 20
+    ) => {
+      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (filters.type) qs.set("type", filters.type);
+      if (filters.user_id) qs.set("user_id", filters.user_id);
+      if (filters.from) qs.set("from", filters.from);
+      if (filters.to) qs.set("to", filters.to);
+      return request<Paginated<FundTransaction>>(`/admin/fund/transactions?${qs}`);
+    },
     deposit: (user_id: string, amount: string, description?: string) =>
       request<{ data: any }>("/admin/fund/deposit", {
         method: "POST",

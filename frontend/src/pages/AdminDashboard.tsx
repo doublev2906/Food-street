@@ -1471,33 +1471,51 @@ function FundTab() {
   const [page, setPage] = useState(1);
   const [txMeta, setTxMeta] = useState({ total_pages: 1, total: 0 });
   const [modal, setModal] = useState<"deposit" | "adjust" | null>(null);
+  const [filters, setFilters] = useState({ type: "", user_id: "", from: "", to: "" });
+  const [reloadKey, setReloadKey] = useState(0);
 
   const loadUsers = () => api.admin.users().then((r) => setUsers(r.data));
-  const loadTxs = (p: number) =>
-    api.admin.fundTransactions(p).then((r) => {
-      setTxs(r.data);
-      setTxMeta({ total_pages: r.total_pages, total: r.total });
-    });
 
   useEffect(() => {
     loadUsers();
   }, []);
   useEffect(() => {
-    loadTxs(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+    api.admin
+      .fundTransactions(page, {
+        type: filters.type || undefined,
+        user_id: filters.user_id || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+      })
+      .then((r) => {
+        setTxs(r.data);
+        setTxMeta({ total_pages: r.total_pages, total: r.total });
+      });
+  }, [page, filters, reloadKey]);
 
-  // Sau khi nạp/điều chỉnh: cập nhật số dư + về trang 1 để thấy giao dịch mới.
+  // Đổi 1 filter → luôn về trang 1 (React gộp 2 setState nên chỉ fetch 1 lần).
+  const setFilter = (key: keyof typeof filters, value: string) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(1);
+  };
+  const clearFilters = () => {
+    setFilters({ type: "", user_id: "", from: "", to: "" });
+    setPage(1);
+  };
+  const hasFilter = filters.type || filters.user_id || filters.from || filters.to;
+
+  // Sau khi nạp/điều chỉnh: cập nhật số dư + về trang 1 và ép tải lại.
   const afterMutation = () => {
     loadUsers();
-    if (page === 1) loadTxs(1);
-    else setPage(1);
+    setPage(1);
+    setReloadKey((k) => k + 1);
   };
 
   const typeLabel: Record<string, string> = {
     deposit: "Nạp quỹ",
     order: "Trừ đơn",
     adjustment: "Điều chỉnh",
+    split: "Chia mua ngoài",
   };
 
   const total = users.reduce((s, u) => s + parseFloat(u.balance), 0);
@@ -1552,8 +1570,57 @@ function FundTab() {
             </span>
           )}
         </div>
+
+        <div className="row wrap mt" style={{ gap: 8, alignItems: "flex-end" }}>
+          <select
+            value={filters.type}
+            onChange={(e) => setFilter("type", e.target.value)}
+            style={{ width: "auto" }}
+          >
+            <option value="">Tất cả loại</option>
+            {Object.entries(typeLabel).map(([val, label]) => (
+              <option key={val} value={val}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.user_id}
+            onChange={(e) => setFilter("user_id", e.target.value)}
+            style={{ width: "auto", maxWidth: 200 }}
+          >
+            <option value="">Tất cả người dùng</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={filters.from}
+            onChange={(e) => setFilter("from", e.target.value)}
+            style={{ width: "auto" }}
+            aria-label="Từ ngày"
+          />
+          <input
+            type="date"
+            value={filters.to}
+            onChange={(e) => setFilter("to", e.target.value)}
+            style={{ width: "auto" }}
+            aria-label="Đến ngày"
+          />
+          {hasFilter && (
+            <button className="ghost small" onClick={clearFilters}>
+              ✕ Xóa lọc
+            </button>
+          )}
+        </div>
+
         {txs.length === 0 ? (
-          <p className="muted mt">Chưa có giao dịch.</p>
+          <p className="muted mt">
+            {hasFilter ? "Không có giao dịch khớp bộ lọc." : "Chưa có giao dịch."}
+          </p>
         ) : (
           <table className="mt">
             <thead>

@@ -8,7 +8,7 @@ defmodule FoodStreetWeb.Admin.FundController do
   action_fallback FoodStreetWeb.FallbackController
 
   def index(conn, params) do
-    result = Fund.list_transactions(params["page"] || 1, params["page_size"] || 20)
+    result = Fund.list_transactions(params)
 
     json(conn, %{
       data: Enum.map(result.entries, &shape/1),
