@@ -148,6 +148,36 @@ defmodule FoodStreet.PanchatTest do
       # Mỗi dòng tiếp theo là 1 paragraph riêng, không span.
       assert [%{"type" => "paragraph", "content" => "world"}] = rest
     end
+
+    test "gắn link span + link_previews khi nội dung chứa URL, offset theo UTF-16" do
+      url = "https://dev.pancake.vn:3200/app?group=abc"
+      # Dòng có 2 emoji trước URL (📅 và 👉) -> mỗi emoji tính 2 UTF-16 code unit.
+      body = Panchat.build_body("Đã chốt (📅 nay)\n6 đơn 👉 #{url}")
+
+      assert body["type"] == "v1/standard"
+      assert body["attachments"] == []
+
+      assert [_first, %{"content" => content, "spans" => spans}] = body["text"]
+
+      assert [%{"type" => "link", "from" => from, "to" => to, "url" => ^url}] = spans
+      # from = số UTF-16 code unit của "6 đơn 👉 " (👉 = 2) = 9; to = from + len(url).
+      assert from == 9
+      assert to == from + String.length(url)
+      assert content =~ url
+
+      assert [%{"url" => ^url, "title" => _, "icon" => icon}] = body["link_previews"]
+      assert icon =~ "/favicon.svg"
+    end
+
+    test "không có link thì không thêm link span, link_previews rỗng" do
+      body = Panchat.build_body("chỉ có chữ\nkhông link")
+
+      assert body["link_previews"] == []
+      assert [first, second] = body["text"]
+      # paragraph đầu chỉ còn mention span, paragraph sau không có khoá spans.
+      assert [%{"type" => "mention"}] = first["spans"]
+      refute Map.has_key?(second, "spans")
+    end
   end
 
   describe "send_channel_message/2 — HTTP request v2" do

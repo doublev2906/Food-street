@@ -24,6 +24,11 @@ defmodule FoodStreet.Panchat do
   @workspace_id 4
   @channel_id 11_813
 
+  # URL trong nội dung tin (http/https, tới khoảng trắng đầu tiên).
+  @url_regex ~r{https?://\S+}
+  # Tiêu đề preview cho link app (SPA nên OG title cố định cho mọi đợt).
+  @app_link_title "Food Street · Đặt đồ ăn sáng"
+
   @doc """
   Gửi lời mời ăn sáng cho 1 đợt đặt nhóm vào channel Panchat bằng `token` của
   admin tạo đợt.
@@ -249,28 +254,91 @@ defmodule FoodStreet.Panchat do
 
   Nội dung là RichText — danh sách paragraph node. Mỗi dòng của `message` thành 1
   paragraph; @all được gắn bằng 1 `mention` span (ref `all`) ở đầu paragraph thứ
-  nhất, offset 0..4 ứng với đúng chữ "@all" (grapheme offset).
+  nhất, offset 0..4 ứng với đúng chữ "@all".
+
+  Mọi URL http/https trong nội dung được gắn thêm `link` span để hiển thị link
+  bấm được, kèm 1 `link_previews` cho mỗi URL. `from`/`to` của span là offset
+  theo đơn vị UTF-16 code unit (giống `String.length` của JS mà editor Panchat
+  dùng): ký tự BMP tính 1, emoji ngoài BMP như 📅/👉 tính 2.
   """
   def build_body(message) do
     [first | rest] = String.split(message, "\n")
 
-    mention_paragraph = %{
-      "type" => "paragraph",
-      "content" => "@all " <> first,
-      "spans" => [
-        %{
-          "type" => "mention",
-          "from" => 0,
-          "to" => 4,
-          "ref" => %{"type" => "all", "channel_id" => @channel_id}
-        }
-      ]
+    first_content = "@all " <> first
+
+    mention_span = %{
+      "type" => "mention",
+      "from" => 0,
+      "to" => 4,
+      "ref" => %{"type" => "all", "channel_id" => @channel_id}
     }
 
-    rest_paragraphs =
-      Enum.map(rest, fn line -> %{"type" => "paragraph", "content" => line} end)
+    first_paragraph = %{
+      "type" => "paragraph",
+      "content" => first_content,
+      "spans" => [mention_span | link_spans(first_content)]
+    }
 
-    %{"text" => [mention_paragraph | rest_paragraphs]}
+    rest_paragraphs = Enum.map(rest, &paragraph/1)
+
+    urls =
+      message
+      |> url_matches()
+      |> Enum.map(fn {url, _offset} -> url end)
+      |> Enum.uniq()
+
+    %{
+      "type" => "v1/standard",
+      "text" => [first_paragraph | rest_paragraphs],
+      "attachments" => [],
+      "link_previews" => Enum.map(urls, &link_preview/1)
+    }
+  end
+
+  # 1 dòng -> paragraph node; chỉ thêm khoá "spans" khi có link để giữ payload gọn.
+  defp paragraph(line) do
+    base = %{"type" => "paragraph", "content" => line}
+
+    case link_spans(line) do
+      [] -> base
+      spans -> Map.put(base, "spans", spans)
+    end
+  end
+
+  # Các `link` span cho mọi URL trong `content` (offset theo UTF-16 code unit).
+  defp link_spans(content) do
+    Enum.map(url_matches(content), fn {url, byte_offset} ->
+      from = content |> binary_part(0, byte_offset) |> utf16_length()
+
+      %{
+        "type" => "link",
+        "from" => from,
+        "to" => from + utf16_length(url),
+        "url" => url
+      }
+    end)
+  end
+
+  # Danh sách {url, byte_offset} của mọi URL trong `content` (byte_offset để cắt chuỗi).
+  defp url_matches(content) do
+    @url_regex
+    |> Regex.scan(content, return: :index)
+    |> Enum.map(fn [{start, len}] -> {binary_part(content, start, len), start} end)
+  end
+
+  # Độ dài chuỗi theo UTF-16 code unit: codepoint ngoài BMP (emoji) tính 2 đơn vị.
+  defp utf16_length(string) do
+    string
+    |> String.to_charlist()
+    |> Enum.reduce(0, fn cp, acc -> acc + if(cp > 0xFFFF, do: 2, else: 1) end)
+  end
+
+  defp link_preview(url) do
+    %{
+      "url" => url,
+      "title" => @app_link_title,
+      "icon" => "#{frontend_url()}/favicon.svg"
+    }
   end
 
   defp frontend_url do
