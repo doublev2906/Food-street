@@ -15,7 +15,7 @@ import { categoryIcon, FoodThumb, GROUP_ORDER, menuGroup, type MenuGroup } from 
 
 type Tab = "order" | "orders" | "fund";
 
-const PAGE_SIZE = 18; // 6×3 như mockup
+const PAGE_SIZE = 16;
 
 export default function UserDashboard() {
   const [tab, setTab] = useState<Tab>("order");
