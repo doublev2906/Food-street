@@ -63,9 +63,15 @@ export function Header({ subtitle }: { subtitle?: string }) {
     setAccentOpen(false);
   };
 
+  // Bấm logo -> về tab đầu của khu đang đứng: admin ở nguyên /admin, user về /app.
+  // navigate không kèm query nên ?tab bị xoá -> useTabParam tự rơi về tab đầu.
+  const goHome = () => {
+    navigate(onAdminPage ? "/admin" : "/app");
+  };
+
   return (
     <header className="app-header">
-      <div className="brand">
+      <div className="brand" onClick={goHome} title="Về trang đặt món">
         <span className="brand-logo">🍜</span>
         <span className="brand-name">
           Food <span className="brand-accent">Street</span>
