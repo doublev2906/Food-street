@@ -1,3 +1,4 @@
+import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -50,6 +51,14 @@ const NAV_ITEMS: [Tab, string, string][] = [
 
 export default function UserDashboard() {
   const [tab, setTab] = useState<Tab>("order");
+
+  // Bấm logo trên header -> Header phát event này, bay về tab đầu tiên
+  useEffect(() => {
+    const goFirstTab = () => setTab("order");
+    window.addEventListener("dash-go-home", goFirstTab);
+    return () => window.removeEventListener("dash-go-home", goFirstTab);
+  }, []);
+
   return (
     <>
       <Header subtitle="Khu vực người dùng" />
@@ -437,8 +446,9 @@ function OrderForm({
                       </span>
                       <span>{formatVND(parseFloat(m.price) * cart[m.id])}</span>
                     </div>
-                    <input
+                    <textarea
                       className="mt"
+                      rows={2}
                       style={{ fontSize: 13, padding: "6px 10px" }}
                       value={itemNotes[m.id] || ""}
                       onChange={(e) => setItemNotes((n) => ({ ...n, [m.id]: e.target.value }))}
@@ -453,7 +463,7 @@ function OrderForm({
           <div className="field mt">
             <label>Ghi chú chung (tùy chọn)</label>
             <textarea
-              rows={2}
+              rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Ghi chú cho cả đơn, vd: giao trước 8h…"
@@ -480,6 +490,16 @@ function MyOrdersTab() {
   const [loading, setLoading] = useState(true);
   // Map menu_item_id -> ảnh (order_item không lưu ảnh) — fetch menu 1 lần cho tab này.
   const [imgMap, setImgMap] = useState<Record<string, MenuItem>>({});
+  // Đơn đang mở rộng danh sách món — mặc định card chỉ hiện tối đa 2 món đầu
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const handleToggleExpand = (id: string) =>
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const load = () => {
     setLoading(true);
@@ -512,70 +532,89 @@ function MyOrdersTab() {
     );
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
+  const cancelledCount = orders.filter((o) => o.status === "cancelled").length;
 
   return (
     <div className="orders-list">
-      {orders.map((o) => (
-        <div key={o.id} className="card order-card">
-          <div className="order-head">
-            <div className="icon-circle sm">{categoryIcon(o.group_order?.category?.name)}</div>
-            <div style={{ flex: 1 }}>
-              <div className="row wrap" style={{ gap: 8 }}>
+      {orders.map((o) => {
+        // Đơn >=3 món: mặc định chỉ hiện 2 món đầu, bấm caret mới xổ phần còn lại
+        const canExpand = o.items.length >= 3;
+        const isExpanded = expanded.has(o.id);
+        const visibleItems = canExpand && !isExpanded ? o.items.slice(0, 2) : o.items;
+        return (
+          <div key={o.id} className={`card order-card status-${o.status}`}>
+            <div className="order-head">
+              <div className="icon-circle sm">{categoryIcon(o.group_order?.category?.name)}</div>
+              {/* Header tách 3 dòng: title / badge / thứ ngày */}
+              <div className="order-head-info" style={{ flex: 1, minWidth: 0 }}>
                 <strong>{o.group_order?.title || o.order_date}</strong>
-                <StatusBadge status={o.status} />
-                {o.group_order?.category && (
-                  <span className="badge admin">{o.group_order.category.name}</span>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <StatusBadge status={o.status} />
+                  {o.group_order?.category && (
+                    <span className="badge admin">{o.group_order.category.name}</span>
+                  )}
+                </div>
+                <div className="small muted">📅 {formatDateVN(o.order_date)}</div>
+              </div>
+              <div className="row">
+                <strong className="order-total">{formatVND(o.total_amount)}</strong>
+                {o.status === "pending" && (
+                  <button className="secondary danger-outline small" onClick={() => cancel(o.id)}>
+                    Hủy
+                  </button>
                 )}
               </div>
-              <div className="small muted">📅 {formatDateVN(o.order_date)}</div>
             </div>
-            <div className="row">
-              <strong className="order-total">{formatVND(o.total_amount)}</strong>
-              {o.status === "pending" && (
-                <button className="secondary danger-outline small" onClick={() => cancel(o.id)}>
-                  Hủy
-                </button>
-              )}
-            </div>
-          </div>
 
-          <div className="divider" />
+            <div className="divider" />
 
-          <div className="grid" style={{ gap: 12 }}>
-            {o.items.map((it) => {
-              const mi = imgMap[it.menu_item_id];
-              return (
-                <div key={it.id} className="order-line">
-                  {mi ? (
-                    <FoodThumb item={mi} size={44} radius={8} />
-                  ) : (
-                    <div className="food-thumb placeholder" style={{ width: 44, height: 44, fontSize: 20 }}>
-                      🍽️
-                    </div>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div>{it.item_name}</div>
-                    {it.note && (
-                      <div className="small" style={{ color: "var(--primary-text)" }}>
-                        ↳ {it.note}
+            <div className="grid order-items" style={{ gap: 12 }}>
+              {visibleItems.map((it) => {
+                const mi = imgMap[it.menu_item_id];
+                return (
+                  <div key={it.id} className="order-line">
+                    {mi ? (
+                      <FoodThumb item={mi} size={44} radius={8} />
+                    ) : (
+                      <div className="food-thumb placeholder" style={{ width: 44, height: 44, fontSize: 20 }}>
+                        🍽️
                       </div>
                     )}
+                    <div style={{ flex: 1 }}>
+                      <div>{it.item_name}</div>
+                      {it.note && (
+                        <div className="small" style={{ color: "var(--primary-text)" }}>
+                          ↳ {it.note}
+                        </div>
+                      )}
+                    </div>
+                    <span className="muted" style={{ minWidth: 40, textAlign: "center" }}>
+                      ×{it.quantity}
+                    </span>
+                    <strong style={{ minWidth: 90, textAlign: "right" }}>{formatVND(it.subtotal)}</strong>
                   </div>
-                  <span className="muted" style={{ minWidth: 40, textAlign: "center" }}>
-                    ×{it.quantity}
-                  </span>
-                  <strong style={{ minWidth: 90, textAlign: "right" }}>{formatVND(it.subtotal)}</strong>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            {o.note && <div className="small muted mt">Ghi chú chung: {o.note}</div>}
+
+            {canExpand && (
+              <button
+                className="order-collapse-btn"
+                onClick={() => handleToggleExpand(o.id)}
+                aria-label={isExpanded ? "Thu gọn danh sách món" : `Xem thêm ${o.items.length - 2} món`}
+              >
+                {isExpanded ? <CaretUp size={16} /> : <CaretDown size={16} />}
+              </button>
+            )}
           </div>
-          {o.note && <div className="small muted mt">Ghi chú chung: {o.note}</div>}
-        </div>
-      ))}
+        );
+      })}
       {/* Tổng kết để cuối như footer — card đơn nằm sát đầu trang giống các màn khác */}
       <div className="orders-summary small muted">
         Tổng {orders.length} đơn
         {pendingCount > 0 ? ` · ${pendingCount} đơn đang chờ chốt` : ""}
+        {cancelledCount > 0 ? ` · ${cancelledCount} đơn đã hủy` : ""}
       </div>
     </div>
   );

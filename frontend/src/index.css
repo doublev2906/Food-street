@@ -212,6 +212,11 @@ textarea:focus {
   border-color: var(--primary);
 }
 
+/* Ghi chú ngắn thôi — khoá luôn kéo resize cho khỏi vỡ layout */
+textarea {
+  resize: none;
+}
+
 /* Checkbox/radio không được kéo full-width như input text. */
 input[type="checkbox"],
 input[type="radio"] {
@@ -269,6 +274,8 @@ label {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Logo bấm được: về trang đặt món tab đầu */
+  cursor: pointer;
 }
 .brand-logo {
   width: 34px;
@@ -407,7 +414,7 @@ button.logout-btn:hover {
 }
 /* Bản rộng cho màn đặt món — lưới món hiển thị được nhiều cột hơn */
 .container.wide {
-  max-width: 1440px;
+  max-width: 1560px;
 }
 
 .tabs {
@@ -868,6 +875,8 @@ tbody tr:hover td {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  /* Fix cứng 112px đồng bộ với fund-hero — 2 hero bar cao bằng nhau khi chuyển tab */
+  min-height: 112px;
   background: linear-gradient(120deg, var(--welcome-grad-1), var(--welcome-grad-2));
   border: 1px solid var(--accent-border);
   border-radius: 14px;
@@ -1021,9 +1030,9 @@ tbody tr:hover td {
 }
 
 /* ---- Màn "Đặt theo đợt" (danh sách đợt) ---- */
-/* Đồng bộ 900px với orders-list/fund-layout để các màn thẳng hàng nhau */
+/* Đồng bộ 600px với orders-list/fund-layout để các màn thẳng hàng nhau */
 .batch-list {
-  max-width: 900px;
+  max-width: 600px;
   margin: 0 auto;
   display: flex;
   flex-wrap: wrap;
@@ -1239,15 +1248,112 @@ tbody tr:hover td {
   max-width: 900px;
   margin: 0 auto;
   display: grid;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
+/* 2 cột bằng media query thay vì auto-fill: dash-layout align-items:flex-start
+   làm dash-content tính fit-content theo max-content của grid -> auto-fill sẽ tràn ngang mobile */
+@media (min-width: 1100px) {
+  .orders-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 .orders-summary {
+  grid-column: 1 / -1;
   text-align: center;
+}
+/* Card fill đủ ô grid (grid mặc định stretch) -> 2 card cùng hàng luôn cao bằng nhau */
+.order-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+/* Viền card theo trạng thái đơn — liếc màu là biết, khỏi đọc badge */
+.order-card.status-confirmed {
+  border-color: var(--success);
+}
+.order-card.status-cancelled {
+  border-color: var(--danger);
+}
+/* Chờ chốt: viền cam (khớp badge) nền mờ + vệt sáng chạy vòng quanh kiểu con rắn.
+   Kỹ thuật: pseudo phủ lên card, conic-gradient xoay bằng @property, mask 2 lớp
+   XOR nhau để chỉ giữ lại phần vành viền (ruột card bị khoét trống) */
+@property --snake-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.order-card.status-pending {
+  position: relative;
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+.order-card.status-pending::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: var(--radius);
+  padding: 2px;
+  background: conic-gradient(
+    from var(--snake-angle),
+    transparent 0deg 240deg,
+    var(--warn) 330deg,
+    #ffd97a 358deg,
+    transparent 360deg
+  );
+  /* Glow nhẹ quanh vệt sáng cho ra chất "ánh sáng" thay vì sợi chỉ */
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--warn) 70%, transparent));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: order-snake 6s linear infinite;
+  pointer-events: none;
+}
+@keyframes order-snake {
+  to {
+    --snake-angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .order-card.status-pending::before {
+    animation: none;
+  }
 }
 .order-head {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+/* Header 3 dòng: title / badge / thứ ngày */
+.order-head-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+/* Khu món giãn chiếm phần cao thừa của card (card đã fill ô grid),
+   hàng món dồn lên đầu, nút caret/ghi chú nằm sát đáy */
+.order-items {
+  flex: 1;
+  align-content: start;
+}
+/* Nút thu gọn/mở danh sách món cuối card (chỉ đơn >=3 món) */
+.order-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+  padding: 3px 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--muted);
+  line-height: 1;
+}
+.order-collapse-btn:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 .order-total {
   color: var(--primary-text);
@@ -1283,6 +1389,8 @@ tbody tr:hover td {
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
+  /* Fix cứng 112px đồng bộ với welcome-bar — 2 hero bar cao bằng nhau khi chuyển tab */
+  min-height: 112px;
   background: linear-gradient(120deg, var(--welcome-grad-1), var(--welcome-grad-2));
   border: 1px solid var(--accent-border);
   border-radius: 14px;

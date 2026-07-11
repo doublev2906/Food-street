@@ -16,6 +16,7 @@ import {
   type User,
 } from "../api";
 import { Header, Modal, Money, Spinner, StatusBadge } from "../components";
+import { FoodThumb } from "../menu";
 
 type Tab =
   | "stats"
@@ -43,6 +44,14 @@ export default function AdminDashboard() {
     ["schedule", "📅 Lịch hẹn"],
     ["settings", "⚙️ Cài đặt"],
   ];
+
+  // Bấm logo trên header -> về tab đầu của admin (Header phát event này)
+  useEffect(() => {
+    const goFirstTab = () => setTab("stats");
+    window.addEventListener("dash-go-home", goFirstTab);
+    return () => window.removeEventListener("dash-go-home", goFirstTab);
+  }, []);
+
   return (
     <>
       <Header subtitle="Khu vực quản trị" />
@@ -547,7 +556,8 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
   return (
     <div className="grid">
-      <button className="ghost" style={{ alignSelf: "start" }} onClick={onBack}>
+      {/* justifySelf (trục ngang) mới làm nút co theo chữ — alignSelf là trục dọc, grid item vẫn stretch full width */}
+      <button className="ghost" style={{ justifySelf: "start" }} onClick={onBack}>
         ← Quay lại danh sách đợt
       </button>
 
@@ -1176,8 +1186,13 @@ function MenuTab() {
             {paged.map((m) => (
               <tr key={m.id}>
                 <td>
-                  <strong>{m.name}</strong>
-                  <div className="muted small">{m.description}</div>
+                  <div className="row" style={{ gap: 10 }}>
+                    <FoodThumb item={m} size={40} radius={8} />
+                    <div>
+                      <strong>{m.name}</strong>
+                      <div className="muted small">{m.description}</div>
+                    </div>
+                  </div>
                 </td>
                 <td>
                   <span className="badge user">{catName(m.category_id)}</span>
@@ -2138,11 +2153,12 @@ function ExternalPurchaseTab() {
           </div>
 
           <div className="field">
-            <div className="row between">
-              <label>Người ăn ({selectedIds.length})</label>
+            {/* marginBottom tách nút Chia đều khỏi danh sách người ăn bên dưới */}
+            <div className="row between" style={{ marginBottom: 8 }}>
+              <label style={{ marginBottom: 0 }}>Người ăn ({selectedIds.length})</label>
               <button
                 type="button"
-                className="secondary"
+                className="secondary small"
                 onClick={splitEven}
                 disabled={selectedIds.length === 0 || totalNum <= 0}
               >

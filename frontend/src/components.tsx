@@ -61,9 +61,16 @@ export function Header({ subtitle }: { subtitle?: string }) {
     setAccentOpen(false);
   };
 
+  // Bấm logo -> về tab đầu của khu đang đứng: admin ở nguyên /admin, user về /app
+  // (dashboard tương ứng lắng nghe event dash-go-home để reset tab đang mở)
+  const goHome = () => {
+    window.dispatchEvent(new Event("dash-go-home"));
+    navigate(onAdminPage ? "/admin" : "/app");
+  };
+
   return (
     <header className="app-header">
-      <div className="brand">
+      <div className="brand" onClick={goHome} title="Về trang đặt món">
         <span className="brand-logo">🍜</span>
         <span className="brand-name">
           Food <span className="brand-accent">Street</span>
