@@ -17,6 +17,7 @@ defmodule FoodStreet.Ordering.GroupOrder do
              :note,
              :deadline,
              :closed_at,
+             :runner_count,
              :category_id,
              :created_by_id,
              :inserted_at
@@ -31,6 +32,7 @@ defmodule FoodStreet.Ordering.GroupOrder do
     field :note, :string
     field :deadline, :utc_datetime
     field :closed_at, :utc_datetime
+    field :runner_count, :integer, default: 0
 
     belongs_to :category, Category
     belongs_to :created_by, User
@@ -47,11 +49,13 @@ defmodule FoodStreet.Ordering.GroupOrder do
       :status,
       :note,
       :deadline,
+      :runner_count,
       :category_id,
       :created_by_id
     ])
     |> validate_required([:title, :order_date, :category_id])
     |> validate_inclusion(:status, @statuses)
+    |> validate_number(:runner_count, greater_than_or_equal_to: 0)
     |> foreign_key_constraint(:category_id)
   end
 

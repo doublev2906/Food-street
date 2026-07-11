@@ -363,7 +363,8 @@ unless Repo.one(
         "title" => "Ăn sáng hôm nay",
         "order_date" => Date.to_iso8601(today),
         "category_id" => an_sang.id,
-        "note" => "Chốt đơn lúc 8h sáng"
+        "note" => "Chốt đơn lúc 8h sáng",
+        "runner_count" => 1
       },
       admin
     )

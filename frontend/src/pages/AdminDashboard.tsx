@@ -433,6 +433,7 @@ function GroupModal({
     order_date: today(),
     category_id: categories[0]?.id || "",
     note: "",
+    runner_count: 0,
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -497,6 +498,22 @@ function GroupModal({
             placeholder="VD: Chốt đơn lúc 8h"
           />
         </div>
+        <div className="field">
+          <label>Số người đi lấy đồ (bốc ngẫu nhiên khi chốt)</label>
+          <input
+            type="number"
+            min={0}
+            value={form.runner_count}
+            onChange={(e) =>
+              setForm({ ...form, runner_count: Math.max(0, Number(e.target.value) || 0) })
+            }
+            placeholder="0 = không bốc"
+          />
+          <div className="small muted mt">
+            Khi bấm “Chốt đợt”, hệ thống tự bốc đúng số người này từ danh sách người đã
+            đặt và mention họ trên Panchat. Để 0 nếu không cần.
+          </div>
+        </div>
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="secondary" onClick={onClose}>
             Hủy
@@ -515,9 +532,6 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [msg, setMsg] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [runnerCount, setRunnerCount] = useState(1);
-  const [runners, setRunners] = useState<{ id: string; name: string }[] | null>(null);
-  const [runnerMsg, setRunnerMsg] = useState("");
 
   const load = () => api.admin.groupOrder(id).then((r) => setGroup(r.data));
   useEffect(() => {
@@ -530,32 +544,20 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const orders = group.orders || [];
   const pending = orders.filter((o) => o.status === "pending").length;
   const open = group.status === "open";
-  // Số người đã đặt (đơn chưa huỷ) — cơ sở để bốc người đi lấy đồ.
-  const orderersCount = new Set(
-    orders.filter((o) => o.status !== "cancelled").map((o) => o.user_id)
-  ).size;
-
-  const pickRunners = async () => {
-    setRunnerMsg("");
-    try {
-      const r = await api.admin.pickRunners(id, runnerCount);
-      setRunners(r.data.runners);
-      setRunnerMsg(
-        r.panchat.sent
-          ? "Đã thông báo Panchat ✅"
-          : `Đã bốc nhưng gửi Panchat lỗi: ${r.panchat.error || "?"}`
-      );
-    } catch (e: any) {
-      setRunners(null);
-      setRunnerMsg(e.message);
-    }
-  };
+  const runnerCount = group.runner_count || 0;
 
   const close = async () => {
-    if (!confirm(`Chốt đợt "${group.title}"? Sẽ trừ quỹ ${pending} đơn và đóng đợt.`)) return;
+    const runnerNote =
+      runnerCount > 0 ? ` và bốc ${runnerCount} người đi lấy đồ` : "";
+    if (
+      !confirm(`Chốt đợt "${group.title}"? Sẽ trừ quỹ ${pending} đơn, đóng đợt${runnerNote}.`)
+    )
+      return;
     try {
       const r = await api.admin.closeGroupOrder(id);
-      setMsg(`Đã chốt ${r.data.confirmed} đơn. Đợt đã đóng.`);
+      const names = (r.data.runners || []).map((u) => u.name).join(", ");
+      const runnerMsg = names ? ` Người đi lấy đồ: ${names}.` : "";
+      setMsg(`Đã chốt ${r.data.confirmed} đơn. Đợt đã đóng.${runnerMsg}`);
       load();
     } catch (e: any) {
       setMsg(e.message);
@@ -583,6 +585,11 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <span className="badge admin">{group.category?.name}</span>{" "}
             <span className="small muted">📅 {group.order_date}</span>
             {group.note && <div className="small muted mt">📌 {group.note}</div>}
+            {runnerCount > 0 && (
+              <div className="small muted mt">
+                🎲 Bốc {runnerCount} người đi lấy đồ khi chốt
+              </div>
+            )}
           </div>
           <div className="row">
             <button
@@ -608,41 +615,6 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
           <strong>Tổng: {formatVND(group.total_amount || "0")}</strong>
         </div>
       </div>
-
-      {orderersCount >= 2 && (
-        <div className="card">
-          <div className="row between wrap">
-            <h3 style={{ margin: 0 }}>🎲 Bốc người đi lấy đồ</h3>
-            <div className="row">
-              <input
-                type="number"
-                min={1}
-                max={orderersCount - 1}
-                value={runnerCount}
-                onChange={(e) =>
-                  setRunnerCount(
-                    Math.min(orderersCount - 1, Math.max(1, Number(e.target.value) || 1))
-                  )
-                }
-                style={{ width: 80 }}
-              />
-              <button className="secondary" onClick={pickRunners}>
-                🎲 Random
-              </button>
-            </div>
-          </div>
-          <div className="small muted mt">
-            {orderersCount} người đã đặt — chọn ngẫu nhiên 1…{orderersCount - 1} người, rồi
-            mention họ trên Panchat.
-          </div>
-          {runners && (
-            <div className="alert success mt">
-              Người được chọn: <strong>{runners.map((u) => u.name).join(", ")}</strong>
-            </div>
-          )}
-          {runnerMsg && <div className="small muted mt">{runnerMsg}</div>}
-        </div>
-      )}
 
       {orders.length === 0 ? (
         <div className="card muted">Chưa có ai đặt trong đợt này.</div>

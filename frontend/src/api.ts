@@ -68,6 +68,7 @@ export interface GroupOrder {
   note: string | null;
   deadline: string | null;
   closed_at?: string | null;
+  runner_count?: number;
   category_id?: string | null;
   category?: Category | null;
   orders?: Order[];
@@ -330,6 +331,7 @@ export const api = {
       category_id: string;
       note?: string;
       deadline?: string;
+      runner_count?: number;
     }) =>
       request<{ data: GroupOrder }>("/admin/group_orders", {
         method: "POST",
@@ -354,18 +356,15 @@ export const api = {
         body: JSON.stringify(payload),
       }),
     closeGroupOrder: (id: string) =>
-      request<{ data: { confirmed: number; group_order: GroupOrder } }>(
-        `/admin/group_orders/${id}/close`,
-        { method: "POST" }
-      ),
-    pickRunners: (id: string, count: number) =>
       request<{
-        data: { runners: { id: string; name: string }[] };
+        data: {
+          confirmed: number;
+          group_order: GroupOrder;
+          runners: { id: string; name: string }[];
+        };
         panchat: { sent: boolean; error?: string };
-      }>(`/admin/group_orders/${id}/pick_runners`, {
-        method: "POST",
-        body: JSON.stringify({ count }),
-      }),
+        runners_panchat: { sent?: boolean; skipped?: boolean; error?: string };
+      }>(`/admin/group_orders/${id}/close`, { method: "POST" }),
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),

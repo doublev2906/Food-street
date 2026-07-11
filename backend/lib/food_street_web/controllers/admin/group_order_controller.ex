@@ -111,9 +111,18 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
         with {:ok, result} <- Ordering.close_group_order(go, admin) do
           panchat = notify_closed(result.group, result.confirmed, admin)
 
+          # Chốt xong tự bốc ngẫu nhiên người đi lấy đồ theo số đã chọn khi tạo đợt.
+          runners = Ordering.pick_runners(result.group, result.group.runner_count)
+          runners_panchat = notify_runners(result.group, runners, admin)
+
           json(conn, %{
-            data: %{confirmed: result.confirmed, group_order: shape(result.group)},
-            panchat: panchat
+            data: %{
+              confirmed: result.confirmed,
+              group_order: shape(result.group),
+              runners: Enum.map(runners, &%{id: &1.id, name: &1.name})
+            },
+            panchat: panchat,
+            runners_panchat: runners_panchat
           })
         end
     end
@@ -136,41 +145,10 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  @doc """
-  Bốc ngẫu nhiên `count` người đi lấy đồ trong đợt rồi báo Panchat (mention họ).
-  """
-  def pick_runners(conn, %{"id" => id} = params) do
-    admin = Guardian.Plug.current_resource(conn)
-    count = parse_count(params["count"])
-
-    case Ordering.get_group_order(id) do
-      nil ->
-        {:error, :not_found}
-
-      go ->
-        with {:ok, runners} <- Ordering.pick_runners(go, count) do
-          panchat = notify_runners(go, runners, admin)
-
-          json(conn, %{
-            data: %{runners: Enum.map(runners, &%{id: &1.id, name: &1.name})},
-            panchat: panchat
-          })
-        end
-    end
-  end
-
-  defp parse_count(count) when is_integer(count), do: count
-
-  defp parse_count(count) when is_binary(count) do
-    case Integer.parse(count) do
-      {n, _} -> n
-      :error -> nil
-    end
-  end
-
-  defp parse_count(_), do: nil
-
   # Gửi tin báo người đi lấy đồ vào Panchat (best-effort, token admin thực hiện).
+  # Không ai được bốc (runner_count = 0 hoặc chưa ai đặt) thì bỏ qua, không gửi tin.
+  defp notify_runners(_go, [], _admin), do: %{skipped: true}
+
   defp notify_runners(go, runners, admin) do
     case Panchat.send_runners_picked(go, runners, Settings.panchat_token(admin.id)) do
       {:ok, _} ->
