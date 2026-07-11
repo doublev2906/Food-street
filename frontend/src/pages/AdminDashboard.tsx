@@ -15,7 +15,9 @@ import {
   type Stats,
   type User,
 } from "../api";
+import { useSearchParams } from "react-router-dom";
 import { Header, Modal, Money, Spinner, StatusBadge } from "../components";
+import { useTabParam } from "../hooks";
 
 type Tab =
   | "stats"
@@ -29,20 +31,24 @@ type Tab =
   | "schedule"
   | "settings";
 
+const ADMIN_TABS: [Tab, string][] = [
+  ["stats", "📊 Tổng quan"],
+  ["report", "📈 Thống kê"],
+  ["groups", "🧾 Đơn nhóm"],
+  ["users", "👥 Người dùng"],
+  ["categories", "🏷️ Danh mục"],
+  ["menu", "🍽️ Thực đơn"],
+  ["fund", "💰 Quỹ"],
+  ["external", "🍜 Mua ngoài"],
+  ["schedule", "📅 Lịch hẹn"],
+  ["settings", "⚙️ Cài đặt"],
+];
+const ADMIN_TAB_KEYS = ADMIN_TABS.map(([key]) => key);
+
 export default function AdminDashboard() {
-  const [tab, setTab] = useState<Tab>("stats");
-  const tabs: [Tab, string][] = [
-    ["stats", "📊 Tổng quan"],
-    ["report", "📈 Thống kê"],
-    ["groups", "🧾 Đơn nhóm"],
-    ["users", "👥 Người dùng"],
-    ["categories", "🏷️ Danh mục"],
-    ["menu", "🍽️ Thực đơn"],
-    ["fund", "💰 Quỹ"],
-    ["external", "🍜 Mua ngoài"],
-    ["schedule", "📅 Lịch hẹn"],
-    ["settings", "⚙️ Cài đặt"],
-  ];
+  // Tab lưu trong ?tab=… (F5 giữ nguyên); xoá ?group khi rời tab Đơn nhóm.
+  const [tab, setTab] = useTabParam<Tab>(ADMIN_TAB_KEYS, "stats", ["group"]);
+  const tabs = ADMIN_TABS;
   return (
     <>
       <Header subtitle="Khu vực quản trị" />
@@ -346,10 +352,12 @@ function ReportTab() {
 
 // ---------- Đơn nhóm ----------
 function GroupOrdersTab() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<GroupOrder[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [creating, setCreating] = useState(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // Đợt đang xem lưu trong ?group=<id> để F5 vẫn ở màn chi tiết.
+  const detailId = searchParams.get("group");
   const [loading, setLoading] = useState(true);
 
   const load = () => {
@@ -359,8 +367,26 @@ function GroupOrdersTab() {
   };
   useEffect(load, []);
 
-  if (detailId)
-    return <GroupDetail id={detailId} onBack={() => { setDetailId(null); load(); }} />;
+  const openDetail = (id: string) =>
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.set("group", id);
+      return sp;
+    });
+
+  const closeDetail = () => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.delete("group");
+        return sp;
+      },
+      { replace: true }
+    );
+    load();
+  };
+
+  if (detailId) return <GroupDetail id={detailId} onBack={closeDetail} />;
 
   return (
     <div className="grid">
@@ -396,7 +422,7 @@ function GroupOrdersTab() {
                 <span className="small">
                   {g.order_count} đơn · <strong>{formatVND(g.total_amount || "0")}</strong>
                 </span>
-                <button className="secondary small" onClick={() => setDetailId(g.id)}>
+                <button className="secondary small" onClick={() => openDetail(g.id)}>
                   Xem & chốt
                 </button>
               </div>

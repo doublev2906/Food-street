@@ -11,6 +11,7 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { Header, Money, Spinner, StatusBadge } from "../components";
+import { useTabParam } from "../hooks";
 import { categoryIcon, FoodThumb, GROUP_ORDER, menuGroup, type MenuGroup } from "../menu";
 
 type Tab = "order" | "orders" | "fund";
@@ -47,9 +48,11 @@ const NAV_ITEMS: [Tab, string, string][] = [
   ["orders", "📋", "Đơn của tôi"],
   ["fund", "💰", "Quỹ của tôi"],
 ];
+const USER_TAB_KEYS = NAV_ITEMS.map(([key]) => key);
 
 export default function UserDashboard() {
-  const [tab, setTab] = useState<Tab>("order");
+  // Tab lưu trong ?tab=… (F5 giữ nguyên); xoá ?group khi rời tab Đặt theo đợt.
+  const [tab, setTab] = useTabParam<Tab>(USER_TAB_KEYS, "order", ["group"]);
   return (
     <>
       <Header subtitle="Khu vực người dùng" />
@@ -86,8 +89,8 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
   const { user, refresh } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<GroupOrder[]>([]);
-  // Deep-link: ?group=<id> mở thẳng form đặt của đợt đó.
-  const [selected, setSelected] = useState<string | null>(searchParams.get("group"));
+  // Deep-link: ?group=<id> mở thẳng form đặt của đợt đó (F5 vẫn giữ màn đặt món).
+  const selected = searchParams.get("group");
   const [loading, setLoading] = useState(true);
   // Số dư đang refresh -> hiện skeleton thay vì số cũ/0đ gây hiểu nhầm
   const [balLoading, setBalLoading] = useState(true);
@@ -98,13 +101,22 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const back = () => {
-    setSelected(null);
-    if (searchParams.has("group")) {
-      searchParams.delete("group");
-      setSearchParams(searchParams, { replace: true });
-    }
-  };
+  const openGroup = (id: string) =>
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.set("group", id);
+      return sp;
+    });
+
+  const back = () =>
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.delete("group");
+        return sp;
+      },
+      { replace: true }
+    );
 
   if (selected) return <OrderForm groupId={selected} onBack={back} onPlaced={onPlaced} />;
 
@@ -183,7 +195,7 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
               <p className="small muted batch-note">⏰ Chốt đơn lúc {formatTimeVN(g.deadline)}</p>
             )}
             {g.note && <p className="small muted batch-note">📌 {g.note}</p>}
-            <button className="cta" onClick={() => setSelected(g.id)}>
+            <button className="cta" onClick={() => openGroup(g.id)}>
               🧺 Đặt món cho đợt này
             </button>
           </div>
