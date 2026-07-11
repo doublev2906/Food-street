@@ -131,7 +131,7 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
           {greetingByHour()}, {user?.name}! <span className="wave">👋</span>
         </h2>
         <p className="welcome-date">
-          Hôm nay là {formatDateVN(todayISO())} — chọn đợt bên dưới để đặt món nhé.
+          Hôm nay là {formatDateVN(todayISO())}. Mời hốc trưởng chọn đợt bên dưới để đặt món nhé.
         </p>
       </div>
       <button className="balance-pill" onClick={onViewFund} title="Xem quỹ của tôi">
@@ -166,7 +166,7 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
           <div className="empty-ic">🍳</div>
           <strong>Chưa có đợt đặt nào đang mở</strong>
           <span className="small muted">
-            Admin sẽ mở đợt trước giờ ăn — bạn quay lại sau nhé!
+            Admin sẽ mở đợt trước giờ ăn — hốc trưởng quay lại sau nhé!
           </span>
         </div>
       </>
