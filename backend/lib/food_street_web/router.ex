@@ -67,6 +67,7 @@ defmodule FoodStreetWeb.Router do
     put "/group_orders/:id", GroupOrderController, :update
     delete "/group_orders/:id", GroupOrderController, :delete
     post "/group_orders/:id/close", GroupOrderController, :close
+    post "/group_orders/:id/pick_runners", GroupOrderController, :pick_runners
 
     get "/orders", OrderController, :index
     post "/orders/:id/confirm", OrderController, :confirm

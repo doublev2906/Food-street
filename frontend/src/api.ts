@@ -358,6 +358,14 @@ export const api = {
         `/admin/group_orders/${id}/close`,
         { method: "POST" }
       ),
+    pickRunners: (id: string, count: number) =>
+      request<{
+        data: { runners: { id: string; name: string }[] };
+        panchat: { sent: boolean; error?: string };
+      }>(`/admin/group_orders/${id}/pick_runners`, {
+        method: "POST",
+        body: JSON.stringify({ count }),
+      }),
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),

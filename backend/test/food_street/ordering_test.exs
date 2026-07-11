@@ -108,6 +108,67 @@ defmodule FoodStreet.OrderingTest do
     end
   end
 
+  describe "pick_runners/2 (bốc người đi lấy đồ)" do
+    test "bốc đúng số người từ những người đã đặt (đơn chưa huỷ)" do
+      %{go: go, mi1: mi1} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+      u3 = user("usr3")
+
+      for u <- [u1, u2, u3] do
+        {:ok, _} = Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi1, 1}])})
+      end
+
+      go = Ordering.get_group_order(go.id)
+      {:ok, runners} = Ordering.pick_runners(go, 2)
+
+      assert length(runners) == 2
+      ids = MapSet.new([u1.id, u2.id, u3.id])
+      assert Enum.all?(runners, &MapSet.member?(ids, &1.id))
+      # Không trùng người.
+      assert runners |> Enum.map(& &1.id) |> Enum.uniq() |> length() == 2
+    end
+
+    test "bỏ qua đơn đã huỷ khi đếm người đặt" do
+      %{go: go, mi1: mi1} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      {:ok, o1} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.cancel_order(o1)
+
+      go = Ordering.get_group_order(go.id)
+      # Chỉ còn 1 người đặt hợp lệ → không đủ để bốc.
+      assert {:error, :not_enough_orderers} = Ordering.pick_runners(go, 1)
+    end
+
+    test "count phải nhỏ hơn số người đặt và >= 1" do
+      %{go: go, mi1: mi1} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      for u <- [u1, u2] do
+        {:ok, _} = Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi1, 1}])})
+      end
+
+      go = Ordering.get_group_order(go.id)
+      assert {:error, :count_too_large} = Ordering.pick_runners(go, 2)
+      assert {:error, :invalid_count} = Ordering.pick_runners(go, 0)
+      assert {:error, :invalid_count} = Ordering.pick_runners(go, nil)
+      assert {:ok, [_]} = Ordering.pick_runners(go, 1)
+    end
+
+    test "ít hơn 2 người đặt → không đủ" do
+      %{go: go, mi1: mi1} = setup_group()
+      u1 = user("usr1")
+      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}])})
+
+      go = Ordering.get_group_order(go.id)
+      assert {:error, :not_enough_orderers} = Ordering.pick_runners(go, 1)
+    end
+  end
+
   describe "update_order/2 (admin sửa đơn người khác)" do
     test "sửa đơn pending → items/total cập nhật" do
       %{go: go, mi1: mi1, mi2: mi2} = setup_group()

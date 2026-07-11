@@ -136,6 +136,52 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
+  @doc """
+  Bốc ngẫu nhiên `count` người đi lấy đồ trong đợt rồi báo Panchat (mention họ).
+  """
+  def pick_runners(conn, %{"id" => id} = params) do
+    admin = Guardian.Plug.current_resource(conn)
+    count = parse_count(params["count"])
+
+    case Ordering.get_group_order(id) do
+      nil ->
+        {:error, :not_found}
+
+      go ->
+        with {:ok, runners} <- Ordering.pick_runners(go, count) do
+          panchat = notify_runners(go, runners, admin)
+
+          json(conn, %{
+            data: %{runners: Enum.map(runners, &%{id: &1.id, name: &1.name})},
+            panchat: panchat
+          })
+        end
+    end
+  end
+
+  defp parse_count(count) when is_integer(count), do: count
+
+  defp parse_count(count) when is_binary(count) do
+    case Integer.parse(count) do
+      {n, _} -> n
+      :error -> nil
+    end
+  end
+
+  defp parse_count(_), do: nil
+
+  # Gửi tin báo người đi lấy đồ vào Panchat (best-effort, token admin thực hiện).
+  defp notify_runners(go, runners, admin) do
+    case Panchat.send_runners_picked(go, runners, Settings.panchat_token(admin.id)) do
+      {:ok, _} ->
+        %{sent: true}
+
+      {:error, reason} ->
+        Logger.warning("Không gửi được tin bốc người lấy đồ đợt #{go.id}: #{inspect(reason)}")
+        %{sent: false, error: format_error(reason)}
+    end
+  end
+
   # Gắn thông tin user vào từng đơn để admin xem ai đặt gì.
   defp shape(go) do
     orders =

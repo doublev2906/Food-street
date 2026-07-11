@@ -28,6 +28,9 @@ defmodule FoodStreetWeb.FallbackController do
   defp message(:group_not_open), do: "Đợt đã đóng, không thao tác được."
   defp message(:empty_items), do: "Hãy chọn ít nhất 1 món."
   defp message(:invalid_items), do: "Có món không hợp lệ hoặc không thuộc danh mục của đợt."
+  defp message(:not_enough_orderers), do: "Cần ít nhất 2 người đặt mới bốc được người đi lấy đồ."
+  defp message(:invalid_count), do: "Số người đi lấy đồ phải là số nguyên >= 1."
+  defp message(:count_too_large), do: "Số người đi lấy đồ phải nhỏ hơn số người đã đặt."
   defp message(reason), do: to_string(reason)
 
   defp translate_errors(changeset) do

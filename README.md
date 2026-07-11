@@ -115,6 +115,8 @@ Base URL: `http://localhost:4003/api`
 - `GET|POST|PUT|DELETE /menu` (CRUD thực đơn)
 - `GET /orders?date=&status=`
 - `POST /orders/:id/confirm` · `POST /orders/confirm_date` (chốt cả ngày)
+- Đợt đặt nhóm: `GET|POST|PUT|DELETE /group_orders` · `POST /group_orders/:id/close`
+  · `POST /group_orders/:id/pick_runners` (bốc ngẫu nhiên người đi lấy đồ + mention Panchat)
 - `GET /stats?date=` · `GET /stats/revenue?from=&to=`
 - `GET /fund/transactions` · `POST /fund/deposit` · `POST /fund/adjust`
 

@@ -133,6 +133,37 @@ defmodule FoodStreet.Ordering do
     end
   end
 
+  @doc """
+  Bốc ngẫu nhiên `count` người đi lấy đồ từ những người đã đặt (đơn chưa huỷ)
+  trong đợt. `count` phải >= 1 và < số người đặt (không cho chọn tất cả).
+
+  Trả `{:ok, [%User{}]}`; hoặc `{:error, :not_enough_orderers}` khi < 2 người đặt,
+  `{:error, :invalid_count}` khi count không hợp lệ, `{:error, :count_too_large}`
+  khi count >= số người đặt.
+  """
+  def pick_runners(%GroupOrder{} = go, count) do
+    users = orderers(go)
+    total = length(users)
+
+    cond do
+      total < 2 -> {:error, :not_enough_orderers}
+      not (is_integer(count) and count >= 1) -> {:error, :invalid_count}
+      count >= total -> {:error, :count_too_large}
+      true -> {:ok, Enum.take_random(users, count)}
+    end
+  end
+
+  # Danh sách user (distinct) đã đặt đơn chưa huỷ trong đợt.
+  defp orderers(%GroupOrder{} = go) do
+    Order
+    |> where([o], o.group_order_id == ^go.id and o.status != "cancelled")
+    |> preload(:user)
+    |> Repo.all()
+    |> Enum.map(& &1.user)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.id)
+  end
+
   # ===================== User orders =====================
 
   @doc "Danh sách đơn của 1 user (mới nhất trước)."

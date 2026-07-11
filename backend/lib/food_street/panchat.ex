@@ -100,6 +100,80 @@ defmodule FoodStreet.Panchat do
   end
 
   @doc """
+  Gửi tin báo những người được bốc đi lấy đồ cho 1 đợt, bằng `token` của admin
+  thực hiện. `users` là danh sách `%User{}` (có `name`, `panchat_user_id`).
+
+  Chỉ mention thật (ping) người có `panchat_user_id`; người chưa có UUID vẫn hiển
+  thị `@Tên` dạng text thường. Trả `{:ok, message}` hoặc `{:error, reason}`.
+  """
+  def send_runners_picked(%GroupOrder{} = go, users, token) do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
+
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          post_message(token, runners_body(go, users))
+        end
+    end
+  end
+
+  @doc """
+  Body tin báo người đi lấy đồ: 1 paragraph tiêu đề, 1 paragraph liệt kê người
+  được chọn (mention thật ai có `panchat_user_id`) và 1 paragraph nhắc nhở.
+  Tách ra để test thuần payload, không gọi mạng.
+  """
+  def runners_body(%GroupOrder{} = go, users) do
+    header = %{
+      "type" => "paragraph",
+      "content" => "🎲 Người đi lấy đồ đợt \"#{go.title}\" (📅 #{go.order_date})"
+    }
+
+    footer = %{"type" => "paragraph", "content" => "Nhớ đi lấy hàng giúp cả nhà nhé 🙏"}
+
+    %{"text" => [header, runners_paragraph(users), footer]}
+  end
+
+  # Paragraph "👉 @A @B @C" với mention span (offset UTF-16) cho người có UUID Panchat.
+  defp runners_paragraph(users) do
+    prefix = "👉 "
+
+    {content, spans, _offset} =
+      users
+      |> Enum.with_index()
+      |> Enum.reduce({prefix, [], utf16_length(prefix)}, fn {user, idx}, {content, spans, offset} ->
+        sep = if idx == 0, do: "", else: " "
+        offset = offset + utf16_length(sep)
+        mention = "@#{user.name}"
+        m_len = utf16_length(mention)
+
+        new_spans =
+          if valid_panchat_id?(user.panchat_user_id) do
+            spans ++ [mention_span(offset, offset + m_len, user.panchat_user_id)]
+          else
+            spans
+          end
+
+        {content <> sep <> mention, new_spans, offset + m_len}
+      end)
+
+    %{"type" => "paragraph", "content" => content, "spans" => spans}
+  end
+
+  defp mention_span(from, to, user_id) do
+    %{
+      "type" => "mention",
+      "from" => from,
+      "to" => to,
+      "ref" => %{"type" => "user", "user_id" => user_id}
+    }
+  end
+
+  defp valid_panchat_id?(pid), do: is_binary(pid) and pid != ""
+
+  @doc """
   Gửi tin chia tiền mua ngoài (tag @all qua `build_body/1`), bằng `token` của
   admin thực hiện. `purchase` cần preload `transactions: :user`.
   """

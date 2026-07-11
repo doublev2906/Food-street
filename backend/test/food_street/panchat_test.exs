@@ -77,6 +77,53 @@ defmodule FoodStreet.PanchatTest do
     end
   end
 
+  describe "runners_body/2 và send_runners_picked/3" do
+    @uuid "11111111-1111-1111-1111-111111111111"
+
+    test "liệt kê tên người được chọn và mention thật ai có panchat_user_id" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
+
+      users = [
+        %User{name: "An", panchat_user_id: @uuid},
+        %User{name: "Bình", panchat_user_id: nil}
+      ]
+
+      body = Panchat.runners_body(go, users)
+      [header, runner_p, footer] = body["text"]
+
+      assert header["content"] =~ "Sáng T2"
+      assert header["content"] =~ "2026-07-02"
+      assert runner_p["content"] =~ "@An"
+      assert runner_p["content"] =~ "@Bình"
+      assert footer["content"] =~ "lấy hàng"
+
+      # Chỉ An (có UUID) được mention thật; Bình không sinh span.
+      assert [%{"type" => "mention", "ref" => %{"type" => "user", "user_id" => @uuid}}] =
+               runner_p["spans"]
+    end
+
+    test "offset mention theo UTF-16 (👉 emoji đứng trước) trỏ đúng @Tên" do
+      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+      users = [%User{name: "An", panchat_user_id: @uuid}]
+
+      body = Panchat.runners_body(go, users)
+      [_header, runner_p, _footer] = body["text"]
+      [span] = runner_p["spans"]
+
+      # "👉 " = 👉(2) + space(1) = 3 code unit UTF-16; "@An" dài 3.
+      assert span["from"] == 3
+      assert span["to"] == 6
+    end
+
+    test "send_runners_picked lỗi khi thiếu token, không gọi mạng" do
+      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+      users = [%User{name: "An", panchat_user_id: @uuid}]
+
+      assert Panchat.send_runners_picked(go, users, nil) == {:error, :panchat_token_missing}
+      assert Panchat.send_runners_picked(go, users, "  ") == {:error, :panchat_token_missing}
+    end
+  end
+
   describe "external_purchase_text/1 và send_external_purchase/2" do
     defp purchase do
       %ExternalPurchase{
