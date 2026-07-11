@@ -15,7 +15,7 @@ import {
   type Stats,
   type User,
 } from "../api";
-import { Header, Modal, Money, StatusBadge } from "../components";
+import { Header, Modal, Money, Spinner, StatusBadge } from "../components";
 
 type Tab =
   | "stats"
@@ -46,28 +46,33 @@ export default function AdminDashboard() {
   return (
     <>
       <Header subtitle="Khu vực quản trị" />
-      <div className="container">
-        <div className="tabs">
-          {tabs.map(([key, label]) => (
-            <button
-              key={key}
-              className={`tab ${tab === key ? "active" : ""}`}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Sidebar 10 mục + container rộng cho bảng biểu đỡ chật */}
+      <div className="container wide">
+        <div className="dash-layout">
+          <aside className="side-nav">
+            {tabs.map(([key, label]) => (
+              <button
+                key={key}
+                className={`side-nav-item ${tab === key ? "active" : ""}`}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </aside>
+          <main className="dash-content">
+            {tab === "stats" && <StatsTab />}
+            {tab === "report" && <ReportTab />}
+            {tab === "groups" && <GroupOrdersTab />}
+            {tab === "users" && <UsersTab />}
+            {tab === "categories" && <CategoriesTab />}
+            {tab === "menu" && <MenuTab />}
+            {tab === "fund" && <FundTab />}
+            {tab === "external" && <ExternalPurchaseTab />}
+            {tab === "schedule" && <ScheduleTab />}
+            {tab === "settings" && <SettingsTab />}
+          </main>
         </div>
-        {tab === "stats" && <StatsTab />}
-        {tab === "report" && <ReportTab />}
-        {tab === "groups" && <GroupOrdersTab />}
-        {tab === "users" && <UsersTab />}
-        {tab === "categories" && <CategoriesTab />}
-        {tab === "menu" && <MenuTab />}
-        {tab === "fund" && <FundTab />}
-        {tab === "external" && <ExternalPurchaseTab />}
-        {tab === "schedule" && <ScheduleTab />}
-        {tab === "settings" && <SettingsTab />}
       </div>
     </>
   );
@@ -82,7 +87,7 @@ function StatsTab() {
     api.admin.stats(date).then((r) => setStats(r.data)).catch(() => setStats(null));
   }, [date]);
 
-  if (!stats) return <div className="spinner">Đang tải…</div>;
+  if (!stats) return <Spinner />;
 
   return (
     <div className="grid">
@@ -99,7 +104,7 @@ function StatsTab() {
       </div>
       <div
         className="grid"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}
       >
         <Stat label="Nạp trong ngày" value={formatVND(stats.fund_deposited)} />
         <Stat label="Chi trong ngày" value={formatVND(stats.fund_spent)} />
@@ -157,12 +162,22 @@ function Stat({
   accent?: boolean;
   warn?: boolean;
 }) {
+  // Giá trị âm (vd điều chỉnh -13.000.000 đ) luôn đỏ để nhìn phát biết ngay
+  const neg = typeof value === "string" && value.trim().startsWith("-");
   return (
     <div className="stat">
       <p className="label">{label}</p>
       <div
         className="value"
-        style={{ color: accent ? "var(--primary)" : warn ? "var(--warn)" : undefined }}
+        style={{
+          color: neg
+            ? "var(--danger)"
+            : accent
+              ? "var(--primary-text)"
+              : warn
+                ? "var(--warn)"
+                : undefined,
+        }}
       >
         {value}
       </div>
@@ -273,7 +288,7 @@ function ReportTab() {
       </div>
 
       {loading || !data ? (
-        <div className="spinner">Đang tải…</div>
+        <Spinner />
       ) : (
         <>
           <div className="grid grid-4">
@@ -285,7 +300,7 @@ function ReportTab() {
 
           <div
             className="grid"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}
           >
             <Stat label="Tổng quỹ cuối kỳ" value={formatVND(data.fund_total)} accent />
             <Stat label="Nạp trong kỳ" value={formatVND(data.fund_deposited)} />
@@ -360,7 +375,7 @@ function GroupOrdersTab() {
       )}
 
       {loading ? (
-        <div className="spinner">Đang tải…</div>
+        <Spinner />
       ) : groups.length === 0 ? (
         <div className="card muted">Chưa có đợt đặt nào.</div>
       ) : (
@@ -374,7 +389,9 @@ function GroupOrdersTab() {
                   <StatusBadge status={g.status} />
                 </div>
               </div>
-              <div className="small muted mt">📅 {g.order_date}</div>
+              <div className="small muted mt">
+                📅 {new Date(`${g.order_date}T00:00:00`).toLocaleDateString("vi-VN")}
+              </div>
               <div className="row between mt">
                 <span className="small">
                   {g.order_count} đơn · <strong>{formatVND(g.total_amount || "0")}</strong>
@@ -505,7 +522,7 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (!group) return <div className="spinner">Đang tải…</div>;
+  if (!group) return <Spinner />;
 
   const orders = group.orders || [];
   const pending = orders.filter((o) => o.status === "pending").length;
@@ -597,7 +614,7 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
                       <td>
                         {it.item_name}
                         {it.note && (
-                          <div className="small" style={{ color: "var(--primary)" }}>
+                          <div className="small" style={{ color: "var(--primary-text)" }}>
                             ↳ {it.note}
                           </div>
                         )}
@@ -920,7 +937,7 @@ function CategoriesTab() {
                     <button className="secondary small" onClick={() => setEditing(c)}>
                       Sửa
                     </button>
-                    <button className="danger small" onClick={() => remove(c)}>
+                    <button className="secondary danger-outline small" onClick={() => remove(c)}>
                       Xóa
                     </button>
                   </div>
@@ -1041,12 +1058,14 @@ function MenuTab() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  const load = () => {
-    api.admin.menu().then((r) => setItems(r.data));
-    api.admin.categories().then((r) => setCategories(r.data));
-  };
+  const [loading, setLoading] = useState(true);
+  const load = () =>
+    Promise.all([api.admin.menu(), api.admin.categories()]).then(([m, c]) => {
+      setItems(m.data);
+      setCategories(c.data);
+    });
   useEffect(() => {
-    load();
+    load().finally(() => setLoading(false));
   }, []);
 
   const catName = (id: string | null) =>
@@ -1102,7 +1121,7 @@ function MenuTab() {
   return (
     <div className="grid">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>Thực đơn ({items.length})</h2>
+        <h2 style={{ margin: 0 }}>Thực đơn ({loading ? "…" : items.length})</h2>
         <button onClick={() => setCreating(true)}>+ Thêm món</button>
       </div>
 
@@ -1176,7 +1195,7 @@ function MenuTab() {
                     <button className="secondary small" onClick={() => setEditing(m)}>
                       Sửa
                     </button>
-                    <button className="danger small" onClick={() => remove(m)}>
+                    <button className="secondary danger-outline small" onClick={() => remove(m)}>
                       Xóa
                     </button>
                   </div>
@@ -1185,10 +1204,14 @@ function MenuTab() {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && (
-          <p className="muted" style={{ padding: 16, margin: 0 }}>
-            {hasFilter ? "Không có món khớp bộ lọc." : "Chưa có món nào."}
-          </p>
+        {loading ? (
+          <Spinner />
+        ) : (
+          filtered.length === 0 && (
+            <p className="muted" style={{ padding: 16, margin: 0 }}>
+              {hasFilter ? "Không có món khớp bộ lọc." : "Chưa có món nào."}
+            </p>
+          )
         )}
       </div>
 
@@ -1410,7 +1433,7 @@ function UsersTab() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
-          <div className="spinner">Đang tải…</div>
+          <Spinner />
         ) : (
           <table>
             <thead>
@@ -1432,7 +1455,7 @@ function UsersTab() {
                   </td>
                   <td className="muted">{u.email}</td>
                   <td>
-                    <span className={`badge ${u.role}`}>{u.role}</span>
+                    <span className={`badge ${u.role}`}>{u.role === "admin" ? "Quản trị" : "Thành viên"}</span>
                   </td>
                   <td>
                     {u.active ? (
@@ -1447,7 +1470,7 @@ function UsersTab() {
                       <button className="secondary small" onClick={() => setEditing(u)}>
                         Sửa
                       </button>
-                      <button className="danger small" onClick={() => remove(u)}>
+                      <button className="secondary danger-outline small" onClick={() => remove(u)}>
                         Xóa
                       </button>
                     </div>
@@ -1606,12 +1629,16 @@ function FundTab() {
   const [filters, setFilters] = useState({ type: "", user_id: "", from: "", to: "" });
   const [reloadKey, setReloadKey] = useState(0);
 
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadingTxs, setLoadingTxs] = useState(true);
+
   const loadUsers = () => api.admin.users().then((r) => setUsers(r.data));
 
   useEffect(() => {
-    loadUsers();
+    loadUsers().finally(() => setLoadingUsers(false));
   }, []);
   useEffect(() => {
+    setLoadingTxs(true);
     api.admin
       .fundTransactions(page, {
         type: filters.type || undefined,
@@ -1622,7 +1649,8 @@ function FundTab() {
       .then((r) => {
         setTxs(r.data);
         setTxMeta({ total_pages: r.total_pages, total: r.total });
-      });
+      })
+      .finally(() => setLoadingTxs(false));
   }, [page, filters, reloadKey]);
 
   // Đổi 1 filter → luôn về trang 1 (React gộp 2 setState nên chỉ fetch 1 lần).
@@ -1657,8 +1685,8 @@ function FundTab() {
       <div className="row between wrap">
         <div className="stat" style={{ minWidth: 240 }}>
           <p className="label">Tổng quỹ toàn hệ thống</p>
-          <div className="value" style={{ color: "var(--primary)" }}>
-            {formatVND(total)}
+          <div className="value" style={{ color: "var(--primary-text)" }}>
+            {loadingUsers ? <span className="skeleton skeleton-balance" /> : formatVND(total)}
           </div>
         </div>
         <div className="row">
@@ -1671,6 +1699,7 @@ function FundTab() {
 
       <div className="card">
         <h2>Số dư theo người dùng</h2>
+        {loadingUsers && <Spinner />}
         <table>
           <thead>
             <tr>
@@ -1749,7 +1778,9 @@ function FundTab() {
           )}
         </div>
 
-        {txs.length === 0 ? (
+        {loadingTxs ? (
+          <Spinner />
+        ) : txs.length === 0 ? (
           <p className="muted mt">
             {hasFilter ? "Không có giao dịch khớp bộ lọc." : "Chưa có giao dịch."}
           </p>

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
+import { Spinner } from "./components";
 import Login from "./pages/Login";
 import UserDashboard from "./pages/UserDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -14,7 +15,7 @@ function Protected({
 }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="spinner">Đang tải…</div>;
+  if (loading) return <Spinner full />;
   if (!user) {
     // Giữ lại đường dẫn hiện tại (kèm ?group=…) để sau khi đăng nhập quay lại.
     const next = encodeURIComponent(location.pathname + location.search);
@@ -29,7 +30,7 @@ function Protected({
 function Home() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="spinner">Đang tải…</div>;
+  if (loading) return <Spinner full />;
   if (!user) return <Navigate to="/login" replace />;
   // Mọi người (kể cả admin) mặc định vào trang đặt món; giữ ?group=… nếu có.
   return <Navigate to={`/app${location.search}`} replace />;

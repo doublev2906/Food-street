@@ -10,49 +10,92 @@ import {
   type Order,
 } from "../api";
 import { useAuth } from "../auth";
-import { Header, Money, StatusBadge } from "../components";
+import { Header, Money, Spinner, StatusBadge } from "../components";
 import { categoryIcon, FoodThumb, GROUP_ORDER, menuGroup, type MenuGroup } from "../menu";
 
 type Tab = "order" | "orders" | "fund";
 
-const PAGE_SIZE = 16;
+const PAGE_SIZE = 24;
+
+// ---- Helper ngày giờ cho màn 1 (hiển thị tiếng Việt) ----
+// "2026-07-11" -> "Thứ sáu, 11/07" (thêm T00:00:00 để parse theo giờ local, không lệch múi giờ)
+function formatDateVN(isoDate: string): string {
+  const s = new Date(`${isoDate}T00:00:00`).toLocaleDateString("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+// Ngày hôm nay dạng YYYY-MM-DD theo giờ LOCAL (en-CA cho đúng format; toISOString là UTC sẽ lệch)
+function todayISO(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+function greetingByHour(): string {
+  const h = new Date().getHours();
+  if (h < 11) return "Chào buổi sáng";
+  if (h < 14) return "Chào buổi trưa";
+  if (h < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+}
+function formatTimeVN(iso: string): string {
+  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+const NAV_ITEMS: [Tab, string, string][] = [
+  ["order", "🥢", "Đặt theo đợt"],
+  ["orders", "📋", "Đơn của tôi"],
+  ["fund", "💰", "Quỹ của tôi"],
+];
 
 export default function UserDashboard() {
   const [tab, setTab] = useState<Tab>("order");
   return (
     <>
       <Header subtitle="Khu vực người dùng" />
-      <div className="container">
-        <div className="tabs center">
-          <button className={`tab ${tab === "order" ? "active" : ""}`} onClick={() => setTab("order")}>
-            🥢 Đặt theo đợt
-          </button>
-          <button className={`tab ${tab === "orders" ? "active" : ""}`} onClick={() => setTab("orders")}>
-            📋 Đơn của tôi
-          </button>
-          <button className={`tab ${tab === "fund" ? "active" : ""}`} onClick={() => setTab("fund")}>
-            💰 Quỹ của tôi
-          </button>
+      {/* Sidebar chiếm 1 cột nên container luôn dùng bản rộng */}
+      <div className="container wide">
+        <div className="dash-layout">
+          <aside className="side-nav">
+            {NAV_ITEMS.map(([key, icon, label]) => (
+              <button
+                key={key}
+                className={`side-nav-item ${tab === key ? "active" : ""}`}
+                onClick={() => setTab(key)}
+              >
+                <span className="side-nav-ic">{icon}</span>
+                {label}
+              </button>
+            ))}
+          </aside>
+          <main className="dash-content">
+            {tab === "order" && (
+              <GroupOrdersTab onPlaced={() => setTab("orders")} onViewFund={() => setTab("fund")} />
+            )}
+            {tab === "orders" && <MyOrdersTab />}
+            {tab === "fund" && <FundTab />}
+          </main>
         </div>
-
-        {tab === "order" && <GroupOrdersTab onPlaced={() => setTab("orders")} />}
-        {tab === "orders" && <MyOrdersTab />}
-        {tab === "fund" && <FundTab />}
       </div>
     </>
   );
 }
 
 // ---------- Danh sách đợt + đặt món ----------
-function GroupOrdersTab({ onPlaced }: { onPlaced: () => void }) {
+function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onViewFund: () => void }) {
+  const { user, refresh } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<GroupOrder[]>([]);
   // Deep-link: ?group=<id> mở thẳng form đặt của đợt đó.
   const [selected, setSelected] = useState<string | null>(searchParams.get("group"));
   const [loading, setLoading] = useState(true);
+  // Số dư đang refresh -> hiện skeleton thay vì số cũ/0đ gây hiểu nhầm
+  const [balLoading, setBalLoading] = useState(true);
 
   useEffect(() => {
     api.openGroupOrders().then((r) => setGroups(r.data)).finally(() => setLoading(false));
+    refresh().finally(() => setBalLoading(false)); // cập nhật số dư quỹ mới nhất cho welcome bar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const back = () => {
@@ -65,36 +108,88 @@ function GroupOrdersTab({ onPlaced }: { onPlaced: () => void }) {
 
   if (selected) return <OrderForm groupId={selected} onBack={back} onPlaced={onPlaced} />;
 
-  if (loading) return <div className="spinner">Đang tải…</div>;
+  const balance = parseFloat(user?.balance || "0");
+
+  const welcome = (
+    <div className="welcome-bar">
+      <div className="welcome-left">
+        <h2 className="welcome-title">
+          {greetingByHour()}, {user?.name}! 👋
+        </h2>
+        <p className="welcome-date">
+          Hôm nay là {formatDateVN(todayISO())} — chọn đợt bên dưới để đặt món nhé.
+        </p>
+      </div>
+      <button className="balance-pill" onClick={onViewFund} title="Xem quỹ của tôi">
+        <span className="balance-pill-ic">👛</span>
+        <span>
+          <span className="balance-pill-label">Số dư quỹ</span>
+          {balLoading ? (
+            <span className="skeleton skeleton-balance" />
+          ) : (
+            <strong className={`balance-pill-value ${balance < 0 ? "neg" : ""}`}>
+              {formatVND(user?.balance || "0")}
+            </strong>
+          )}
+        </span>
+      </button>
+    </div>
+  );
+
+  if (loading)
+    return (
+      <>
+        {welcome}
+        <Spinner />
+      </>
+    );
+
   if (groups.length === 0)
     return (
-      <div className="card muted" style={{ textAlign: "center" }}>
-        Hiện chưa có đợt đặt nào đang mở. Chờ admin tạo đợt nhé.
-      </div>
+      <>
+        {welcome}
+        <div className="card empty-state">
+          <div className="empty-ic">🍳</div>
+          <strong>Chưa có đợt đặt nào đang mở</strong>
+          <span className="small muted">
+            Admin sẽ mở đợt trước giờ ăn — bạn quay lại sau nhé!
+          </span>
+        </div>
+      </>
     );
 
   return (
-    <div className="batch-list">
-      {groups.map((g) => (
-        <div key={g.id} className="card batch-card">
-          <div className="batch-head">
-            <div className="icon-circle">{categoryIcon(g.category?.name)}</div>
-            <div>
-              <h2 className="batch-title">{g.title}</h2>
-              <div className="row" style={{ gap: 8 }}>
-                {g.category && <span className="badge admin">{g.category.name}</span>}
-                <span className="small muted">📅 {g.order_date}</span>
+    <>
+      {welcome}
+      <div className="batch-list">
+        {groups.map((g) => (
+          <div key={g.id} className="card batch-card">
+            <div className="batch-status">
+              <span className="live-dot" /> Đang mở
+            </div>
+            <div className="batch-head">
+              <div className="icon-circle">{categoryIcon(g.category?.name)}</div>
+              <div>
+                <h2 className="batch-title">{g.title}</h2>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  {g.category && <span className="badge admin">{g.category.name}</span>}
+                  {g.order_date === todayISO() && <span className="badge confirmed">Hôm nay</span>}
+                  <span className="small muted">📅 {formatDateVN(g.order_date)}</span>
+                </div>
               </div>
             </div>
+            <div className="divider" />
+            {g.deadline && (
+              <p className="small muted batch-note">⏰ Chốt đơn lúc {formatTimeVN(g.deadline)}</p>
+            )}
+            {g.note && <p className="small muted batch-note">📌 {g.note}</p>}
+            <button className="cta" onClick={() => setSelected(g.id)}>
+              🧺 Đặt món cho đợt này
+            </button>
           </div>
-          <div className="divider" />
-          {g.note && <p className="small muted batch-note">📌 {g.note}</p>}
-          <button className="cta" onClick={() => setSelected(g.id)}>
-            🧺 Đặt món cho đợt này
-          </button>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -173,7 +268,7 @@ function OrderForm({
   );
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
-  if (!detail) return <div className="spinner">Đang tải…</div>;
+  if (!detail) return <Spinner />;
 
   const closed = detail.group_order.status !== "open";
 
@@ -264,7 +359,7 @@ function OrderForm({
                 const qty = cart[m.id] || 0;
                 return (
                   <div key={m.id} className={`food-card ${qty > 0 ? "selected" : ""}`}>
-                    <FoodThumb item={m} size={104} radius={10} />
+                    <FoodThumb item={m} size={124} radius={10} />
                     <div className="food-name" title={m.name}>
                       {m.name}
                     </div>
@@ -368,7 +463,7 @@ function OrderForm({
 
           <div className="row between mt">
             <strong>Tổng cộng</strong>
-            <strong style={{ fontSize: 18, color: "var(--primary)" }}>{formatVND(total)}</strong>
+            <strong style={{ fontSize: 18, color: "var(--primary-text)" }}>{formatVND(total)}</strong>
           </div>
           <button className="cta mt" onClick={submit} disabled={busy || closed}>
             {busy ? "Đang gửi…" : detail.my_order ? "Cập nhật đơn" : "Đặt món"}
@@ -406,11 +501,20 @@ function MyOrdersTab() {
     load();
   };
 
-  if (loading) return <div className="spinner">Đang tải…</div>;
-  if (orders.length === 0) return <div className="card muted">Bạn chưa có đơn nào.</div>;
+  if (loading) return <Spinner />;
+  if (orders.length === 0)
+    return (
+      <div className="card empty-state">
+        <div className="empty-ic">🧾</div>
+        <strong>Bạn chưa có đơn nào</strong>
+        <span className="small muted">Đặt món ở tab "Đặt theo đợt" là đơn sẽ hiện ở đây.</span>
+      </div>
+    );
+
+  const pendingCount = orders.filter((o) => o.status === "pending").length;
 
   return (
-    <div className="grid">
+    <div className="orders-list">
       {orders.map((o) => (
         <div key={o.id} className="card order-card">
           <div className="order-head">
@@ -423,10 +527,10 @@ function MyOrdersTab() {
                   <span className="badge admin">{o.group_order.category.name}</span>
                 )}
               </div>
-              <div className="small muted">📅 {o.order_date}</div>
+              <div className="small muted">📅 {formatDateVN(o.order_date)}</div>
             </div>
             <div className="row">
-              <strong>{formatVND(o.total_amount)}</strong>
+              <strong className="order-total">{formatVND(o.total_amount)}</strong>
               {o.status === "pending" && (
                 <button className="secondary danger-outline small" onClick={() => cancel(o.id)}>
                   Hủy
@@ -452,7 +556,7 @@ function MyOrdersTab() {
                   <div style={{ flex: 1 }}>
                     <div>{it.item_name}</div>
                     {it.note && (
-                      <div className="small" style={{ color: "var(--primary)" }}>
+                      <div className="small" style={{ color: "var(--primary-text)" }}>
                         ↳ {it.note}
                       </div>
                     )}
@@ -468,6 +572,11 @@ function MyOrdersTab() {
           {o.note && <div className="small muted mt">Ghi chú chung: {o.note}</div>}
         </div>
       ))}
+      {/* Tổng kết để cuối như footer — card đơn nằm sát đầu trang giống các màn khác */}
+      <div className="orders-summary small muted">
+        Tổng {orders.length} đơn
+        {pendingCount > 0 ? ` · ${pendingCount} đơn đang chờ chốt` : ""}
+      </div>
     </div>
   );
 }
@@ -502,24 +611,55 @@ function FundTab() {
     adjustment: "admin",
   };
 
+  // Tổng vào/ra tính từ lịch sử đã fetch (dương = tiền vào, âm = tiền ra)
+  const bal = parseFloat(balance);
+  const totalIn = txs.reduce((s, t) => s + Math.max(0, parseFloat(t.amount)), 0);
+  const totalOut = txs.reduce((s, t) => s + Math.min(0, parseFloat(t.amount)), 0);
+
   return (
-    <div className="grid">
-      <div className="card balance-card">
-        <div className="icon-circle">👛</div>
-        <div>
-          <p className="label" style={{ margin: 0 }}>
-            Số dư quỹ hiện tại
-          </p>
-          <div className="balance-value">{formatVND(balance)}</div>
+    <div className="fund-layout">
+      <div className="fund-hero">
+        <div className="fund-hero-main">
+          <div className="icon-circle">👛</div>
+          <div>
+            <p className="label" style={{ margin: 0 }}>
+              Số dư quỹ hiện tại
+            </p>
+            <div className={`balance-value ${bal < 0 ? "neg" : ""}`}>{formatVND(balance)}</div>
+          </div>
+        </div>
+        <div className="fund-hero-stats">
+          <div className="fund-stat">
+            <span className="small muted">Tổng đã nạp</span>
+            {loading ? (
+              <span className="skeleton skeleton-balance" />
+            ) : (
+              <strong className="up">+{formatVND(totalIn)}</strong>
+            )}
+          </div>
+          <div className="fund-stat">
+            <span className="small muted">Tổng đã chi</span>
+            {loading ? (
+              <span className="skeleton skeleton-balance" />
+            ) : totalOut < 0 ? (
+              <strong className="down">−{formatVND(Math.abs(totalOut))}</strong>
+            ) : (
+              <strong className="muted">{formatVND(0)}</strong>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="card">
         <h2>Lịch sử giao dịch</h2>
         {loading ? (
-          <div className="spinner">Đang tải…</div>
+          <Spinner />
         ) : txs.length === 0 ? (
-          <p className="muted">Chưa có giao dịch nào.</p>
+          <div className="empty-state">
+            <div className="empty-ic">🧾</div>
+            <strong>Chưa có giao dịch nào</strong>
+            <span className="small muted">Khi admin nạp quỹ hoặc chốt đơn sẽ hiện ở đây.</span>
+          </div>
         ) : (
           <table>
             <thead>
@@ -539,7 +679,13 @@ function FundTab() {
                     <td className="small muted">
                       <span className="row" style={{ gap: 8 }}>
                         <span className={`tx-arrow ${up ? "up" : "down"}`}>{up ? "↑" : "↓"}</span>
-                        {new Date(t.inserted_at).toLocaleString("vi-VN")}
+                        {new Date(t.inserted_at).toLocaleString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
                       </span>
                     </td>
                     <td>
