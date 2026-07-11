@@ -29,6 +29,7 @@
   --surface-hover: #fffdfb;
   --steam: #cdd6df;
   --hover: #eef2f6;
+  --modal-bg: #ffffff;
   /* Gradient sáng (logo/avatar) + bóng màu accent */
   --accent-grad-hi: #ff9a4d;
   --accent-shadow: rgba(232, 89, 12, 0.12);
@@ -44,10 +45,10 @@
   --border: #364252;
   --text: #eaf0f6;
   --muted: #9fb0c1;
-  --primary: #d85c17; /* nền nút: trầm bớt cho khỏi chói trên nền tối */
-  --primary-dark: #ec6a20; /* hover trên nền tối: sáng lên thay vì tối đi */
-  --primary-soft: #3b2513;
-  --primary-text: #ff9257;
+  --primary: #e96b26; /* nền nút: cam san hô tươi, không gắt không đục */
+  --primary-dark: #f57d3b; /* hover trên nền tối: sáng lên thay vì tối đi */
+  --primary-soft: #3a2413;
+  --primary-text: #ffaa70;
   --success: #3cc77b;
   --success-soft: #16301f;
   --danger: #f05d5a;
@@ -65,6 +66,8 @@
   --surface-hover: #283443;
   --steam: #5d7086;
   --hover: #2e3a49;
+  /* Modal sáng hơn surface 1 nấc để nổi khỏi nền trang */
+  --modal-bg: #26313f;
 }
 
 /* ===== Accent theme: RAU MÁ (☘️ - xanh ngọc dịu) ===== */
@@ -81,14 +84,14 @@
   --login-grad-1: #e4f8ed;
 }
 [data-theme="dark"][data-accent="green"] {
-  --primary: #219155;
-  --primary-dark: #2eb36c;
-  --primary-soft: #142d20;
-  --primary-text: #5fd695;
-  --accent-border: #1c4630;
-  --welcome-grad-1: #12261b;
-  --welcome-grad-2: #143020;
-  --login-grad-1: #12261b;
+  --primary: #2aa869;
+  --primary-dark: #34bf7a;
+  --primary-soft: #133023;
+  --primary-text: #7fe0af;
+  --accent-border: #20553a;
+  --welcome-grad-1: #14291e;
+  --welcome-grad-2: #16321f;
+  --login-grad-1: #14291e;
 }
 
 /* ===== Accent theme: SKY (💧 - xanh da trời dịu) ===== */
@@ -105,14 +108,14 @@
   --login-grad-1: #e5f5fd;
 }
 [data-theme="dark"][data-accent="blue"] {
-  --primary: #1f83bb;
-  --primary-dark: #2f9fd9;
-  --primary-soft: #11293a;
-  --primary-text: #7ccdf7;
-  --accent-border: #1a4056;
-  --welcome-grad-1: #101f2b;
-  --welcome-grad-2: #122736;
-  --login-grad-1: #101f2b;
+  --primary: #2b96d9;
+  --primary-dark: #43a9e8;
+  --primary-soft: #123049;
+  --primary-text: #93d4fb;
+  --accent-border: #1f4a6b;
+  --welcome-grad-1: #11212f;
+  --welcome-grad-2: #132a3b;
+  --login-grad-1: #11212f;
 }
 
 * {
@@ -649,8 +652,18 @@ tbody tr:hover td {
   padding: 20px;
   z-index: 50;
 }
+/* Dark: overlay tối + blur để modal tách hẳn khỏi nền cùng tông */
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+[data-theme="dark"] .modal {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
 .modal {
-  background: var(--surface);
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
   width: 100%;
