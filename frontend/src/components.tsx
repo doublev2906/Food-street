@@ -43,9 +43,15 @@ export function Header({ subtitle }: { subtitle?: string }) {
   const isAdmin = user?.role === "admin";
   const onAdminPage = location.pathname.startsWith("/admin");
 
+  // 3 giao diện xoay vòng: sáng -> tối -> anime -> sáng
+  const THEME_CYCLE: Record<string, string> = { light: "dark", dark: "anime", anime: "light" };
+  const THEME_ICON: Record<string, string> = { light: "☀️", dark: "🌙", anime: "🌸" };
   const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
+    const next = THEME_CYCLE[theme] ?? "light";
     document.documentElement.dataset.theme = next;
+    // Cập nhật lại buổi cho nền anime (index.html chỉ set lúc load trang)
+    const h = new Date().getHours();
+    document.documentElement.dataset.animeTime = h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
     localStorage.setItem("theme", next);
     setTheme(next);
   };
@@ -131,9 +137,9 @@ export function Header({ subtitle }: { subtitle?: string }) {
         <button
           className="ghost icon-btn"
           onClick={toggleTheme}
-          title={theme === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
+          title="Đổi giao diện (sáng / tối / anime)"
         >
-          {theme === "dark" ? "☀️" : "🌙"}
+          {THEME_ICON[theme] ?? "☀️"}
         </button>
         <button className="ghost logout-btn" onClick={logout} title="Đăng xuất">
           Đăng xuất

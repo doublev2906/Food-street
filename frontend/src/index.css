@@ -166,6 +166,91 @@
   --login-grad-1: #2a2210;
 }
 
+/* ===== Theme thứ 3: ANIME (🌸 - đêm phố anime, card kính mờ) =====
+   Đặt SAU các block accent để palette anime đè được accent đang chọn.
+   Surface để rgba + backdrop-blur: chất "kính mờ" nổi trên ảnh nền tối,
+   nên bảng màu đi theo hướng tím than + hồng sakura cho khớp ảnh. */
+[data-theme="anime"] {
+  color-scheme: dark;
+  --bg: #1b2033;
+  --surface: rgba(28, 32, 54, 0.78);
+  --border: rgba(130, 140, 190, 0.35);
+  --text: #eef0fb;
+  --muted: #a7aecf;
+  --primary: #e0709f;
+  --primary-dark: #ef86b2;
+  --primary-soft: rgba(224, 112, 159, 0.16);
+  --primary-text: #ff9fc0;
+  --success: #3cc77b;
+  --success-soft: #16301f;
+  --danger: #f05d5a;
+  --danger-soft: #3a191c;
+  --warn: #e0ab1c;
+  --warn-soft: #332a14;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --header-bg: rgba(18, 22, 40, 0.72);
+  --accent-border: rgba(255, 159, 192, 0.35);
+  --accent-grad-hi: #ff9fc0;
+  --accent-shadow: rgba(224, 112, 159, 0.25);
+  --welcome-grad-1: rgba(40, 34, 62, 0.85);
+  --welcome-grad-2: rgba(52, 36, 66, 0.85);
+  --login-grad-1: rgba(28, 24, 48, 0.6);
+  --login-grad-2: rgba(20, 22, 40, 0.6);
+  --badge-user-bg: rgba(130, 140, 190, 0.22);
+  --surface-hover: rgba(40, 45, 70, 0.85);
+  --steam: #7d88b8;
+  --hover: rgba(130, 140, 190, 0.18);
+  --modal-bg: #252a45;
+}
+/* Ảnh nền anime: CÙNG 1 căn nhà (bộ background gốc của VN Love, Money, Rock'n'Roll,
+   artist ArseniXC) ở 3 thời điểm — đổi theo giờ thật qua data-anime-time do JS set
+   (index.html lúc load + lúc bấm nút theme). Mặc định đêm nếu JS chưa set.
+   Ảnh để trong public/anime/ (hotlink wallhaven/danbooru bị chặn ORB/CORP). */
+[data-theme="anime"] {
+  --anime-bg: url("/anime/night.jpg");
+  /* Lớp phủ tối đè lên ảnh cho chữ nổi — ảnh ngày sáng sẵn nên phủ nhạt hơn */
+  --anime-veil-1: rgba(16, 18, 36, 0.45);
+  --anime-veil-2: rgba(16, 18, 36, 0.6);
+}
+[data-anime-time="day"][data-theme="anime"] {
+  --anime-bg: url("/anime/day.jpg");
+  --anime-veil-1: rgba(16, 18, 36, 0.25);
+  --anime-veil-2: rgba(16, 18, 36, 0.4);
+}
+[data-anime-time="sunset"][data-theme="anime"] {
+  --anime-bg: url("/anime/sunset.jpg");
+  --anime-veil-1: rgba(16, 18, 36, 0.35);
+  --anime-veil-2: rgba(16, 18, 36, 0.5);
+}
+[data-theme="anime"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--anime-veil-1), var(--anime-veil-2)),
+    var(--anime-bg) center / cover no-repeat;
+}
+[data-theme="anime"] .card,
+[data-theme="anime"] .side-nav {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+/* Con trỏ vui: hoa đào 🌸 mặc định, đũa 🥢 khi trỏ vào chỗ bấm được.
+   PNG render từ emoji (public/anime/), hotspot hoa ở tâm, đũa ở đầu gắp.
+   Gắn vào html (chính là element mang data-theme) để phủ TOÀN viewport —
+   gắn body thì vùng ngoài nội dung (body chỉ cao bằng content) không ăn. */
+[data-theme="anime"] {
+  cursor: url("/anime/cursor-sakura.png") 12 12, auto;
+}
+[data-theme="anime"] :is(button, a, select, label, .brand, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/anime/cursor-chopsticks.png") 4 28, pointer;
+}
+[data-theme="anime"] button:disabled {
+  cursor: url("/anime/cursor-sakura.png") 12 12, not-allowed;
+}
+
 * {
   box-sizing: border-box;
 }

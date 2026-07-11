@@ -9,10 +9,13 @@
       // Set theme TRƯỚC khi React load để không chớp nền trắng khi đang dark
       (function () {
         var t = localStorage.getItem("theme");
-        if (t !== "dark" && t !== "light") {
+        if (t !== "dark" && t !== "light" && t !== "anime") {
           t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         }
         document.documentElement.dataset.theme = t;
+        // Theme anime: nền cùng 1 cảnh nhưng đổi ngày/chiều/đêm theo giờ thật
+        var h = new Date().getHours();
+        document.documentElement.dataset.animeTime = h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
         // Màu chủ đạo (cam mặc định / xanh lá / xanh dương / vải thiều / 2 ngón)
         var a = localStorage.getItem("accent");
         if (a === "green" || a === "blue" || a === "lychee" || a === "namdinh")
