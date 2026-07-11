@@ -71,7 +71,7 @@ export default function UserDashboard() {
               </button>
             ))}
           </aside>
-          <main className="dash-content">
+          <main className="dash-content" key={tab}>
             {tab === "order" && (
               <GroupOrdersTab onPlaced={() => setTab("orders")} onViewFund={() => setTab("fund")} />
             )}

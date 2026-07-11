@@ -66,7 +66,7 @@ export default function AdminDashboard() {
               </button>
             ))}
           </aside>
-          <main className="dash-content">
+          <main className="dash-content" key={tab}>
             {tab === "stats" && <StatsTab />}
             {tab === "report" && <ReportTab />}
             {tab === "groups" && <GroupOrdersTab />}
