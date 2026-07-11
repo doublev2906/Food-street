@@ -2062,11 +2062,15 @@ button:active:not(:disabled) {
 
 /* 🐱 Mèo popcat: ngậm mồm, há mồm khi bấm (:active). Phủ mọi phần tử (đè cả
    pointer/text) nên cần !important. Ảnh 48×48, hotspot ~tai trái để bấm còn chuẩn. */
+/* Gồm cả chính <html> (element mang data-cursor) để phủ luôn nền viewport ngoài
+   nội dung + vùng scrollbar — không thì mấy chỗ đó rớt về con trỏ mặc định. */
+[data-cursor="cat"],
 [data-cursor="cat"] *,
 [data-cursor="cat"] *::before,
 [data-cursor="cat"] *::after {
   cursor: url("/cursor-closed.png") 14 6, auto !important;
 }
+[data-cursor="cat"]:active,
 [data-cursor="cat"] *:active,
 [data-cursor="cat"] *:active::before,
 [data-cursor="cat"] *:active::after {
