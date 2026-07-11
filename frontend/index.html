@@ -20,6 +20,8 @@
         var a = localStorage.getItem("accent");
         if (a === "green" || a === "blue" || a === "lychee" || a === "namdinh")
           document.documentElement.dataset.accent = a;
+        // Con trỏ chuột (mèo mặc định / hoa đào-đũa / hệ thống) — set sớm để khỏi chớp
+        document.documentElement.dataset.cursor = localStorage.getItem("cursor") || "cat";
       })();
     </script>
   </head>

@@ -13,6 +13,13 @@ const ACCENTS = [
   { key: "namdinh", icon: "✌️", label: "2 ngón" },
 ] as const;
 
+// Con trỏ chuột user chọn được (mèo popcat mặc định)
+const CURSORS = [
+  { key: "cat", icon: "🐱", label: "Mèo" },
+  { key: "sakura", icon: "🌸", label: "Hoa đào & đũa" },
+  { key: "default", icon: "🖱️", label: "Mặc định" },
+] as const;
+
 export function Header({ subtitle }: { subtitle?: string }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -22,8 +29,11 @@ export function Header({ subtitle }: { subtitle?: string }) {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || "light");
   const [accent, setAccent] = useState(() => document.documentElement.dataset.accent || "orange");
   const [accentOpen, setAccentOpen] = useState(false);
+  const [cursor, setCursor] = useState(() => document.documentElement.dataset.cursor || "cat");
+  const [cursorOpen, setCursorOpen] = useState(false);
   // Grace period khi rời chuột: không đóng phụp ngay, lỡ trớn còn kịp quay lại
   const accentTimer = useRef<number | null>(null);
+  const cursorTimer = useRef<number | null>(null);
 
   const openAccent = () => {
     if (accentTimer.current) window.clearTimeout(accentTimer.current);
@@ -33,9 +43,18 @@ export function Header({ subtitle }: { subtitle?: string }) {
     if (accentTimer.current) window.clearTimeout(accentTimer.current);
     accentTimer.current = window.setTimeout(() => setAccentOpen(false), 300);
   };
+  const openCursor = () => {
+    if (cursorTimer.current) window.clearTimeout(cursorTimer.current);
+    setCursorOpen(true);
+  };
+  const closeCursorSoon = () => {
+    if (cursorTimer.current) window.clearTimeout(cursorTimer.current);
+    cursorTimer.current = window.setTimeout(() => setCursorOpen(false), 300);
+  };
   useEffect(
     () => () => {
       if (accentTimer.current) window.clearTimeout(accentTimer.current);
+      if (cursorTimer.current) window.clearTimeout(cursorTimer.current);
     },
     []
   );
@@ -67,6 +86,13 @@ export function Header({ subtitle }: { subtitle?: string }) {
     }
     setAccent(key);
     setAccentOpen(false);
+  };
+
+  const pickCursor = (key: string) => {
+    document.documentElement.dataset.cursor = key;
+    localStorage.setItem("cursor", key);
+    setCursor(key);
+    setCursorOpen(false);
   };
 
   // Bấm logo -> về tab đầu của khu đang đứng: admin ở nguyên /admin, user về /app.
@@ -129,6 +155,31 @@ export function Header({ subtitle }: { subtitle?: string }) {
                   <span className="accent-item-ic">{a.icon}</span>
                   {a.label}
                   {a.key === accent && <span className="accent-check">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Hover (hoặc bấm - cho mobile) để mở dropdown chọn con trỏ chuột */}
+        <div className="accent-picker" onMouseEnter={openCursor} onMouseLeave={closeCursorSoon}>
+          <button
+            className="ghost icon-btn"
+            onClick={() => setCursorOpen((o) => !o)}
+            title="Chọn con trỏ chuột"
+          >
+            {CURSORS.find((c) => c.key === cursor)?.icon}
+          </button>
+          {cursorOpen && (
+            <div className="accent-menu">
+              {CURSORS.map((c) => (
+                <button
+                  key={c.key}
+                  className={`accent-item ${c.key === cursor ? "active" : ""}`}
+                  onClick={() => pickCursor(c.key)}
+                >
+                  <span className="accent-item-ic">{c.icon}</span>
+                  {c.label}
+                  {c.key === cursor && <span className="accent-check">✓</span>}
                 </button>
               ))}
             </div>

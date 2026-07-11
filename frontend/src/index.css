@@ -237,20 +237,6 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
-/* Con trỏ vui: hoa đào 🌸 mặc định, đũa 🥢 khi trỏ vào chỗ bấm được.
-   PNG render từ emoji (public/anime/), hotspot hoa ở tâm, đũa ở đầu gắp.
-   Gắn vào html (chính là element mang data-theme) để phủ TOÀN viewport —
-   gắn body thì vùng ngoài nội dung (body chỉ cao bằng content) không ăn. */
-[data-theme="anime"] {
-  cursor: url("/anime/cursor-sakura.png") 12 12, auto;
-}
-[data-theme="anime"] :is(button, a, select, label, .brand, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/anime/cursor-chopsticks.png") 4 28, pointer;
-}
-[data-theme="anime"] button:disabled {
-  cursor: url("/anime/cursor-sakura.png") 12 12, not-allowed;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -2068,4 +2054,34 @@ button:active:not(:disabled) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ================= Con trỏ chuột tuỳ chọn (data-cursor) ================= */
+/* Người dùng chọn ở Header; giá trị lưu vào <html data-cursor="…">. Mặc định "cat".
+   "default" -> không có rule -> con trỏ hệ thống. */
+
+/* 🐱 Mèo popcat: ngậm mồm, há mồm khi bấm (:active). Phủ mọi phần tử (đè cả
+   pointer/text) nên cần !important. Ảnh 48×48, hotspot ~tai trái để bấm còn chuẩn. */
+[data-cursor="cat"] *,
+[data-cursor="cat"] *::before,
+[data-cursor="cat"] *::after {
+  cursor: url("/cursor-closed.png") 14 6, auto !important;
+}
+[data-cursor="cat"] *:active,
+[data-cursor="cat"] *:active::before,
+[data-cursor="cat"] *:active::after {
+  cursor: url("/cursor-open.png") 14 6, auto !important;
+}
+
+/* 🌸 Hoa đào mặc định, 🥢 đũa khi trỏ vào chỗ bấm được. cursor kế thừa từ <html>
+   (mang data-cursor) nên chỉ cần set gốc + override cho nhóm phần tử tương tác. */
+[data-cursor="sakura"] {
+  cursor: url("/anime/cursor-sakura.png") 12 12, auto;
+}
+[data-cursor="sakura"]
+  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/anime/cursor-chopsticks.png") 4 28, pointer;
+}
+[data-cursor="sakura"] button:disabled {
+  cursor: url("/anime/cursor-sakura.png") 12 12, not-allowed;
 }
