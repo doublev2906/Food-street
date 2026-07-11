@@ -118,6 +118,54 @@
   --login-grad-1: #11212f;
 }
 
+/* ===== Accent theme: VẢI THIỀU (🍒 - đỏ hồng vỏ vải, nền hồng nhạt như cùi) ===== */
+[data-accent="lychee"] {
+  --primary: #d92b52;
+  --primary-dark: #bd2145;
+  --primary-soft: #fde8ee;
+  --primary-text: #cf2b50;
+  --accent-border: #f6c2cf;
+  --accent-grad-hi: #ff7a9c;
+  --accent-shadow: rgba(217, 43, 82, 0.14);
+  --welcome-grad-1: #fdeef2;
+  --welcome-grad-2: #fbdfe7;
+  --login-grad-1: #fde8ee;
+}
+[data-theme="dark"][data-accent="lychee"] {
+  --primary: #e05070;
+  --primary-dark: #ec6484;
+  --primary-soft: #3a1520;
+  --primary-text: #ff9db3;
+  --accent-border: #5c2233;
+  --welcome-grad-1: #2b1319;
+  --welcome-grad-2: #331620;
+  --login-grad-1: #2b1319;
+}
+
+/* ===== Accent theme: 2 NGÓN (✌️ - vàng Thành Nam, đặc trưng Nam Định) ===== */
+[data-accent="namdinh"] {
+  --primary: #d99a00;
+  --primary-dark: #bd8600;
+  --primary-soft: #fdf3d6;
+  --primary-text: #a8760a;
+  --accent-border: #f0d98f;
+  --accent-grad-hi: #ffcf4d;
+  --accent-shadow: rgba(217, 154, 0, 0.16);
+  --welcome-grad-1: #fdf6df;
+  --welcome-grad-2: #fbecc0;
+  --login-grad-1: #fdf3d6;
+}
+[data-theme="dark"][data-accent="namdinh"] {
+  --primary: #e0ab27;
+  --primary-dark: #eebb3f;
+  --primary-soft: #33280d;
+  --primary-text: #f4cf72;
+  --accent-border: #5a4718;
+  --welcome-grad-1: #2a2210;
+  --welcome-grad-2: #322813;
+  --login-grad-1: #2a2210;
+}
+
 * {
   box-sizing: border-box;
 }

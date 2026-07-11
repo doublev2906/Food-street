@@ -9,6 +9,8 @@ const ACCENTS = [
   { key: "orange", icon: "🍊", label: "Cam" },
   { key: "green", icon: "☘️", label: "Rau má" },
   { key: "blue", icon: "💧", label: "Sky" },
+  { key: "lychee", icon: "🍒", label: "Vải thiều" },
+  { key: "namdinh", icon: "✌️", label: "2 ngón" },
 ] as const;
 
 export function Header({ subtitle }: { subtitle?: string }) {
