@@ -1692,8 +1692,64 @@ button:active:not(:disabled) {
   .food-card.selected {
     animation: pop 0.3s ease;
   }
+
+  /* ---- Danh sách hiện lần lượt sau khi API trả về (đỡ "giật" khi chèn) ---- */
+  /* Đơn của tôi */
+  .orders-list > .order-card {
+    animation: fade-in-up 0.36s ease both;
+  }
+  .orders-list > .order-card:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .orders-list > .order-card:nth-child(3) {
+    animation-delay: 0.14s;
+  }
+  .orders-list > .order-card:nth-child(n + 4) {
+    animation-delay: 0.2s;
+  }
+
+  /* Màn Quỹ: hero + card lịch sử trôi vào */
+  .fund-layout > * {
+    animation: fade-in-up 0.36s ease both;
+  }
+  .fund-layout > *:nth-child(2) {
+    animation-delay: 0.08s;
+  }
+
+  /* Dòng bảng (lịch sử giao dịch, bảng admin) hiện lần lượt khi chèn */
+  tbody tr {
+    animation: row-in 0.3s ease both;
+  }
+  tbody tr:nth-child(2) {
+    animation-delay: 0.03s;
+  }
+  tbody tr:nth-child(3) {
+    animation-delay: 0.06s;
+  }
+  tbody tr:nth-child(4) {
+    animation-delay: 0.09s;
+  }
+  tbody tr:nth-child(5) {
+    animation-delay: 0.12s;
+  }
+  tbody tr:nth-child(6) {
+    animation-delay: 0.15s;
+  }
+  tbody tr:nth-child(n + 7) {
+    animation-delay: 0.18s;
+  }
 }
 
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @keyframes sheen {
   0% {
     left: -60%;
