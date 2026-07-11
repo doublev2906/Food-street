@@ -40,7 +40,7 @@ config :phoenix, :json_library, Jason
 config :food_street, FoodStreet.Guardian,
   issuer: "food_street",
   secret_key: "dev_only_change_me_z3Qk8rN2pL5sW9xT4vB7yE1aC6dF0gH",
-  ttl: {7, :days}
+  ttl: {96, :days}
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
