@@ -1575,6 +1575,193 @@ button:active:not(:disabled) {
   }
 }
 
+/* ============ Hiệu ứng "hoa mỹ" cho trang User ============ */
+/* Micro-interaction (hover/nhấn) — nhẹ nên để ngoài, chạy cả trên máy yếu */
+
+/* Icon danh mục trong card đợt: nhún + nghiêng khi hover card */
+.icon-circle {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.batch-card:hover .icon-circle {
+  transform: scale(1.1) rotate(-8deg);
+}
+
+/* Nút CTA cam: vệt sáng quét ngang khi hover */
+.cta {
+  position: relative;
+  overflow: hidden;
+}
+.cta::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+.cta:hover::after {
+  left: 135%;
+}
+
+/* Balance pill: nhấc lên + icon 👛 nảy khi hover */
+.balance-pill {
+  transition: background 0.15s, border-color 0.15s, transform 0.18s, box-shadow 0.18s;
+}
+.balance-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px var(--accent-shadow);
+}
+.balance-pill-ic {
+  display: inline-block;
+}
+
+/* Ảnh món phóng nhẹ khi hover (card đã có translateY từ khối animation chung) */
+.food-thumb {
+  transition: transform 0.3s ease;
+}
+.food-card:hover .food-thumb {
+  transform: scale(1.08);
+}
+
+/* Hiệu ứng liên tục / xuất hiện — chỉ khi người dùng không giảm chuyển động */
+@media (prefers-reduced-motion: no-preference) {
+  /* Welcome bar: trôi vào + vệt sáng quét ngang định kỳ */
+  .welcome-bar {
+    animation: fade-in-up 0.45s ease both;
+  }
+  .welcome-bar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+    transform: skewX(-18deg);
+    animation: sheen 6s ease-in-out 1.4s infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  [data-theme="dark"] .welcome-bar::before {
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  }
+  /* 🍜 trang trí góc phải bồng bềnh */
+  .welcome-bar::after {
+    animation: float-tilt 4.5s ease-in-out infinite;
+  }
+
+  /* Bàn tay vẫy ở lời chào */
+  .wave {
+    display: inline-block;
+    transform-origin: 70% 70%;
+    animation: hand-wave 2.6s ease-in-out infinite;
+  }
+
+  /* 🍳 màn rỗng bồng bềnh + nảy nhẹ khi hover */
+  .empty-ic {
+    animation: float-y 3.2s ease-in-out infinite;
+  }
+
+  /* Icon danh mục nhịp thở rất nhẹ để card đợt sống động */
+  .batch-card .icon-circle {
+    animation: breathe 3.4s ease-in-out infinite;
+  }
+  .batch-card:hover .icon-circle {
+    animation: none;
+  }
+
+  /* Card đợt hiện lần lượt */
+  .batch-list > .batch-card {
+    animation: fade-in-up 0.42s ease both;
+  }
+  .batch-list > .batch-card:nth-child(2) {
+    animation-delay: 0.09s;
+  }
+  .batch-list > .batch-card:nth-child(3) {
+    animation-delay: 0.18s;
+  }
+  .batch-list > .batch-card:nth-child(n + 4) {
+    animation-delay: 0.26s;
+  }
+
+  /* Món vừa chọn nảy 1 nhịp */
+  .food-card.selected {
+    animation: pop 0.3s ease;
+  }
+}
+
+@keyframes sheen {
+  0% {
+    left: -60%;
+  }
+  16%,
+  100% {
+    left: 135%;
+  }
+}
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes float-tilt {
+  0%,
+  100% {
+    transform: rotate(-12deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-12deg) translateY(-9px);
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+@keyframes hand-wave {
+  0%,
+  65%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10%,
+  30% {
+    transform: rotate(14deg);
+  }
+  20% {
+    transform: rotate(-8deg);
+  }
+  40% {
+    transform: rotate(10deg);
+  }
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
 @media (prefers-reduced-motion: reduce) {
   *,

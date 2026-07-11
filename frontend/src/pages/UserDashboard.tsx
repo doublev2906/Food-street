@@ -126,7 +126,7 @@ function GroupOrdersTab({ onPlaced, onViewFund }: { onPlaced: () => void; onView
     <div className="welcome-bar">
       <div className="welcome-left">
         <h2 className="welcome-title">
-          {greetingByHour()}, {user?.name}! 👋
+          {greetingByHour()}, {user?.name}! <span className="wave">👋</span>
         </h2>
         <p className="welcome-date">
           Hôm nay là {formatDateVN(todayISO())} — chọn đợt bên dưới để đặt món nhé.
