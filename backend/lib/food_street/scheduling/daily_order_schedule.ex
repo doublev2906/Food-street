@@ -24,6 +24,7 @@ defmodule FoodStreet.Scheduling.DailyOrderSchedule do
              :weekdays,
              :create_time,
              :deadline_time,
+             :runner_count,
              :last_run_on,
              :updated_at
            ]}
@@ -35,6 +36,7 @@ defmodule FoodStreet.Scheduling.DailyOrderSchedule do
     field :weekdays, {:array, :integer}, default: []
     field :create_time, :time
     field :deadline_time, :time
+    field :runner_count, :integer, default: 0
     field :last_run_on, :date
 
     belongs_to :owner, User
@@ -57,9 +59,11 @@ defmodule FoodStreet.Scheduling.DailyOrderSchedule do
       :note,
       :weekdays,
       :create_time,
-      :deadline_time
+      :deadline_time,
+      :runner_count
     ])
     |> validate_weekdays()
+    |> validate_number(:runner_count, greater_than_or_equal_to: 0)
     |> validate_time_order()
     |> maybe_require_when_enabled()
     |> foreign_key_constraint(:owner_id)

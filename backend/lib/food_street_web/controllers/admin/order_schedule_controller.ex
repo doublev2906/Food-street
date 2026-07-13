@@ -47,6 +47,7 @@ defmodule FoodStreetWeb.Admin.OrderScheduleController do
       weekdays: schedule.weekdays || [],
       create_time: schedule.create_time,
       deadline_time: schedule.deadline_time,
+      runner_count: schedule.runner_count,
       last_run_on: schedule.last_run_on,
       panchat_ready: ready
     }

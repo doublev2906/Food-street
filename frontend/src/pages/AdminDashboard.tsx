@@ -2313,6 +2313,7 @@ function ScheduleTab() {
     weekdays: [1, 2, 3, 4, 5] as number[],
     create_time: "07:00",
     deadline_time: "08:30",
+    runner_count: 0,
   });
 
   const load = () => {
@@ -2330,6 +2331,7 @@ function ScheduleTab() {
           weekdays: s.weekdays?.length ? s.weekdays : [1, 2, 3, 4, 5],
           create_time: toHHMM(s.create_time) || "07:00",
           deadline_time: toHHMM(s.deadline_time) || "08:30",
+          runner_count: s.runner_count || 0,
         });
       })
       .catch((e) => setMsg({ type: "error", text: e.message || "Lỗi tải" }));
@@ -2364,6 +2366,7 @@ function ScheduleTab() {
         weekdays: form.weekdays,
         create_time: toSeconds(form.create_time),
         deadline_time: toSeconds(form.deadline_time),
+        runner_count: form.runner_count,
       });
       setSchedule(r.data);
       setMsg({ type: "ok", text: "Đã lưu lịch hẹn." });
@@ -2507,6 +2510,27 @@ function ScheduleTab() {
                 }
                 required={form.enabled}
               />
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Số người đi lấy đồ (bốc ngẫu nhiên khi chốt)</label>
+            <input
+              type="number"
+              min={0}
+              value={form.runner_count}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  runner_count: Math.max(0, Number(e.target.value) || 0),
+                })
+              }
+              placeholder="0 = không bốc"
+            />
+            <div className="small muted mt">
+              Đợt mở tự động sẽ mang số này; khi bấm “Chốt đợt” hệ thống tự bốc đúng
+              số người từ danh sách đã đặt và mention họ trên Panchat. Để 0 nếu không
+              cần.
             </div>
           </div>
 

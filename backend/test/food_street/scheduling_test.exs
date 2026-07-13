@@ -109,9 +109,22 @@ defmodule FoodStreet.SchedulingTest do
       # deadline VN 08:30 → 01:30 UTC
       assert DateTime.to_time(go.deadline) == ~T[01:30:00]
 
+      # Không cấu hình runner_count → đợt mặc định 0.
+      assert go.runner_count == 0
+
       # Gọi lại cùng ngày → không tạo thêm.
       assert {:ok, :skipped, :not_due} = Scheduling.run_tick(@now)
       assert length(list_group_orders()) == 1
+    end
+
+    test "đợt tạo tự động mang runner_count của lịch" do
+      o = admin("owner")
+      Settings.put_panchat_token(o.id, "tok")
+      c = category()
+      save!(base_attrs(o, c, %{"runner_count" => 2}))
+
+      assert {:ok, :created, go} = Scheduling.run_tick(@now)
+      assert go.runner_count == 2
     end
 
     test "bỏ qua khi chủ lịch chưa có token Panchat" do

@@ -112,6 +112,7 @@ defmodule FoodStreet.Scheduling do
       "order_date" => vn_date,
       "category_id" => schedule.category_id,
       "note" => schedule.note,
+      "runner_count" => schedule.runner_count,
       "deadline" => deadline_utc(vn_date, schedule.deadline_time)
     }
 

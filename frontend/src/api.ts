@@ -151,6 +151,7 @@ export interface OrderSchedule {
   weekdays: number[]; // ISO: 1=T2 … 7=CN
   create_time: string | null; // "HH:MM:SS"
   deadline_time: string | null;
+  runner_count: number;
   last_run_on: string | null;
   panchat_ready: boolean;
 }
@@ -164,6 +165,7 @@ export interface OrderSchedulePayload {
   weekdays: number[];
   create_time: string; // "HH:MM"
   deadline_time: string;
+  runner_count?: number;
 }
 
 export interface ExternalPurchaseEater {
