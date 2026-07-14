@@ -4,6 +4,8 @@ import {
   formatVND,
   today,
   type Category,
+  type CategoryRevenue,
+  type DailyRevenue,
   type ExternalPurchase,
   type FundTransaction,
   type GroupOrder,
@@ -16,6 +18,16 @@ import {
   type User,
 } from "../api";
 import { useSearchParams } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Header, Modal, Money, Spinner, StatusBadge } from "../components";
 import { useTabParam } from "../hooks";
 import { FoodThumb } from "../menu";
@@ -220,24 +232,100 @@ function periodRange(
   return { from: `${year}-01-01`, to: `${year}-12-31`, label: `Năm ${year}` };
 }
 
+// Rút gọn tiền cho trục biểu đồ: 1.2tr, 350k…
+function compactVND(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}tr`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+}
+
+// Bảng màu cho biểu đồ danh mục (xoay vòng theo số danh mục).
+const CHART_COLORS = [
+  "#e8590c",
+  "#1f9d55",
+  "#3b82f6",
+  "#b88406",
+  "#8b5cf6",
+  "#ec4899",
+  "#0891b2",
+  "#84cc16",
+];
+
+// Tooltip bám theme (nền surface, viền border) thay vì trắng mặc định.
+const CHART_TOOLTIP_STYLE = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text)",
+};
+
 function ReportTab() {
   const [mode, setMode] = useState<ReportMode>("day");
   const [day, setDay] = useState(today());
   const [month, setMonth] = useState(today().slice(0, 7));
   const [year, setYear] = useState(Number(today().slice(0, 4)));
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
   const [data, setData] = useState<PeriodStats | null>(null);
+  const [daily, setDaily] = useState<DailyRevenue[]>([]);
+  const [byCat, setByCat] = useState<CategoryRevenue[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { from, to, label } = periodRange(mode, day, month, year);
 
   useEffect(() => {
-    setLoading(true);
     api.admin
-      .statsPeriod(from, to)
-      .then((r) => setData(r.data))
-      .catch(() => setData(null))
+      .categories()
+      .then((r) => setCategories(r.data.filter((c) => c.active)))
+      .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      api.admin.statsPeriod(from, to),
+      api.admin.statsRevenue(from, to, categoryId || undefined),
+      api.admin.statsByCategory(from, to),
+    ])
+      .then(([p, r, c]) => {
+        setData(p.data);
+        setDaily(r.data);
+        setByCat(c.data);
+      })
+      .catch(() => {
+        setData(null);
+        setDaily([]);
+        setByCat([]);
+      })
       .finally(() => setLoading(false));
-  }, [from, to]);
+  }, [from, to, categoryId]);
+
+  // Chuỗi thời gian cho biểu đồ: tháng -> theo ngày, năm -> gộp theo tháng.
+  const timeSeries = useMemo(() => {
+    if (mode === "year") {
+      const months = Array.from({ length: 12 }, () => 0);
+      daily.forEach((d) => {
+        months[Number(d.date.slice(5, 7)) - 1] += Number(d.revenue);
+      });
+      return months.map((revenue, i) => ({ label: `T${i + 1}`, revenue }));
+    }
+    // Tháng: đổ đầy mọi ngày để trục liền mạch (ngày trống = 0).
+    const map = new Map(daily.map((d) => [d.date, Number(d.revenue)]));
+    const [y, m] = from.split("-").map(Number);
+    const days = new Date(y, m, 0).getDate();
+    return Array.from({ length: days }, (_, i) => {
+      const dd = String(i + 1).padStart(2, "0");
+      return { label: String(i + 1), revenue: map.get(`${from.slice(0, 7)}-${dd}`) ?? 0 };
+    });
+  }, [daily, mode, from]);
+
+  const catData = useMemo(
+    () => byCat.map((c) => ({ name: c.category_name, revenue: Number(c.revenue) })),
+    [byCat]
+  );
+
+  const hasRevenue = timeSeries.some((d) => d.revenue > 0);
+  const catName = categories.find((c) => c.id === categoryId)?.name;
 
   const curYear = Number(today().slice(0, 4));
   const years = Array.from({ length: 6 }, (_, i) => curYear - i);
@@ -292,6 +380,18 @@ function ReportTab() {
               ))}
             </select>
           )}
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            style={{ width: "auto" }}
+          >
+            <option value="">Tất cả danh mục</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -305,6 +405,83 @@ function ReportTab() {
             <Stat label="Đã chốt" value={data.confirmed} />
             <Stat label="Doanh thu (đã chốt)" value={formatVND(data.revenue)} accent />
           </div>
+
+          {mode !== "day" && (
+            <div className="card">
+              <h2>Doanh thu theo thời gian{catName ? ` · ${catName}` : ""}</h2>
+              {hasRevenue ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={timeSeries} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 12, fill: "var(--muted)" }}
+                      stroke="var(--border)"
+                    />
+                    <YAxis
+                      tickFormatter={compactVND}
+                      tick={{ fontSize: 12, fill: "var(--muted)" }}
+                      stroke="var(--border)"
+                      width={48}
+                    />
+                    <Tooltip
+                      formatter={(v) => [formatVND(v as number), "Doanh thu"]}
+                      labelFormatter={(l) =>
+                        mode === "year" ? `Tháng ${String(l).slice(1)}` : `Ngày ${l}`
+                      }
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      cursor={{ fill: "var(--hover)" }}
+                    />
+                    <Bar dataKey="revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="muted">Chưa có doanh thu trong khoảng này.</p>
+              )}
+            </div>
+          )}
+
+          {!categoryId && (
+            <div className="card">
+              <h2>Doanh thu theo danh mục</h2>
+              {catData.length === 0 ? (
+                <p className="muted">Chưa có dữ liệu cho khoảng thời gian này.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(160, catData.length * 48)}>
+                  <BarChart
+                    layout="vertical"
+                    data={catData}
+                    margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tickFormatter={compactVND}
+                      tick={{ fontSize: 12, fill: "var(--muted)" }}
+                      stroke="var(--border)"
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={96}
+                      tick={{ fontSize: 12, fill: "var(--text)" }}
+                      stroke="var(--border)"
+                    />
+                    <Tooltip
+                      formatter={(v) => [formatVND(v as number), "Doanh thu"]}
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      cursor={{ fill: "var(--hover)" }}
+                    />
+                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                      {catData.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
 
           <div
             className="grid"

@@ -4,8 +4,10 @@ defmodule FoodStreet.Stats do
   import Ecto.Query, warn: false
   alias FoodStreet.Repo
   alias FoodStreet.Accounts.User
+  alias FoodStreet.Catalog.Category
   alias FoodStreet.Ordering.Order
   alias FoodStreet.Ordering.OrderItem
+  alias FoodStreet.Ordering.GroupOrder
   alias FoodStreet.Fund.FundTransaction
 
   @vn_offset_seconds 7 * 3600
@@ -185,14 +187,115 @@ defmodule FoodStreet.Stats do
     |> Repo.all()
   end
 
-  @doc "Doanh thu theo từng ngày trong khoảng (để vẽ biểu đồ)."
-  def revenue_by_day(from_date, to_date) do
+  @doc """
+  Doanh thu theo từng ngày trong khoảng (để vẽ biểu đồ). Chỉ tính đơn đã chốt.
+  Truyền `category_id` để lọc theo danh mục của đợt nhóm (`nil` = mọi danh mục).
+  """
+  def revenue_by_day(from_date, to_date, category_id \\ nil) do
     from(o in Order,
       where: o.order_date >= ^from_date and o.order_date <= ^to_date and o.status == "confirmed",
       group_by: o.order_date,
       order_by: [asc: o.order_date],
       select: %{date: o.order_date, revenue: sum(o.total_amount), orders: count(o.id)}
     )
+    |> maybe_category(category_id)
     |> Repo.all()
   end
+
+  defp maybe_category(query, nil), do: query
+
+  defp maybe_category(query, category_id) do
+    from(o in query,
+      join: g in GroupOrder,
+      on: g.id == o.group_order_id,
+      where: g.category_id == ^category_id
+    )
+  end
+
+  @doc """
+  Doanh thu theo từng danh mục trong khoảng (để vẽ biểu đồ so sánh). Chỉ tính đơn
+  đã chốt, join qua đợt nhóm để lấy danh mục, sắp giảm dần theo doanh thu.
+  """
+  def revenue_by_category(from_date, to_date) do
+    from(o in Order,
+      join: g in GroupOrder,
+      on: g.id == o.group_order_id,
+      join: c in Category,
+      on: c.id == g.category_id,
+      where: o.order_date >= ^from_date and o.order_date <= ^to_date and o.status == "confirmed",
+      group_by: [c.id, c.name],
+      order_by: [desc: sum(o.total_amount)],
+      select: %{
+        category_id: c.id,
+        category_name: c.name,
+        revenue: sum(o.total_amount),
+        orders: count(o.id)
+      }
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Cộng tổng tiền các hoá đơn của những **đợt đặt nhóm** trong khoảng ngày
+  `[from, to]` (theo `order_date` của đợt), lọc theo danh mục.
+
+  Tiện đối soát nhanh trên server qua remote console (`bin/food_street remote`):
+
+      FoodStreet.Stats.group_order_invoices_total(~D[2026-07-01], ~D[2026-07-14], category_id)
+
+  Tham số:
+    * `from` / `to` — `Date` hoặc chuỗi ISO ("2026-07-14"). Bao gồm cả 2 đầu.
+    * `category_id` — `nil` để cộng mọi danh mục.
+    * `opts`:
+      * `:status` — trạng thái đơn cần cộng. Mặc định `"confirmed"` (đơn đã chốt —
+        tức tiền thật đã trừ quỹ). Truyền `:all` để cộng mọi đơn chưa huỷ.
+
+  Đợt đã huỷ (`cancelled`) luôn bị loại. Trả về map gồm tổng tiền (`Decimal`),
+  số đơn và số đợt đã tính, kèm lại tham số đã dùng để dễ đối chiếu.
+  """
+  def group_order_invoices_total(from, to, category_id \\ nil, opts \\ []) do
+    from_date = to_date!(from)
+    to_date = to_date!(to)
+    status = Keyword.get(opts, :status, "confirmed")
+
+    result =
+      from(o in Order,
+        join: g in GroupOrder,
+        on: g.id == o.group_order_id,
+        where: g.order_date >= ^from_date and g.order_date <= ^to_date,
+        where: g.status != "cancelled"
+      )
+      |> filter_category(category_id)
+      |> filter_invoice_status(status)
+      |> select([o, g], %{
+        total: coalesce(sum(o.total_amount), 0),
+        orders: count(o.id),
+        group_orders: count(g.id, :distinct)
+      })
+      |> Repo.one()
+
+    %{
+      from: from_date,
+      to: to_date,
+      category_id: category_id,
+      status: status,
+      group_orders: result.group_orders,
+      orders: result.orders,
+      total: as_decimal(result.total)
+    }
+  end
+
+  defp filter_category(query, nil), do: query
+
+  defp filter_category(query, category_id),
+    do: from([_o, g] in query, where: g.category_id == ^category_id)
+
+  defp filter_invoice_status(query, :all),
+    do: from([o, _g] in query, where: o.status != "cancelled")
+
+  defp filter_invoice_status(query, status) when is_binary(status),
+    do: from([o, _g] in query, where: o.status == ^status)
+
+  defp to_date!(%Date{} = d), do: d
+  defp to_date!(date) when is_binary(date), do: Date.from_iso8601!(date)
 end

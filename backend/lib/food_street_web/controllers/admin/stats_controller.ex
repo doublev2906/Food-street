@@ -19,7 +19,15 @@ defmodule FoodStreetWeb.Admin.StatsController do
     today = Date.utc_today()
     from = parse_date(params["from"], Date.add(today, -7))
     to = parse_date(params["to"], today)
-    json(conn, %{data: Stats.revenue_by_day(from, to)})
+    json(conn, %{data: Stats.revenue_by_day(from, to, blank_to_nil(params["category_id"]))})
+  end
+
+  @doc "Doanh thu theo từng danh mục trong khoảng ngày (để so sánh)."
+  def by_category(conn, params) do
+    today = Date.utc_today()
+    from = parse_date(params["from"], today)
+    to = parse_date(params["to"], today)
+    json(conn, %{data: Stats.revenue_by_category(from, to)})
   end
 
   @doc "Thống kê tổng hợp theo khoảng ngày (ngày / tháng / năm)."
@@ -29,6 +37,10 @@ defmodule FoodStreetWeb.Admin.StatsController do
     to = parse_date(params["to"], today)
     json(conn, %{data: Stats.period_summary(from, to)})
   end
+
+  defp blank_to_nil(nil), do: nil
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(str) when is_binary(str), do: str
 
   defp parse_date(nil, default), do: default
 

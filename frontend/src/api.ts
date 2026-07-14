@@ -128,6 +128,21 @@ export interface PeriodStats {
   top_items: { item_name: string; quantity: number; revenue: string }[];
 }
 
+// Doanh thu theo từng ngày (chuỗi thời gian để vẽ biểu đồ).
+export interface DailyRevenue {
+  date: string;
+  revenue: string;
+  orders: number;
+}
+
+// Doanh thu theo từng danh mục trong kỳ.
+export interface CategoryRevenue {
+  category_id: string;
+  category_name: string;
+  revenue: string;
+  orders: number;
+}
+
 export interface Paginated<T> {
   data: T[];
   page: number;
@@ -372,6 +387,12 @@ export const api = {
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),
     statsPeriod: (from: string, to: string) =>
       request<{ data: PeriodStats }>(`/admin/stats/period?from=${from}&to=${to}`),
+    statsRevenue: (from: string, to: string, categoryId?: string) =>
+      request<{ data: DailyRevenue[] }>(
+        `/admin/stats/revenue?from=${from}&to=${to}${categoryId ? `&category_id=${categoryId}` : ""}`
+      ),
+    statsByCategory: (from: string, to: string) =>
+      request<{ data: CategoryRevenue[] }>(`/admin/stats/by_category?from=${from}&to=${to}`),
     fundTransactions: (
       page = 1,
       filters: { type?: string; user_id?: string; from?: string; to?: string } = {},
