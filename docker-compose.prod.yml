@@ -34,6 +34,8 @@ services:
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       DATABASE_URL: ecto://${DB_USER}:${DB_PASS}@db/${DB_NAME}
       POOL_SIZE: "10"
+      # Secret bảo vệ webhook Pancake Page (nhúng trong URL webhook đăng ký với Pancake).
+      PANCAKE_WEBHOOK_SECRET: ${PANCAKE_WEBHOOK_SECRET}
     depends_on:
       db:
         condition: service_healthy
