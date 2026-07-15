@@ -24,15 +24,27 @@ Hệ thống đặt đồ ăn sáng nội bộ với quản lý quỹ chung.
   đổi trạng thái đơn sang `confirmed`. Toàn bộ chạy trong **transaction** (atomic).
 - Mỗi thay đổi số dư đều ghi lại một dòng trong `fund_transactions` để truy vết.
 
+### Quỹ lãi trên số dư âm (issue #12)
+
+- Ai để **số dư âm** sẽ bị tính **lãi kép theo ngày** trên dư nợ (job chạy tự động
+  hằng ngày, giờ VN). Gốc tính lãi = `|số dư âm| + nợ lãi hiện có`.
+- Lãi ngày = `max(gốc × lãi_suất_ngày, sàn)`, **làm tròn lên** (VND là số nguyên).
+  Mặc định **99%/năm** (≈ 0,2712%/ngày) + **sàn 150đ/ngày** — cấu hình ở
+  `config :food_street, FoodStreet.Interest`, không hardcode.
+- Lãi **không trộn vào `balance`** mà cộng vào `users.interest_debt` (quỹ lãi riêng)
+  và ghi 1 dòng `interest_charges` để đối soát / chia cổ tức sau này.
+- **Nạp tiền** (`deposit`) sẽ **trừ hết nợ lãi trước**, phần còn lại mới cộng vào số dư.
+
 ## Cơ sở dữ liệu
 
 | Bảng | Mô tả |
 |------|-------|
-| `users` | name, email, password_hash, role, **balance**, active |
+| `users` | name, email, password_hash, role, **balance**, **interest_debt** (nợ lãi), active |
 | `menu_items` | name, description, price, available |
 | `orders` | user_id, order_date, status, total_amount, note, confirmed_at |
 | `order_items` | order_id, menu_item_id, item_name + unit_price (snapshot), quantity, subtotal |
-| `fund_transactions` | user_id, amount, type (deposit/order/adjustment), balance_after, order_id, created_by_id |
+| `fund_transactions` | user_id, amount, type (deposit/order/adjustment/split), balance_after, order_id, created_by_id |
+| `interest_charges` | user_id, amount (lãi/ngày), base_amount, interest_debt_after, charged_on — sổ cái **quỹ lãi** |
 
 ---
 
@@ -119,6 +131,9 @@ Base URL: `http://localhost:4003/api`
   (khi tạo đợt chọn `runner_count` → lúc chốt tự bốc ngẫu nhiên người đi lấy đồ + mention Panchat)
 - `GET /stats?date=` · `GET /stats/revenue?from=&to=`
 - `GET /fund/transactions` · `POST /fund/deposit` · `POST /fund/adjust`
+  (nạp tiền tự **trừ hết nợ lãi trước**, phần còn lại mới vào số dư)
+- Quỹ lãi trên số dư âm: `GET /interest/fund` (tổng quan) · `GET /interest/charges`
+  (lịch sử) · `POST /interest/run` (chạy tính lãi thủ công)
 
 ---
 

@@ -121,9 +121,58 @@ defmodule FoodStreet.Fund do
 
   defp to_int(_, default), do: default
 
-  @doc "Nạp tiền vào quỹ cho 1 user. `amount` > 0."
+  @doc """
+  Nạp tiền vào quỹ cho 1 user (`amount` > 0).
+
+  Trừ hết **nợ lãi** (`interest_debt`, issue #12) trước, phần còn lại mới cộng vào
+  số dư. Ví dụ nạp 100.000đ khi đang nợ lãi 272đ → 272đ gạt nợ lãi, 99.728đ vào
+  số dư. Trả `{:ok, %{user, transaction, interest_paid}}`.
+  """
   def deposit(%User{} = user, amount, %User{} = admin, description \\ nil) do
-    apply_delta(user, amount, "deposit", admin, description || "Nạp quỹ")
+    with {:ok, decimal} <- to_decimal(amount) do
+      interest_debt = user.interest_debt || Decimal.new(0)
+
+      # Chỉ tiền nạp dương mới gạt nợ lãi; nạp âm (nếu có) coi như điều chỉnh thuần.
+      pay_interest =
+        if Decimal.compare(decimal, 0) == :gt,
+          do: Decimal.min(decimal, interest_debt),
+          else: Decimal.new(0)
+
+      remainder = Decimal.sub(decimal, pay_interest)
+      new_interest_debt = Decimal.sub(interest_debt, pay_interest)
+      new_balance = Decimal.add(user.balance, remainder)
+
+      Multi.new()
+      |> Multi.update(:user, User.settle_changeset(user, new_balance, new_interest_debt))
+      |> Multi.insert(:tx, fn _ ->
+        FundTransaction.changeset(%FundTransaction{}, %{
+          user_id: user.id,
+          amount: remainder,
+          type: "deposit",
+          description: deposit_description(description, pay_interest),
+          balance_after: new_balance,
+          created_by_id: admin.id
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{user: updated, tx: tx}} ->
+          {:ok, %{user: updated, transaction: tx, interest_paid: pay_interest}}
+
+        {:error, _step, reason, _} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp deposit_description(description, pay_interest) do
+    base = description || "Nạp quỹ"
+
+    if Decimal.compare(pay_interest, 0) == :gt do
+      "#{base} (đã trừ #{pay_interest}đ nợ lãi)"
+    else
+      base
+    end
   end
 
   @doc """

@@ -12,6 +12,7 @@ defmodule FoodStreet.Accounts.User do
              :email,
              :role,
              :balance,
+             :interest_debt,
              :active,
              :panchat_user_id,
              :inserted_at
@@ -29,6 +30,9 @@ defmodule FoodStreet.Accounts.User do
     field :password_hash, :string
     field :role, :string, default: "user"
     field :balance, :decimal, default: Decimal.new(0)
+
+    # Nợ lãi trên số dư âm (issue #12) — tách khỏi balance; nạp tiền trừ khoản này trước.
+    field :interest_debt, :decimal, default: Decimal.new(0)
     field :active, :boolean, default: true
     field :panchat_user_id, :string
 
@@ -82,6 +86,19 @@ defmodule FoodStreet.Accounts.User do
   @doc "Changeset that only updates the balance (used by Fund context)."
   def balance_changeset(user, new_balance) do
     change(user, balance: new_balance)
+  end
+
+  @doc "Changeset that only updates the interest debt (used by Interest context)."
+  def interest_debt_changeset(user, new_interest_debt) do
+    change(user, interest_debt: new_interest_debt)
+  end
+
+  @doc """
+  Changeset cập nhật đồng thời số dư và nợ lãi (dùng khi nạp tiền: trừ nợ lãi
+  trước, phần còn lại vào balance).
+  """
+  def settle_changeset(user, new_balance, new_interest_debt) do
+    change(user, balance: new_balance, interest_debt: new_interest_debt)
   end
 
   defp validate_username(changeset) do

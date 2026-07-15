@@ -11,6 +11,8 @@ export interface User {
   email: string;
   role: Role;
   balance: string;
+  /** Nợ lãi trên số dư âm (issue #12) — tách khỏi balance; nạp tiền trừ khoản này trước. */
+  interest_debt?: string;
   active: boolean;
   /** UUID user Panchat — để mention thật (@Tên) khi báo số dư. */
   panchat_user_id?: string | null;
@@ -92,6 +94,39 @@ export interface FundTransaction {
   order_id: string | null;
   inserted_at: string;
   user?: { name: string };
+}
+
+// Quỹ lãi trên số dư âm (issue #12).
+export interface InterestFund {
+  /** Tổng lãi đã cộng dồn (accrual). */
+  fund_total: string;
+  /** Lãi đã thu thực (đã trả qua nạp tiền) = accrual − còn nợ. */
+  collected_total: string;
+  /** Nợ lãi các user còn phải trả. */
+  outstanding_interest: string;
+  /** Lãi cộng dồn hôm nay. */
+  today_total: string;
+  charge_count: number;
+  /** Số người đang âm số dư gốc + tổng dư nợ gốc (âm). */
+  debtor_count: number;
+  outstanding_debt: string;
+  /** Ngày (VN) job tính lãi chạy gần nhất, hoặc null. */
+  last_run_on: string | null;
+  annual_rate_percent: string;
+  daily_rate_percent: string;
+  min_daily_interest: string;
+}
+
+// 1 lần tính lãi (sổ cái quỹ lãi).
+export interface InterestCharge {
+  id: string;
+  user_id: string;
+  amount: string;
+  base_amount: string;
+  interest_debt_after: string;
+  charged_on: string;
+  inserted_at: string;
+  user?: { id: string; name: string } | null;
 }
 
 export interface Stats {
@@ -394,6 +429,19 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ user_id, amount, description }),
       }),
+
+    // Quỹ lãi trên số dư âm (issue #12)
+    interestFund: () => request<{ data: InterestFund }>("/admin/interest/fund"),
+    interestCharges: (page = 1, user_id?: string, pageSize = 20) => {
+      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (user_id) qs.set("user_id", user_id);
+      return request<Paginated<InterestCharge>>(`/admin/interest/charges?${qs}`);
+    },
+    runInterest: () =>
+      request<{ data: { count: number; total: string }; fund: InterestFund }>(
+        "/admin/interest/run",
+        { method: "POST" }
+      ),
 
     // Cấu hình Panchat token
     getPanchatSettings: () =>

@@ -691,6 +691,14 @@ function FundTab() {
               <strong className="muted">{formatVND(0)}</strong>
             )}
           </div>
+          {parseFloat(user?.interest_debt || "0") > 0 && (
+            <div className="fund-stat">
+              <span className="small muted">Nợ lãi (âm quỹ)</span>
+              <strong className="down" title="Lãi nợ quá hạn — nạp tiền sẽ trừ khoản này trước">
+                −{formatVND(user!.interest_debt!)}
+              </strong>
+            </div>
+          )}
         </div>
       </div>
 
