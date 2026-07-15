@@ -17,6 +17,7 @@ defmodule FoodStreet.Panchat do
 
   require Logger
 
+  alias FoodStreet.Accounts
   alias FoodStreet.Ordering.GroupOrder
   alias FoodStreet.Fund.ExternalPurchase
 
@@ -121,6 +122,33 @@ defmodule FoodStreet.Panchat do
   end
 
   @doc """
+  Test nhanh việc gửi thông báo Panchat: lấy TẤT CẢ user trong DB có
+  `panchat_user_id` rồi gửi 1 tin mention thử vào channel — KHÔNG cần tạo đợt/đơn.
+
+  ⚠️ Gửi thật vào channel Pancake Food Street (workspace #{@workspace_id} /
+  channel #{@channel_id}), nên tiêu đề đánh dấu "[TEST]" cho mọi người biết.
+
+  Cần token Panchat của 1 admin (mỗi admin 1 token — xem `FoodStreet.Settings`).
+  Chạy trong IEx trên server:
+
+      iex> token = FoodStreet.Settings.panchat_token("<admin_id>")
+      iex> FoodStreet.Panchat.test_notify_panchat_users(token)
+
+  Trả `{:ok, message}` khi Panchat nhận; `{:error, :panchat_token_missing}` nếu
+  thiếu token; `{:error, :no_panchat_users}` nếu chưa user nào có `panchat_user_id`.
+  """
+  def test_notify_panchat_users(token) do
+    case Accounts.list_users_with_panchat_id() do
+      [] ->
+        {:error, :no_panchat_users}
+
+      users ->
+        go = %GroupOrder{title: "[TEST] báo Panchat", order_date: Date.utc_today()}
+        send_runners_picked(go, users, token)
+    end
+  end
+
+  @doc """
   Body tin báo người đi lấy đồ: 1 paragraph tiêu đề, 1 paragraph liệt kê người
   được chọn (mention thật ai có `panchat_user_id`) và 1 paragraph nhắc nhở.
   Tách ra để test thuần payload, không gọi mạng.
@@ -143,7 +171,8 @@ defmodule FoodStreet.Panchat do
     {content, spans, _offset} =
       users
       |> Enum.with_index()
-      |> Enum.reduce({prefix, [], utf16_length(prefix)}, fn {user, idx}, {content, spans, offset} ->
+      |> Enum.reduce({prefix, [], utf16_length(prefix)}, fn {user, idx},
+                                                            {content, spans, offset} ->
         sep = if idx == 0, do: "", else: " "
         offset = offset + utf16_length(sep)
         mention = "@#{user.name}"

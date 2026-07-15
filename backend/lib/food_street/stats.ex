@@ -72,8 +72,7 @@ defmodule FoodStreet.Stats do
     deposited =
       Repo.one(
         from t in FundTransaction,
-          where:
-            t.type == "deposit" and t.inserted_at >= ^start_utc and t.inserted_at < ^end_utc,
+          where: t.type == "deposit" and t.inserted_at >= ^start_utc and t.inserted_at < ^end_utc,
           select: coalesce(sum(t.amount), 0)
       )
 
@@ -173,8 +172,7 @@ defmodule FoodStreet.Stats do
     from(oi in OrderItem,
       join: o in Order,
       on: o.id == oi.order_id,
-      where:
-        o.order_date >= ^from_date and o.order_date <= ^to_date and o.status != "cancelled",
+      where: o.order_date >= ^from_date and o.order_date <= ^to_date and o.status != "cancelled",
       group_by: oi.item_name,
       order_by: [desc: sum(oi.quantity)],
       limit: ^limit,

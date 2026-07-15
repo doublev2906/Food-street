@@ -9,6 +9,7 @@ defmodule FoodStreet.Settings do
   import Ecto.Query, warn: false
   alias FoodStreet.Repo
   alias FoodStreet.Settings.Setting
+  alias FoodStreet.Accounts.User
 
   @panchat_token_key "panchat_token"
 
@@ -42,6 +43,28 @@ defmodule FoodStreet.Settings do
       nil -> false
       "" -> false
       token -> String.trim(token) != ""
+    end
+  end
+
+  @doc """
+  Chọn ngẫu nhiên 1 Panchat token của admin đang hoạt động đã cấu hình token.
+
+  Dùng khi relay tin webhook của nhà bán về Panchat nội bộ — webhook không gắn admin
+  cụ thể nên lấy bừa 1 token admin hợp lệ để gửi. Trả `nil` nếu không admin nào cấu hình.
+  """
+  def random_admin_panchat_token do
+    query =
+      from s in Setting,
+        join: u in User,
+        on: u.id == s.user_id,
+        where:
+          s.key == ^@panchat_token_key and s.value != "" and u.role == "admin" and
+            u.active == true,
+        select: s.value
+
+    case Repo.all(query) do
+      [] -> nil
+      tokens -> Enum.random(tokens)
     end
   end
 end

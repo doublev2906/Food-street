@@ -159,7 +159,9 @@ defmodule FoodStreet.OrderingTest do
 
     test "count <= 0 hoặc không phải số nguyên → không bốc ai" do
       %{go: go, mi1: mi1} = setup_group()
-      {:ok, _} = Ordering.place_order_in_group(user("usr1"), go.id, %{"items" => items([{mi1, 1}])})
+
+      {:ok, _} =
+        Ordering.place_order_in_group(user("usr1"), go.id, %{"items" => items([{mi1, 1}])})
 
       go = Ordering.get_group_order(go.id)
       assert Ordering.pick_runners(go, 0) == []
@@ -203,6 +205,57 @@ defmodule FoodStreet.OrderingTest do
 
       assert {:error, :order_not_editable} =
                Ordering.update_order(fresh, %{"items" => items([{mi1, 2}])})
+    end
+  end
+
+  describe "aggregate_seller_text/1 (gộp đơn gửi nhà bán)" do
+    test "1 đơn nhiều món + ghi chú món + ghi chú chung → đúng format copy FE" do
+      %{go: go, mi1: mi1, mi2: mi2} = setup_group()
+      u = user("annie")
+
+      {:ok, _} =
+        Ordering.place_order_in_group(u, go.id, %{
+          "items" => [
+            %{"menu_item_id" => mi1.id, "quantity" => 2, "note" => "ít cay"},
+            %{"menu_item_id" => mi2.id, "quantity" => 3}
+          ],
+          "note" => "giao sớm"
+        })
+
+      assert {:ok, text} = Ordering.aggregate_seller_text(Ordering.get_group_order(go.id))
+
+      assert text == "2 Xôi ít cay\n3 Bánh mì\n\nGhi chú chung:\n- annie: giao sớm"
+    end
+
+    test "gộp cùng tên món qua nhiều đơn (không tiêu đề, không tổng)" do
+      %{go: go, mi1: mi1} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 2}])})
+      {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi1, 1}])})
+
+      assert {:ok, text} = Ordering.aggregate_seller_text(Ordering.get_group_order(go.id))
+
+      # Cả 2 dòng "Xôi" đều có mặt; không phụ thuộc thứ tự giữa 2 đơn.
+      assert Enum.sort(String.split(text, "\n")) == ["1 Xôi", "2 Xôi"]
+    end
+
+    test "đơn đã huỷ bị loại khỏi tổng hợp" do
+      %{go: go, mi1: mi1} = setup_group()
+      u = user("usr1")
+      {:ok, o} = Ordering.place_order_in_group(u, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.cancel_order(o)
+
+      assert {:error, :no_orders} =
+               Ordering.aggregate_seller_text(Ordering.get_group_order(go.id))
+    end
+
+    test "đợt chưa có đơn → {:error, :no_orders}" do
+      %{go: go} = setup_group()
+
+      assert {:error, :no_orders} =
+               Ordering.aggregate_seller_text(Ordering.get_group_order(go.id))
     end
   end
 end

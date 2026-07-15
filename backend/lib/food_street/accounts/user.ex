@@ -44,7 +44,16 @@ defmodule FoodStreet.Accounts.User do
   @doc "Changeset for creating a user (admin creates users)."
   def create_changeset(user, attrs) do
     user
-    |> cast(attrs, [:name, :username, :email, :role, :active, :password, :balance, :panchat_user_id])
+    |> cast(attrs, [
+      :name,
+      :username,
+      :email,
+      :role,
+      :active,
+      :password,
+      :balance,
+      :panchat_user_id
+    ])
     |> validate_required([:name, :username, :email, :password])
     |> validate_inclusion(:role, @roles)
     |> validate_username()

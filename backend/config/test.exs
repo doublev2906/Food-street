@@ -26,6 +26,12 @@ config :food_street, FoodStreet.OrderScheduler, enabled: false
 # Không gọi HTTP Panchat thật trong test — định tuyến qua Req.Test stub.
 config :food_street, :panchat_req_options, plug: {Req.Test, FoodStreet.Panchat}
 
+# Không gọi HTTP Pancake Page thật trong test — định tuyến qua Req.Test stub.
+config :food_street, :pancake_req_options, plug: {Req.Test, FoodStreet.PancakePage}
+
+# Secret webhook Pancake cố định cho test.
+config :food_street, :pancake_webhook_secret, "test_webhook_secret"
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

@@ -19,6 +19,9 @@ defmodule FoodStreetWeb.Router do
 
     post "/login", AuthController, :login
     get "/health", HealthController, :index
+
+    # Webhook Pancake Page (nhà bán trả lời) — bảo vệ bằng secret trong URL.
+    post "/webhooks/pancake/:secret", PancakeWebhookController, :messaging
   end
 
   # Yêu cầu đăng nhập (user hoặc admin)
@@ -70,6 +73,7 @@ defmodule FoodStreetWeb.Router do
     put "/group_orders/:id", GroupOrderController, :update
     delete "/group_orders/:id", GroupOrderController, :delete
     post "/group_orders/:id/close", GroupOrderController, :close
+    post "/group_orders/:id/send_to_seller", GroupOrderController, :send_to_seller
 
     get "/orders", OrderController, :index
     post "/orders/:id/confirm", OrderController, :confirm

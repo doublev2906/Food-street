@@ -24,6 +24,12 @@ export interface Category {
   name: string;
   description: string | null;
   active: boolean;
+  // Cấu hình Pancake Page của nhà bán (chỉ trả về ở API admin).
+  pancake_page_id?: string | null;
+  pancake_conversation_id?: string | null;
+  pancake_configured?: boolean;
+  // Chỉ dùng khi submit form (write-only) — không bao giờ trả về từ API.
+  pancake_page_access_token?: string;
 }
 
 export interface MenuItem {
@@ -435,6 +441,11 @@ export const api = {
         panchat: { sent: boolean; error?: string };
         runners_panchat: { sent?: boolean; skipped?: boolean; error?: string };
       }>(`/admin/group_orders/${id}/close`, { method: "POST" }),
+    sendGroupOrderToSeller: (id: string) =>
+      request<{ data: { sent: boolean; error?: string } }>(
+        `/admin/group_orders/${id}/send_to_seller`,
+        { method: "POST" }
+      ),
 
     stats: (date?: string) =>
       request<{ data: Stats }>(`/admin/stats${date ? `?date=${date}` : ""}`),

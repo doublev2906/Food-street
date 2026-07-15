@@ -28,6 +28,11 @@ if frontend_url = System.get_env("FRONTEND_URL") do
   config :food_street, :frontend_url, frontend_url
 end
 
+# Secret bảo vệ webhook Pancake Page (nhúng trong URL webhook đăng ký với Pancake).
+if webhook_secret = System.get_env("PANCAKE_WEBHOOK_SECRET") do
+  config :food_street, :pancake_webhook_secret, webhook_secret
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

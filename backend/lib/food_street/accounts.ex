@@ -9,6 +9,17 @@ defmodule FoodStreet.Accounts do
     Repo.all(from u in User, order_by: [desc: u.inserted_at])
   end
 
+  @doc """
+  Danh sách user đã gắn `panchat_user_id` (khác nil và khác rỗng) — tức những
+  người có thể mention thật (ping) trên Panchat. Dùng cho tính năng thông báo.
+  """
+  def list_users_with_panchat_id do
+    User
+    |> where([u], not is_nil(u.panchat_user_id) and u.panchat_user_id != "")
+    |> order_by([u], asc: u.name)
+    |> Repo.all()
+  end
+
   def get_user!(id), do: Repo.get!(User, id)
   def get_user(id), do: Repo.get(User, id)
 

@@ -155,6 +155,68 @@ defmodule FoodStreet.Ordering do
     |> Enum.uniq_by(& &1.id)
   end
 
+  @doc """
+  Gộp đơn của 1 đợt thành text gửi nhà bán — tái hiện đúng phần `copy` của
+  `buildOrderExport` ở frontend (AdminDashboard.tsx): chỉ phần món + ghi chú chung,
+  KHÔNG tiêu đề, KHÔNG dòng tổng.
+
+  - Bỏ đơn `cancelled`.
+  - Gom dòng theo tên món (giữ thứ tự món xuất hiện lần đầu); mỗi lượt đặt (kèm ghi
+    chú riêng) là 1 dòng `"{số-lượng} {tên-món}{ ghi-chú}"`.
+  - Nếu có đơn kèm ghi chú chung -> thêm khối "Ghi chú chung:" + `- {tên}: {ghi-chú}`.
+
+  Trả `{:ok, text}` hoặc `{:error, :no_orders}` khi đợt chưa có đơn hợp lệ.
+  `go` cần preload `orders: [:items, :user]` (tự preload nếu chưa).
+  """
+  def aggregate_seller_text(%GroupOrder{} = go) do
+    go = Repo.preload(go, orders: [:items, :user])
+    orders = Enum.reject(go.orders || [], &(&1.status == "cancelled"))
+
+    if orders == [] do
+      {:error, :no_orders}
+    else
+      {:ok, build_seller_text(orders)}
+    end
+  end
+
+  defp build_seller_text(orders) do
+    {names, rows} =
+      for order <- orders, item <- order.items, reduce: {[], %{}} do
+        {names, rows} ->
+          name = item.item_name
+          names = if Map.has_key?(rows, name), do: names, else: [name | names]
+          rows = Map.update(rows, name, [item_line(item)], &(&1 ++ [item_line(item)]))
+          {names, rows}
+      end
+
+    item_lines = names |> Enum.reverse() |> Enum.flat_map(&Map.fetch!(rows, &1))
+
+    (item_lines ++ general_note_lines(orders))
+    |> Enum.join("\n")
+  end
+
+  defp item_line(item) do
+    base = "#{item.quantity} #{item.item_name}"
+
+    case item.note && String.trim(item.note) do
+      note when is_binary(note) and note != "" -> base <> " " <> note
+      _ -> base
+    end
+  end
+
+  defp general_note_lines(orders) do
+    general = Enum.filter(orders, fn o -> o.note && String.trim(o.note) != "" end)
+
+    if general == [] do
+      []
+    else
+      ["", "Ghi chú chung:"] ++
+        Enum.map(general, fn o ->
+          "- #{(o.user && o.user.name) || "?"}: #{String.trim(o.note)}"
+        end)
+    end
+  end
+
   # ===================== User orders =====================
 
   @doc "Danh sách đơn của 1 user (mới nhất trước)."

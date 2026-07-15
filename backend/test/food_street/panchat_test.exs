@@ -149,7 +149,9 @@ defmodule FoodStreet.PanchatTest do
 
     test "@all được gắn qua build_body cho tin chia tiền" do
       body = Panchat.build_body(Panchat.external_purchase_text(purchase()))
-      assert [%{"spans" => [%{"type" => "mention", "ref" => %{"type" => "all"}}]} | _] = body["text"]
+
+      assert [%{"spans" => [%{"type" => "mention", "ref" => %{"type" => "all"}}]} | _] =
+               body["text"]
     end
 
     test "send_external_purchase lỗi khi thiếu token, không gọi mạng" do

@@ -54,6 +54,16 @@ defmodule FoodStreet.Catalog do
 
   def get_category(id), do: Repo.get(Category, id)
 
+  @doc """
+  Tìm danh mục theo `pancake_conversation_id` — map ngược từ webhook Pancake (khi
+  nhà bán trả lời trong 1 conversation) về đúng danh mục/nhà bán. `nil` nếu không khớp.
+  """
+  def get_category_by_conversation_id(conversation_id) when is_binary(conversation_id) do
+    Repo.one(from c in Category, where: c.pancake_conversation_id == ^conversation_id)
+  end
+
+  def get_category_by_conversation_id(_), do: nil
+
   def create_category(attrs) do
     %Category{}
     |> Category.changeset(attrs)

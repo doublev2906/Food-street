@@ -5,6 +5,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   alias FoodStreet.Guardian
   alias FoodStreet.Settings
   alias FoodStreet.Panchat
+  alias FoodStreet.PancakePage
 
   require Logger
 
@@ -58,7 +59,10 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   end
 
   defp format_error(:panchat_token_missing), do: "Chưa cấu hình Panchat token."
+  defp format_error(:pancake_not_configured), do: "Danh mục chưa cấu hình Pancake."
   defp format_error({:panchat, msg}) when is_binary(msg), do: msg
+  defp format_error({:pancake, msg}) when is_binary(msg), do: msg
+  defp format_error({:pancake, reason}), do: "Lỗi Pancake: #{inspect(reason)}"
   defp format_error(other), do: inspect(other)
 
   def update(conn, %{"id" => id} = params) do
@@ -128,6 +132,56 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
+  @doc """
+  Gửi đơn gộp của đợt cho nhà bán qua Pancake Page (nút bấm thủ công của admin).
+
+  Danh mục của đợt phải cấu hình sẵn Pancake (page_id + conversation_id + token). Đợt
+  phải có ít nhất 1 đơn chưa huỷ. Best-effort — trả trạng thái gửi để FE hiển thị.
+  """
+  def send_to_seller(conn, %{"id" => id}) do
+    case Ordering.get_group_order(id) do
+      nil ->
+        {:error, :not_found}
+
+      go ->
+        cond do
+          not FoodStreet.Catalog.Category.pancake_configured?(go.category) ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{
+              error: "pancake_not_configured",
+              message:
+                "Danh mục \"#{go.category && go.category.name}\" chưa cấu hình Pancake (Page ID / Conversation ID / Token). Vào tab Danh mục để nhập."
+            })
+
+          true ->
+            send_order_to_seller(conn, go)
+        end
+    end
+  end
+
+  defp send_order_to_seller(conn, go) do
+    case Ordering.aggregate_seller_text(go) do
+      {:error, :no_orders} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "no_orders", message: "Đợt chưa có đơn nào để gửi nhà bán."})
+
+      {:ok, text} ->
+        result =
+          case PancakePage.send_order(go.category, text) do
+            {:ok, _} ->
+              %{sent: true}
+
+            {:error, reason} ->
+              Logger.warning("Không gửi được đơn cho nhà bán (đợt #{go.id}): #{inspect(reason)}")
+              %{sent: false, error: format_error(reason)}
+          end
+
+        json(conn, %{data: result})
+    end
+  end
+
   # Gửi tin tổng kết vào Panchat khi chốt đợt (best-effort, token admin bấm chốt).
   defp notify_closed(group, count, admin) do
     total =
@@ -188,10 +242,24 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
       note: go.note,
       deadline: go.deadline,
       closed_at: go.closed_at,
-      category: go.category,
+      category: shape_category(go.category),
       orders: orders,
       order_count: length(orders),
       total_amount: total
+    }
+  end
+
+  # Category kèm cờ `pancake_configured` để FE bật/tắt nút "Gửi đơn cho nhà bán".
+  # KHÔNG trả token (bí mật).
+  defp shape_category(nil), do: nil
+
+  defp shape_category(%FoodStreet.Catalog.Category{} = c) do
+    %{
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      active: c.active,
+      pancake_configured: FoodStreet.Catalog.Category.pancake_configured?(c)
     }
   end
 end

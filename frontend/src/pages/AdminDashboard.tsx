@@ -821,6 +821,7 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [msg, setMsg] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [sending, setSending] = useState(false);
 
   const load = () => api.admin.groupOrder(id).then((r) => setGroup(r.data));
   useEffect(() => {
@@ -859,6 +860,23 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
     onBack();
   };
 
+  const sendToSeller = async () => {
+    if (!confirm(`Gửi đơn của đợt "${group.title}" cho nhà bán qua Pancake?`)) return;
+    setSending(true);
+    try {
+      const r = await api.admin.sendGroupOrderToSeller(id);
+      setMsg(
+        r.data.sent
+          ? "Đã gửi đơn cho nhà bán qua Pancake."
+          : `Gửi thất bại: ${r.data.error || "lỗi không xác định"}`
+      );
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="grid">
       {/* justifySelf (trục ngang) mới làm nút co theo chữ — alignSelf là trục dọc, grid item vẫn stretch full width */}
@@ -888,6 +906,18 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
               disabled={orders.length === 0}
             >
               📋 Xuất đơn
+            </button>
+            <button
+              className="secondary"
+              onClick={sendToSeller}
+              disabled={orders.length === 0 || !group.category?.pancake_configured || sending}
+              title={
+                group.category?.pancake_configured
+                  ? "Đẩy đơn thẳng vào inbox Pancake của nhà bán"
+                  : "Danh mục chưa cấu hình Pancake — vào tab Danh mục để nhập"
+              }
+            >
+              {sending ? "Đang gửi…" : "📨 Gửi đơn cho nhà bán"}
             </button>
             {open && (
               <button className="success" onClick={close} disabled={pending === 0}>
@@ -1299,6 +1329,10 @@ function CategoryModal({
     name: category?.name || "",
     description: category?.description || "",
     active: category?.active ?? true,
+    pancake_page_id: category?.pancake_page_id || "",
+    pancake_conversation_id: category?.pancake_conversation_id || "",
+    // Token không bao giờ prefill (API không trả) — để trống = giữ token cũ.
+    pancake_page_access_token: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1308,8 +1342,13 @@ function CategoryModal({
     setError("");
     setBusy(true);
     try {
-      if (category) await api.admin.updateCategory(category.id, form);
-      else await api.admin.createCategory(form);
+      // Token để trống -> bỏ khỏi payload để không ghi đè token đã lưu.
+      const { pancake_page_access_token, ...rest } = form;
+      const payload = pancake_page_access_token.trim()
+        ? { ...rest, pancake_page_access_token: pancake_page_access_token.trim() }
+        : rest;
+      if (category) await api.admin.updateCategory(category.id, payload);
+      else await api.admin.createCategory(payload);
       onSaved();
     } catch (err: any) {
       setError(err.message || "Lưu thất bại");
@@ -1348,6 +1387,48 @@ function CategoryModal({
             <option value="0">Ẩn</option>
           </select>
         </div>
+
+        <div className="field">
+          <label style={{ fontWeight: 600 }}>
+            Kết nối Pancake (nhà bán){" "}
+            {category?.pancake_configured && (
+              <span className="badge confirmed">Đã cấu hình</span>
+            )}
+          </label>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            Cấu hình để bấm "Gửi đơn cho nhà bán" đẩy đơn thẳng vào inbox Pancake.
+          </p>
+        </div>
+        <div className="field">
+          <label>Page ID</label>
+          <input
+            value={form.pancake_page_id}
+            onChange={(e) => setForm({ ...form, pancake_page_id: e.target.value })}
+            placeholder="ID page nhà bán trên Pancake"
+          />
+        </div>
+        <div className="field">
+          <label>Conversation ID</label>
+          <input
+            value={form.pancake_conversation_id}
+            onChange={(e) => setForm({ ...form, pancake_conversation_id: e.target.value })}
+            placeholder="ID luồng chat để đẩy đơn vào"
+          />
+        </div>
+        <div className="field">
+          <label>Page Access Token</label>
+          <input
+            type="password"
+            value={form.pancake_page_access_token}
+            onChange={(e) => setForm({ ...form, pancake_page_access_token: e.target.value })}
+            placeholder={
+              category?.pancake_configured
+                ? "Đã cấu hình — để trống nếu giữ nguyên"
+                : "Token page (Cài đặt → Công cụ trên Pancake)"
+            }
+          />
+        </div>
+
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="secondary" onClick={onClose}>
             Hủy
