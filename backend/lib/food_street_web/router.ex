@@ -41,6 +41,9 @@ defmodule FoodStreetWeb.Router do
 
     get "/fund/balance", FundController, :balance
     get "/fund/transactions", FundController, :transactions
+
+    # Tình trạng nợ (gốc + lãi) của chính user
+    get "/interest/me", InterestController, :me
   end
 
   # Khu vực admin
