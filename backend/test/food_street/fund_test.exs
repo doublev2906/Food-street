@@ -21,6 +21,67 @@ defmodule FoodStreet.FundTest do
   defp admin, do: make("admin1", "admin", "0")
 
   defp bal(id), do: Repo.get(User, id).balance
+  defp interest_debt(id), do: Repo.get(User, id).interest_debt
+
+  defp set_interest_debt(user, amount) do
+    Repo.update!(Ecto.Changeset.change(user, interest_debt: Decimal.new(amount)))
+  end
+
+  describe "deposit/4 — trừ nợ lãi trước, phần còn lại vào số dư" do
+    test "không nợ lãi → nạp bình thường vào số dư" do
+      a = admin()
+      u = make("usr1", "user", "-100000")
+
+      {:ok, %{interest_paid: paid}} = Fund.deposit(u, "100000", a)
+
+      assert Decimal.equal?(paid, 0)
+      assert Decimal.equal?(bal(u.id), Decimal.new("0"))
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("0"))
+    end
+
+    test "nạp đủ lớn: gạt hết nợ lãi, phần còn lại giảm dư nợ gốc" do
+      a = admin()
+      u = make("usr1", "user", "-100000")
+      set_interest_debt(u, "272")
+      u = Repo.get(User, u.id)
+
+      {:ok, %{interest_paid: paid}} = Fund.deposit(u, "100000", a)
+
+      # 272 gạt nợ lãi, 99.728 vào số dư → -100.000 + 99.728 = -272.
+      assert Decimal.equal?(paid, 272)
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("0"))
+      assert Decimal.equal?(bal(u.id), Decimal.new("-272"))
+    end
+
+    test "nạp nhỏ hơn nợ lãi: chỉ trừ nợ lãi, số dư không đổi" do
+      a = admin()
+      u = make("usr1", "user", "-100000")
+      set_interest_debt(u, "272")
+      u = Repo.get(User, u.id)
+
+      {:ok, %{interest_paid: paid, transaction: tx}} = Fund.deposit(u, "100", a)
+
+      assert Decimal.equal?(paid, 100)
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("172"))
+      assert Decimal.equal?(bal(u.id), Decimal.new("-100000"))
+      # Giao dịch quỹ ghi phần vào số dư (0đ) + diễn giải trừ lãi.
+      assert Decimal.equal?(tx.amount, Decimal.new("0"))
+      assert tx.description =~ "nợ lãi"
+    end
+
+    test "nạp lớn hơn tổng nợ: trả hết lãi + dư ra cộng số dư" do
+      a = admin()
+      u = make("usr1", "user", "-100000")
+      set_interest_debt(u, "272")
+      u = Repo.get(User, u.id)
+
+      {:ok, _} = Fund.deposit(u, "500000", a)
+
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("0"))
+      # -100.000 + (500.000 - 272) = 399.728
+      assert Decimal.equal?(bal(u.id), Decimal.new("399728"))
+    end
+  end
 
   describe "record_external_purchase/2" do
     test "chia đều: trừ số dư từng người, tạo tx split + external_purchase" do

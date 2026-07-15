@@ -81,6 +81,11 @@ defmodule FoodStreetWeb.Router do
     post "/fund/deposit", FundController, :deposit
     post "/fund/adjust", FundController, :adjust
 
+    # Quỹ lãi trên số dư âm (tính lãi kép theo ngày)
+    get "/interest/fund", InterestController, :fund
+    get "/interest/charges", InterestController, :index
+    post "/interest/run", InterestController, :run
+
     # Mua đồ ăn ngoài menu — chia tiền cho người ăn
     get "/external_purchases", ExternalPurchaseController, :index
     post "/external_purchases", ExternalPurchaseController, :create

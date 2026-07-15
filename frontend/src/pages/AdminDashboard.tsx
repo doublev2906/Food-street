@@ -9,6 +9,7 @@ import {
   type ExternalPurchase,
   type FundTransaction,
   type GroupOrder,
+  type InterestFund,
   type MenuItem,
   type Order,
   type OrderSchedule,
@@ -1942,11 +1943,35 @@ function FundTab() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingTxs, setLoadingTxs] = useState(true);
 
+  // Quỹ lãi trên số dư âm (issue #12).
+  const [fund, setFund] = useState<InterestFund | null>(null);
+  const [running, setRunning] = useState(false);
+
   const loadUsers = () => api.admin.users().then((r) => setUsers(r.data));
+  const loadFund = () => api.admin.interestFund().then((r) => setFund(r.data));
 
   useEffect(() => {
     loadUsers().finally(() => setLoadingUsers(false));
+    loadFund();
   }, []);
+
+  const runInterest = async () => {
+    if (
+      !confirm(
+        "Chạy tính lãi cho hôm nay ngay bây giờ?\nLãi sẽ cộng dồn vào nợ lãi của những người đang âm quỹ."
+      )
+    )
+      return;
+    setRunning(true);
+    try {
+      const r = await api.admin.runInterest();
+      setFund(r.fund);
+      await loadUsers();
+      alert(`Đã tính lãi cho ${r.data.count} người, tổng ${formatVND(r.data.total)}.`);
+    } finally {
+      setRunning(false);
+    }
+  };
   useEffect(() => {
     setLoadingTxs(true);
     api.admin
@@ -1974,9 +1999,10 @@ function FundTab() {
   };
   const hasFilter = filters.type || filters.user_id || filters.from || filters.to;
 
-  // Sau khi nạp/điều chỉnh: cập nhật số dư + về trang 1 và ép tải lại.
+  // Sau khi nạp/điều chỉnh: cập nhật số dư + quỹ lãi + về trang 1 và ép tải lại.
   const afterMutation = () => {
     loadUsers();
+    loadFund();
     setPage(1);
     setReloadKey((k) => k + 1);
   };
@@ -2008,6 +2034,48 @@ function FundTab() {
       </div>
 
       <div className="card">
+        <div className="row between wrap">
+          <h2 style={{ margin: 0 }}>😈 Quỹ lãi (nợ quá hạn)</h2>
+          <button className="secondary small" onClick={runInterest} disabled={running}>
+            {running ? "Đang tính…" : "⚡ Chạy tính lãi ngay"}
+          </button>
+        </div>
+        {fund ? (
+          <>
+            <div
+              className="grid mt"
+              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
+            >
+              <Stat label="Quỹ lãi (cộng dồn)" value={formatVND(fund.fund_total)} accent />
+              <Stat label="Đã thu thực" value={formatVND(fund.collected_total)} />
+              <Stat
+                label="Nợ lãi chưa trả"
+                value={formatVND(fund.outstanding_interest)}
+                warn={parseFloat(fund.outstanding_interest) > 0}
+              />
+              <Stat label="Lãi hôm nay" value={formatVND(fund.today_total)} />
+              <Stat
+                label="Người đang âm quỹ"
+                value={fund.debtor_count}
+                warn={fund.debtor_count > 0}
+              />
+            </div>
+            <p className="small muted mt">
+              Lãi suất {fund.annual_rate_percent}%/năm (≈
+              {Number(fund.daily_rate_percent).toFixed(4)}%/ngày), sàn tối thiểu{" "}
+              {formatVND(fund.min_daily_interest)}/ngày · lãi kép, làm tròn lên.{" "}
+              {fund.last_run_on
+                ? `Chạy gần nhất: ${fund.last_run_on}.`
+                : "Chưa chạy lần nào."}{" "}
+              Nạp tiền sẽ trừ hết nợ lãi trước, phần còn lại mới vào số dư.
+            </p>
+          </>
+        ) : (
+          <Spinner />
+        )}
+      </div>
+
+      <div className="card">
         <h2>Số dư theo người dùng</h2>
         {loadingUsers && <Spinner />}
         <table>
@@ -2015,19 +2083,30 @@ function FundTab() {
             <tr>
               <th>Người dùng</th>
               <th>Email</th>
+              <th style={{ textAlign: "right" }}>Nợ lãi</th>
               <th style={{ textAlign: "right" }}>Số dư</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.name}</td>
-                <td className="muted">{u.email}</td>
-                <td style={{ textAlign: "right" }}>
-                  <strong>{formatVND(u.balance)}</strong>
-                </td>
-              </tr>
-            ))}
+            {users.map((u) => {
+              const debt = parseFloat(u.interest_debt ?? "0");
+              return (
+                <tr key={u.id}>
+                  <td>{u.name}</td>
+                  <td className="muted">{u.email}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {debt > 0 ? (
+                      <span style={{ color: "var(--danger)" }}>{formatVND(u.interest_debt!)}</span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <strong>{formatVND(u.balance)}</strong>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
