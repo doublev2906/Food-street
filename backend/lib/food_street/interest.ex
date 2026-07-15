@@ -242,6 +242,36 @@ defmodule FoodStreet.Interest do
   end
 
   @doc """
+  Tình trạng nợ của **1 user** (cho user tự xem):
+
+    * `balance` — số dư hiện tại (âm = đang nợ gốc).
+    * `interest_debt` — nợ lãi hiện có.
+    * `principal_debt` — dư nợ gốc (`|số dư âm|`, 0 nếu số dư ≥ 0).
+    * `total_owed` — tổng đang nợ = nợ gốc + nợ lãi.
+    * `estimated_daily_interest` — lãi ước tính bị cộng cho ngày kế tiếp nếu vẫn nợ.
+    * thông số lãi suất để hiển thị.
+  """
+  def user_status(%User{} = user) do
+    interest_debt = user.interest_debt || Decimal.new(0)
+
+    principal_debt =
+      if Decimal.compare(user.balance, 0) == :lt,
+        do: Decimal.abs(user.balance),
+        else: Decimal.new(0)
+
+    %{
+      balance: user.balance,
+      interest_debt: interest_debt,
+      principal_debt: principal_debt,
+      total_owed: Decimal.add(principal_debt, interest_debt),
+      estimated_daily_interest: compute_interest(debt_base(user)),
+      annual_rate_percent: annual_rate_percent(),
+      daily_rate_percent: daily_rate_percent(),
+      min_daily_interest: min_daily_interest()
+    }
+  end
+
+  @doc """
   Lịch sử tính lãi (sổ cái quỹ) — phân trang, mới nhất trước. `params` (string-key,
   tuỳ chọn): `"page"`, `"page_size"`, `"user_id"`.
   """

@@ -147,6 +147,28 @@ defmodule FoodStreet.InterestTest do
     end
   end
 
+  describe "user_status/1" do
+    test "đang nợ gốc + nợ lãi → total_owed = gốc + lãi, có ước tính lãi ngày kế" do
+      u = make("no1", "-100000")
+      u = Repo.update!(Ecto.Changeset.change(u, interest_debt: Decimal.new("272")))
+
+      s = Interest.user_status(u)
+      assert Decimal.equal?(s.principal_debt, Decimal.new("100000"))
+      assert Decimal.equal?(s.interest_debt, Decimal.new("272"))
+      assert Decimal.equal?(s.total_owed, Decimal.new("100272"))
+      # Lãi ngày kế tính trên gốc 100.000 + 272 → > sàn.
+      assert Decimal.compare(s.estimated_daily_interest, Decimal.new("150")) == :gt
+    end
+
+    test "không nợ → total_owed = 0, không có lãi ước tính" do
+      u = make("ok1", "50000")
+      s = Interest.user_status(u)
+      assert Decimal.equal?(s.total_owed, Decimal.new("0"))
+      assert Decimal.equal?(s.principal_debt, Decimal.new("0"))
+      assert Decimal.equal?(s.estimated_daily_interest, Decimal.new("0"))
+    end
+  end
+
   test "job_runs được đánh dấu sau khi chạy" do
     make("no1", "-100000")
     assert Scheduling.job_ran_on("interest_accrual") == nil

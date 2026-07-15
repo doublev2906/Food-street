@@ -7,6 +7,7 @@ import {
   type FundTransaction,
   type GroupOrder,
   type GroupOrderDetail,
+  type InterestStatus,
   type MenuItem,
   type Order,
 } from "../api";
@@ -630,13 +631,15 @@ function FundTab() {
   const { user, refresh } = useAuth();
   const [txs, setTxs] = useState<FundTransaction[]>([]);
   const [balance, setBalance] = useState<string>(user?.balance || "0");
+  const [interest, setInterest] = useState<InterestStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.balance(), api.myTransactions()])
-      .then(([b, t]) => {
+    Promise.all([api.balance(), api.myTransactions(), api.myInterest()])
+      .then(([b, t, i]) => {
         setBalance(b.balance);
         setTxs(t.data);
+        setInterest(i.data);
       })
       .finally(() => setLoading(false));
     refresh();
@@ -691,16 +694,50 @@ function FundTab() {
               <strong className="muted">{formatVND(0)}</strong>
             )}
           </div>
-          {parseFloat(user?.interest_debt || "0") > 0 && (
-            <div className="fund-stat">
-              <span className="small muted">Nợ lãi (âm quỹ)</span>
-              <strong className="down" title="Lãi nợ quá hạn — nạp tiền sẽ trừ khoản này trước">
-                −{formatVND(user!.interest_debt!)}
-              </strong>
-            </div>
-          )}
         </div>
       </div>
+
+      {interest &&
+        (parseFloat(interest.total_owed) > 0 ? (
+          <div className="card" style={{ borderLeft: "4px solid var(--danger)" }}>
+            <div className="row between wrap" style={{ alignItems: "flex-start", gap: 12 }}>
+              <div>
+                <h2 style={{ margin: 0, color: "var(--danger)" }}>😰 Bạn đang nợ quỹ</h2>
+                <div className="balance-value neg" style={{ marginTop: 4 }}>
+                  −{formatVND(interest.total_owed)}
+                </div>
+              </div>
+              <div className="fund-hero-stats">
+                <div className="fund-stat">
+                  <span className="small muted">Nợ gốc (âm quỹ)</span>
+                  <strong className="down">−{formatVND(interest.principal_debt)}</strong>
+                </div>
+                <div className="fund-stat">
+                  <span className="small muted">Nợ lãi</span>
+                  <strong className="down">−{formatVND(interest.interest_debt)}</strong>
+                </div>
+              </div>
+            </div>
+            <p className="small muted mt" style={{ marginBottom: 0 }}>
+              Mỗi ngày còn nợ là bị cộng thêm <b>~{formatVND(interest.estimated_daily_interest)}</b>{" "}
+              tiền lãi (lãi kép {interest.annual_rate_percent}%/năm, tối thiểu{" "}
+              {formatVND(interest.min_daily_interest)}/ngày). Nạp quỹ sẽ trừ hết nợ lãi trước 👉
+              donate sớm kẻo <b>lãi mẹ đẻ lãi con</b> 😈
+            </p>
+          </div>
+        ) : (
+          <div className="card" style={{ borderLeft: "4px solid var(--success, #16a34a)" }}>
+            <div className="empty-state">
+              <div className="empty-ic">🎉</div>
+              <strong>Chúc mừng! Bạn không nợ quỹ đồng nào</strong>
+              <span className="small muted">
+                {parseFloat(interest.balance) > 0
+                  ? "Số dư đang dương, cứ thế phát huy — ăn sáng thả ga 🍜"
+                  : "Sạch nợ, không dính tí lãi nào. Giữ phong độ nhé 💪"}
+              </span>
+            </div>
+          </div>
+        ))}
 
       <div className="card">
         <h2>Lịch sử giao dịch</h2>

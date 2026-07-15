@@ -117,6 +117,22 @@ export interface InterestFund {
   min_daily_interest: string;
 }
 
+// Tình trạng nợ (gốc + lãi) của chính user — cho user tự xem.
+export interface InterestStatus {
+  balance: string;
+  /** Nợ lãi hiện có. */
+  interest_debt: string;
+  /** Dư nợ gốc (|số dư âm|, 0 nếu số dư ≥ 0). */
+  principal_debt: string;
+  /** Tổng đang nợ = nợ gốc + nợ lãi. */
+  total_owed: string;
+  /** Lãi ước tính bị cộng cho ngày kế tiếp nếu vẫn nợ. */
+  estimated_daily_interest: string;
+  annual_rate_percent: string;
+  daily_rate_percent: string;
+  min_daily_interest: string;
+}
+
 // 1 lần tính lãi (sổ cái quỹ lãi).
 export interface InterestCharge {
   id: string;
@@ -308,6 +324,8 @@ export const api = {
   balance: () =>
     request<{ balance: string; user_id: string; name: string }>("/fund/balance"),
   myTransactions: () => request<{ data: FundTransaction[] }>("/fund/transactions"),
+  // Tình trạng nợ (gốc + lãi) của chính user
+  myInterest: () => request<{ data: InterestStatus }>("/interest/me"),
 
   // Đợt đặt nhóm (user)
   openGroupOrders: () => request<{ data: GroupOrder[] }>("/group_orders"),
