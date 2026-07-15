@@ -205,15 +205,19 @@ function Stat({
   );
 }
 
-// ---------- Thống kê theo ngày / tháng / năm ----------
-type ReportMode = "day" | "month" | "year";
+// ---------- Thống kê theo ngày / tháng / năm / khoảng ----------
+type ReportMode = "day" | "month" | "year" | "range";
 
-// Quy đổi lựa chọn ngày/tháng/năm thành khoảng [from, to] (ISO) + nhãn hiển thị.
+const dmy = (iso: string) => iso.split("-").reverse().join("/"); // 2026-06-30 -> 30/06/2026
+
+// Quy đổi lựa chọn thành khoảng [from, to] (ISO) + nhãn hiển thị.
 function periodRange(
   mode: ReportMode,
   day: string,
   month: string,
-  year: number
+  year: number,
+  rangeFrom: string,
+  rangeTo: string
 ): { from: string; to: string; label: string } {
   if (mode === "day") {
     const [y, m, d] = day.split("-");
@@ -228,6 +232,11 @@ function periodRange(
       to: `${y}-${mm}-${String(lastDay).padStart(2, "0")}`,
       label: `Tháng ${m}/${y}`,
     };
+  }
+  if (mode === "range") {
+    // Đảo lại nếu người dùng chọn from > to.
+    const [from, to] = rangeFrom <= rangeTo ? [rangeFrom, rangeTo] : [rangeTo, rangeFrom];
+    return { from, to, label: `${dmy(from)} – ${dmy(to)}` };
   }
   return { from: `${year}-01-01`, to: `${year}-12-31`, label: `Năm ${year}` };
 }
@@ -251,19 +260,24 @@ const CHART_COLORS = [
   "#84cc16",
 ];
 
-// Tooltip bám theme (nền surface, viền border) thay vì trắng mặc định.
+// Tooltip nền tối cố định + chữ trắng: đọc rõ ở mọi theme (recharts mặc định
+// chữ đen, đè lên `color` nên phải ép cả label + item sang trắng).
 const CHART_TOOLTIP_STYLE = {
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
+  background: "rgba(26, 32, 44, 0.96)",
+  border: "1px solid rgba(255, 255, 255, 0.14)",
   borderRadius: 8,
-  color: "var(--text)",
+  color: "#fff",
 };
+const CHART_TOOLTIP_LABEL_STYLE = { color: "#fff" };
+const CHART_TOOLTIP_ITEM_STYLE = { color: "#fff" };
 
 function ReportTab() {
   const [mode, setMode] = useState<ReportMode>("day");
   const [day, setDay] = useState(today());
   const [month, setMonth] = useState(today().slice(0, 7));
   const [year, setYear] = useState(Number(today().slice(0, 4)));
+  const [rangeFrom, setRangeFrom] = useState(today().slice(0, 7) + "-01");
+  const [rangeTo, setRangeTo] = useState(today());
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [data, setData] = useState<PeriodStats | null>(null);
@@ -271,7 +285,7 @@ function ReportTab() {
   const [byCat, setByCat] = useState<CategoryRevenue[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const { from, to, label } = periodRange(mode, day, month, year);
+  const { from, to, label } = periodRange(mode, day, month, year, rangeFrom, rangeTo);
 
   useEffect(() => {
     api.admin
@@ -300,24 +314,57 @@ function ReportTab() {
       .finally(() => setLoading(false));
   }, [from, to, categoryId]);
 
-  // Chuỗi thời gian cho biểu đồ: tháng -> theo ngày, năm -> gộp theo tháng.
+  // Chuỗi thời gian: khoảng ngắn (≤ ~2 tháng) vẽ theo ngày, dài hơn / chế độ Năm gộp
+  // theo tháng. `label` cho trục, `full` cho tooltip (ngày/tháng đầy đủ).
   const timeSeries = useMemo(() => {
-    if (mode === "year") {
-      const months = Array.from({ length: 12 }, () => 0);
-      daily.forEach((d) => {
-        months[Number(d.date.slice(5, 7)) - 1] += Number(d.revenue);
-      });
-      return months.map((revenue, i) => ({ label: `T${i + 1}`, revenue }));
-    }
-    // Tháng: đổ đầy mọi ngày để trục liền mạch (ngày trống = 0).
     const map = new Map(daily.map((d) => [d.date, Number(d.revenue)]));
-    const [y, m] = from.split("-").map(Number);
-    const days = new Date(y, m, 0).getDate();
-    return Array.from({ length: days }, (_, i) => {
-      const dd = String(i + 1).padStart(2, "0");
-      return { label: String(i + 1), revenue: map.get(`${from.slice(0, 7)}-${dd}`) ?? 0 };
-    });
-  }, [daily, mode, from]);
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    const start = new Date(fy, fm - 1, fd);
+    const end = new Date(ty, tm - 1, td);
+    const dayCount = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    const pad = (n: number) => String(n).padStart(2, "0");
+
+    if (mode === "year" || dayCount > 62) {
+      const multiYear = fy !== ty;
+      const buckets: { label: string; full: string; revenue: number }[] = [];
+      const idx = new Map<string, number>();
+      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+      while (cur <= end) {
+        const y = cur.getFullYear();
+        const m = cur.getMonth() + 1;
+        idx.set(`${y}-${pad(m)}`, buckets.length);
+        buckets.push({
+          label: multiYear ? `${m}/${String(y).slice(2)}` : `T${m}`,
+          full: `Tháng ${m}/${y}`,
+          revenue: 0,
+        });
+        cur.setMonth(cur.getMonth() + 1);
+      }
+      daily.forEach((d) => {
+        const i = idx.get(d.date.slice(0, 7));
+        if (i !== undefined) buckets[i].revenue += Number(d.revenue);
+      });
+      return buckets;
+    }
+
+    // Theo ngày: đổ đầy mọi ngày để trục liền mạch (ngày trống = 0).
+    const sameMonth = fy === ty && fm === tm;
+    const out: { label: string; full: string; revenue: number }[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = cur.getMonth() + 1;
+      const d = cur.getDate();
+      out.push({
+        label: sameMonth ? String(d) : `${d}/${m}`,
+        full: `Ngày ${pad(d)}/${pad(m)}/${y}`,
+        revenue: map.get(`${y}-${pad(m)}-${pad(d)}`) ?? 0,
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }, [daily, mode, from, to]);
 
   const catData = useMemo(
     () => byCat.map((c) => ({ name: c.category_name, revenue: Number(c.revenue) })),
@@ -333,6 +380,7 @@ function ReportTab() {
     ["day", "Ngày"],
     ["month", "Tháng"],
     ["year", "Năm"],
+    ["range", "Khoảng"],
   ];
 
   return (
@@ -380,6 +428,25 @@ function ReportTab() {
               ))}
             </select>
           )}
+          {mode === "range" && (
+            <div className="row" style={{ gap: 6, alignItems: "center" }}>
+              <input
+                type="date"
+                value={rangeFrom}
+                max={rangeTo}
+                onChange={(e) => setRangeFrom(e.target.value)}
+                style={{ width: "auto" }}
+              />
+              <span className="muted">–</span>
+              <input
+                type="date"
+                value={rangeTo}
+                min={rangeFrom}
+                onChange={(e) => setRangeTo(e.target.value)}
+                style={{ width: "auto" }}
+              />
+            </div>
+          )}
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
@@ -426,10 +493,10 @@ function ReportTab() {
                     />
                     <Tooltip
                       formatter={(v) => [formatVND(v as number), "Doanh thu"]}
-                      labelFormatter={(l) =>
-                        mode === "year" ? `Tháng ${String(l).slice(1)}` : `Ngày ${l}`
-                      }
+                      labelFormatter={(l, payload) => payload?.[0]?.payload?.full ?? String(l)}
                       contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                      itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       cursor={{ fill: "var(--hover)" }}
                     />
                     <Bar dataKey="revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
@@ -470,6 +537,8 @@ function ReportTab() {
                     <Tooltip
                       formatter={(v) => [formatVND(v as number), "Doanh thu"]}
                       contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                      itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       cursor={{ fill: "var(--hover)" }}
                     />
                     <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
