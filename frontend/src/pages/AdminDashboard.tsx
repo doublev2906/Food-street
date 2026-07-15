@@ -463,10 +463,19 @@ function ReportTab() {
         </div>
       </div>
 
-      {loading || !data ? (
+      {!data ? (
         <Spinner />
       ) : (
-        <>
+        // Giữ nội dung cũ khi đổi filter (chỉ mờ đi nhẹ) để tránh nháy — không
+        // thay bằng Spinner mỗi lần refetch.
+        <div
+          className="grid"
+          style={{
+            opacity: loading ? 0.55 : 1,
+            transition: "opacity 0.2s ease",
+            pointerEvents: loading ? "none" : undefined,
+          }}
+        >
           <div className="grid grid-4">
             <Stat label="Tổng đơn" value={data.orders} />
             <Stat label="Chờ chốt" value={data.pending} warn={data.pending > 0} />
@@ -500,7 +509,12 @@ function ReportTab() {
                       itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       cursor={{ fill: "var(--hover)" }}
                     />
-                    <Bar dataKey="revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="revenue"
+                      fill="var(--primary)"
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={false}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -542,7 +556,7 @@ function ReportTab() {
                       itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       cursor={{ fill: "var(--hover)" }}
                     />
-                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="revenue" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                       {catData.map((_, i) => (
                         <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                       ))}
@@ -593,7 +607,7 @@ function ReportTab() {
               </table>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
