@@ -55,7 +55,12 @@ defmodule FoodStreet.PancakeInboundTest do
   defp inbox_payload(overrides \\ %{}) do
     msg =
       Map.merge(
-        %{"id" => "msg1", "message" => "hết xôi rồi", "from" => %{"id" => "cust1"}},
+        %{
+          "id" => "msg1",
+          "message" => "hết xôi rồi",
+          "original_message" => "hết xôi rồi",
+          "from" => %{"id" => "cust1"}
+        },
         overrides[:message] || %{}
       )
 
@@ -103,6 +108,22 @@ defmodule FoodStreet.PancakeInboundTest do
       assert {:ok, :relayed} = PancakeInbound.handle_messaging(inbox_payload())
       assert {:skip, :duplicate} = PancakeInbound.handle_messaging(inbox_payload())
     end
+
+    test "ưu tiên original_message thay vì message" do
+      make_category()
+      make_admin_with_token("admina", "tok")
+      stub_panchat!()
+
+      payload =
+        inbox_payload(%{
+          message: %{"message" => "bản rút gọn", "original_message" => "nội dung gốc đầy đủ"}
+        })
+
+      assert {:ok, :relayed} = PancakeInbound.handle_messaging(payload)
+      assert_received {:panchat, _auth, body}
+      assert inspect(body) =~ "nội dung gốc đầy đủ"
+      refute inspect(body) =~ "bản rút gọn"
+    end
   end
 
   describe "handle_messaging/1 — bỏ qua" do
@@ -134,7 +155,7 @@ defmodule FoodStreet.PancakeInboundTest do
 
     test "text rỗng → :empty_text" do
       make_category()
-      payload = inbox_payload(%{message: %{"message" => "   "}})
+      payload = inbox_payload(%{message: %{"message" => "   ", "original_message" => "   "}})
       assert {:skip, :empty_text} = PancakeInbound.handle_messaging(payload)
     end
   end

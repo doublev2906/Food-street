@@ -59,7 +59,8 @@ defmodule FoodStreet.PancakeInbound do
       conversation_id: conversation["id"],
       conversation_type: conversation["type"],
       message_id: message["id"],
-      text: message["message"],
+      # Ưu tiên `original_message` (nội dung gốc nhà bán gõ); fallback `message`.
+      text: message["original_message"] || message["message"],
       from_id: get_in(message, ["from", "id"]),
       from_name: get_in(message, ["from", "name"])
     }
