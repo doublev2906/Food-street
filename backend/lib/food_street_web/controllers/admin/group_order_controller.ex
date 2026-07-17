@@ -12,9 +12,15 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   action_fallback FoodStreetWeb.FallbackController
 
   def index(conn, params) do
-    filters = Map.take(params, ["status"])
-    data = Enum.map(Ordering.list_group_orders(filters), &shape/1)
-    json(conn, %{data: data})
+    result = Ordering.paginate_group_orders(Map.take(params, ["status", "page", "page_size"]))
+
+    json(conn, %{
+      data: Enum.map(result.entries, &shape/1),
+      page: result.page,
+      page_size: result.page_size,
+      total: result.total,
+      total_pages: result.total_pages
+    })
   end
 
   def show(conn, %{"id" => id}) do
@@ -32,7 +38,10 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     if Settings.panchat_configured?(admin.id) do
       with {:ok, go} <- Ordering.create_group_order(params, admin) do
         panchat = send_invite(go, Settings.panchat_token(admin.id))
-        conn |> put_status(:created) |> json(%{data: shape(go), panchat: panchat})
+
+        conn
+        |> put_status(:created)
+        |> json(%{data: shape(go), panchat: panchat})
       end
     else
       conn
@@ -72,6 +81,22 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
       go ->
         with {:ok, updated} <- Ordering.update_group_order(go, params) do
+          json(conn, %{data: shape(updated)})
+        end
+    end
+  end
+
+  @doc """
+  Tick tay của admin: đợt đã thanh toán tiền cho NGƯỜI BÁN chưa (issue #10).
+  Body `{"paid": true/false}` — true ghi thời điểm tick, false bỏ tick.
+  """
+  def set_seller_paid(conn, %{"id" => id} = params) do
+    case Ordering.get_group_order(id) do
+      nil ->
+        {:error, :not_found}
+
+      go ->
+        with {:ok, updated} <- Ordering.set_seller_paid(go, params["paid"] in [true, "true"]) do
           json(conn, %{data: shape(updated)})
         end
     end
@@ -242,6 +267,8 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
       note: go.note,
       deadline: go.deadline,
       closed_at: go.closed_at,
+      # Tick tay "đã thanh toán người bán" — null = chưa (issue #10)
+      seller_paid_at: go.seller_paid_at,
       category: shape_category(go.category),
       orders: orders,
       order_count: length(orders),

@@ -494,6 +494,13 @@ function OrderForm({
 function MyOrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  // total + status_counts do BE đếm trên TOÀN BỘ đơn (trang hiện tại không đủ để đếm)
+  const [meta, setMeta] = useState({
+    total_pages: 1,
+    total: 0,
+    status_counts: {} as Record<string, number>,
+  });
   // Map menu_item_id -> ảnh (order_item không lưu ảnh) — fetch menu 1 lần cho tab này.
   const [imgMap, setImgMap] = useState<Record<string, MenuItem>>({});
   // Đơn đang mở rộng danh sách món — mặc định card chỉ hiện tối đa 2 món đầu
@@ -509,9 +516,16 @@ function MyOrdersTab() {
 
   const load = () => {
     setLoading(true);
-    api.myOrders().then((r) => setOrders(r.data)).finally(() => setLoading(false));
+    api
+      .myOrders(page)
+      .then((r) => {
+        setOrders(r.data);
+        setMeta({ total_pages: r.total_pages, total: r.total, status_counts: r.status_counts });
+      })
+      .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [page]);
 
   useEffect(() => {
     api.menu().then((r) => {
@@ -528,7 +542,7 @@ function MyOrdersTab() {
   };
 
   if (loading) return <Spinner />;
-  if (orders.length === 0)
+  if (meta.total === 0)
     return (
       <div className="card empty-state">
         <div className="empty-ic">🧾</div>
@@ -537,8 +551,8 @@ function MyOrdersTab() {
       </div>
     );
 
-  const pendingCount = orders.filter((o) => o.status === "pending").length;
-  const cancelledCount = orders.filter((o) => o.status === "cancelled").length;
+  const pendingCount = meta.status_counts["pending"] || 0;
+  const cancelledCount = meta.status_counts["cancelled"] || 0;
 
   return (
     <div className="orders-list">
@@ -616,9 +630,30 @@ function MyOrdersTab() {
           </div>
         );
       })}
+      {meta.total_pages > 1 && (
+        <div className="row between">
+          <button
+            className="secondary small"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            ← Trước
+          </button>
+          <span className="small muted">
+            Trang {page}/{meta.total_pages}
+          </span>
+          <button
+            className="secondary small"
+            disabled={page >= meta.total_pages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Sau →
+          </button>
+        </div>
+      )}
       {/* Tổng kết để cuối như footer — card đơn nằm sát đầu trang giống các màn khác */}
       <div className="orders-summary small muted">
-        Tổng {orders.length} đơn
+        Tổng {meta.total} đơn
         {pendingCount > 0 ? ` · ${pendingCount} đơn đang chờ chốt` : ""}
         {cancelledCount > 0 ? ` · ${cancelledCount} đơn đã hủy` : ""}
       </div>
@@ -633,18 +668,32 @@ function FundTab() {
   const [balance, setBalance] = useState<string>(user?.balance || "0");
   const [interest, setInterest] = useState<InterestStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [txMeta, setTxMeta] = useState({ total_pages: 1, total: 0 });
+  // Tổng vào/ra do BE tính trên TOÀN lịch sử — không cộng từ 1 trang được
+  const [totals, setTotals] = useState({ total_in: "0", total_out: "0" });
 
+  // Số dư + nợ lãi chỉ cần lấy 1 lần, không đổi theo trang giao dịch
   useEffect(() => {
-    Promise.all([api.balance(), api.myTransactions(), api.myInterest()])
-      .then(([b, t, i]) => {
-        setBalance(b.balance);
-        setTxs(t.data);
-        setInterest(i.data);
-      })
-      .finally(() => setLoading(false));
+    Promise.all([api.balance(), api.myInterest()]).then(([b, i]) => {
+      setBalance(b.balance);
+      setInterest(i.data);
+    });
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    api
+      .myTransactions(page)
+      .then((r) => {
+        setTxs(r.data);
+        setTxMeta({ total_pages: r.total_pages, total: r.total });
+        setTotals({ total_in: r.total_in, total_out: r.total_out });
+      })
+      .finally(() => setLoading(false));
+  }, [page]);
 
   const typeLabel: Record<string, string> = {
     deposit: "Nạp quỹ",
@@ -658,10 +707,9 @@ function FundTab() {
     adjustment: "admin",
   };
 
-  // Tổng vào/ra tính từ lịch sử đã fetch (dương = tiền vào, âm = tiền ra)
   const bal = parseFloat(balance);
-  const totalIn = txs.reduce((s, t) => s + Math.max(0, parseFloat(t.amount)), 0);
-  const totalOut = txs.reduce((s, t) => s + Math.min(0, parseFloat(t.amount)), 0);
+  const totalIn = parseFloat(totals.total_in);
+  const totalOut = parseFloat(totals.total_out);
 
   return (
     <div className="fund-layout">
@@ -743,7 +791,7 @@ function FundTab() {
         <h2>Lịch sử giao dịch</h2>
         {loading ? (
           <Spinner />
-        ) : txs.length === 0 ? (
+        ) : txMeta.total === 0 ? (
           <div className="empty-state">
             <div className="empty-ic">🧾</div>
             <strong>Chưa có giao dịch nào</strong>
@@ -792,6 +840,28 @@ function FundTab() {
               })}
             </tbody>
           </table>
+        )}
+
+        {txMeta.total_pages > 1 && (
+          <div className="row between mt">
+            <button
+              className="secondary small"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ← Trước
+            </button>
+            <span className="small muted">
+              Trang {page}/{txMeta.total_pages} · {txMeta.total} giao dịch
+            </span>
+            <button
+              className="secondary small"
+              disabled={page >= txMeta.total_pages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau →
+            </button>
+          </div>
         )}
       </div>
     </div>

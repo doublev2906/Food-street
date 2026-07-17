@@ -74,6 +74,8 @@ defmodule FoodStreetWeb.Router do
     delete "/group_orders/:id", GroupOrderController, :delete
     post "/group_orders/:id/close", GroupOrderController, :close
     post "/group_orders/:id/send_to_seller", GroupOrderController, :send_to_seller
+    # Tick tay "đã thanh toán cho người bán" (issue #10)
+    put "/group_orders/:id/seller_paid", GroupOrderController, :set_seller_paid
 
     get "/orders", OrderController, :index
     post "/orders/:id/confirm", OrderController, :confirm

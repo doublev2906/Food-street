@@ -16,7 +16,7 @@ const ACCENTS = [
 // Con trỏ chuột user chọn được (mèo popcat mặc định)
 const CURSORS = [
   { key: "cat", icon: "🐱", label: "Mèo" },
-  { key: "sakura", icon: "🌸", label: "Hoa đào & đũa" },
+  { key: "sakura", icon: "🌸", label: "Quạt hoa đào" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
 
@@ -73,7 +73,13 @@ export function Header({ subtitle }: { subtitle?: string }) {
     document.documentElement.dataset.animeTime = h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
     localStorage.setItem("theme", next);
     setTheme(next);
+    // Sang anime thì đóng menu màu đang mở (picker màu bị disable ở theme này)
+    if (next === "anime") setAccentOpen(false);
   };
+
+  // Theme anime dùng palette sakura riêng, CSS anime đè mọi accent -> chọn màu
+  // không có tác dụng, disable picker cho đỡ gây hiểu nhầm.
+  const accentDisabled = theme === "anime";
 
   const pickAccent = (key: string) => {
     if (key === "orange") {
@@ -136,11 +142,20 @@ export function Header({ subtitle }: { subtitle?: string }) {
         </span>
         <span className="header-sep" />
         {/* Hover (hoặc bấm - cho mobile) để mở dropdown chọn màu chủ đạo */}
-        <div className="accent-picker" onMouseEnter={openAccent} onMouseLeave={closeAccentSoon}>
+        <div
+          className="accent-picker"
+          onMouseEnter={accentDisabled ? undefined : openAccent}
+          onMouseLeave={closeAccentSoon}
+        >
           <button
             className="ghost icon-btn"
             onClick={() => setAccentOpen((o) => !o)}
-            title="Chọn màu giao diện"
+            disabled={accentDisabled}
+            title={
+              accentDisabled
+                ? "Theme anime dùng bảng màu sakura riêng — về giao diện sáng/tối để chọn màu"
+                : "Chọn màu giao diện"
+            }
           >
             {ACCENTS.find((a) => a.key === accent)?.icon}
           </button>

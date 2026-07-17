@@ -6,10 +6,18 @@ defmodule FoodStreetWeb.OrderController do
 
   action_fallback FoodStreetWeb.FallbackController
 
-  def index(conn, _params) do
+  def index(conn, params) do
     user = Guardian.Plug.current_resource(conn)
-    data = Enum.map(Ordering.list_user_orders(user.id), &embed_group/1)
-    json(conn, %{data: data})
+    result = Ordering.paginate_user_orders(user.id, Map.take(params, ["page", "page_size"]))
+
+    json(conn, %{
+      data: Enum.map(result.entries, &embed_group/1),
+      page: result.page,
+      page_size: result.page_size,
+      total: result.total,
+      total_pages: result.total_pages,
+      status_counts: result.status_counts
+    })
   end
 
   # Gắn kèm thông tin đợt (title + category) vào đơn.
