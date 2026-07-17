@@ -336,7 +336,8 @@ export const api = {
   balance: () =>
     request<{ balance: string; user_id: string; name: string }>("/fund/balance"),
   // total_in/total_out là tổng vào/ra TOÀN lịch sử (hero "Tổng đã nạp / Tổng đã chi")
-  myTransactions: (page = 1, pageSize = 20) =>
+  // 15 dòng/trang: 20 dòng bảng tràn màn hình phải cuộn
+  myTransactions: (page = 1, pageSize = 15) =>
     request<Paginated<FundTransaction> & { total_in: string; total_out: string }>(
       `/fund/transactions?page=${page}&page_size=${pageSize}`
     ),

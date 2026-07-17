@@ -1423,6 +1423,10 @@ tbody tr:hover td {
   grid-column: 1 / -1;
   text-align: center;
 }
+/* Pager nằm trong grid orders-list -> phải span hết cột, không thì bị nhét vào 1 ô */
+.orders-pager {
+  grid-column: 1 / -1;
+}
 /* Card fill đủ ô grid (grid mặc định stretch) -> 2 card cùng hàng luôn cao bằng nhau */
 .order-card {
   height: 100%;

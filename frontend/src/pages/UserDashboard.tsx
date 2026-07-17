@@ -631,7 +631,7 @@ function MyOrdersTab() {
         );
       })}
       {meta.total_pages > 1 && (
-        <div className="row between">
+        <div className="orders-pager row between">
           <button
             className="secondary small"
             disabled={page <= 1}
