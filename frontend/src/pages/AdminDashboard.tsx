@@ -614,6 +614,47 @@ function ReportTab() {
 }
 
 // ---------- Đơn nhóm ----------
+// Tick tay "đã thanh toán cho người bán" (issue #10) — việc trả tiền diễn ra
+// ngoài hệ thống nên chỉ admin tự tick, không suy ra từ dữ liệu.
+function SellerPaidCheck({
+  group,
+  onChanged,
+}: {
+  group: GroupOrder;
+  onChanged: (g: GroupOrder) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const handleToggle = async () => {
+    setBusy(true);
+    try {
+      const r = await api.admin.setSellerPaid(group.id, !group.seller_paid_at);
+      onChanged(r.data);
+    } catch (e: any) {
+      alert(e.message || "Cập nhật thất bại");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <label className="row small" style={{ gap: 6, cursor: "pointer", width: "fit-content" }}>
+      <input
+        type="checkbox"
+        checked={!!group.seller_paid_at}
+        disabled={busy}
+        onChange={handleToggle}
+      />
+      💸 Đã thanh toán người bán
+      {group.seller_paid_at && (
+        <span className="muted">
+          ({new Date(group.seller_paid_at).toLocaleDateString("vi-VN")})
+        </span>
+      )}
+    </label>
+  );
+}
+
 function GroupOrdersTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<GroupOrder[]>([]);
@@ -622,13 +663,26 @@ function GroupOrdersTab() {
   // Đợt đang xem lưu trong ?group=<id> để F5 vẫn ở màn chi tiết.
   const detailId = searchParams.get("group");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total_pages: 1, total: 0 });
 
   const load = () => {
     setLoading(true);
-    api.admin.groupOrders().then((r) => setGroups(r.data)).finally(() => setLoading(false));
-    api.admin.categories().then((r) => setCategories(r.data.filter((c) => c.active)));
+    api.admin
+      .groupOrders(page)
+      .then((r) => {
+        setGroups(r.data);
+        setMeta({ total_pages: r.total_pages, total: r.total });
+      })
+      .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [page]);
+
+  // Danh mục chỉ cần fetch 1 lần, không đổi theo trang
+  useEffect(() => {
+    api.admin.categories().then((r) => setCategories(r.data.filter((c) => c.active)));
+  }, []);
 
   const openDetail = (id: string) =>
     setSearchParams((prev) => {
@@ -654,7 +708,7 @@ function GroupOrdersTab() {
   return (
     <div className="grid">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>Đợt đặt nhóm ({groups.length})</h2>
+        <h2 style={{ margin: 0 }}>Đợt đặt nhóm ({meta.total})</h2>
         <button onClick={() => setCreating(true)} disabled={categories.length === 0}>
           + Tạo đợt mới
         </button>
@@ -668,30 +722,60 @@ function GroupOrdersTab() {
       ) : groups.length === 0 ? (
         <div className="card muted">Chưa có đợt đặt nào.</div>
       ) : (
-        <div className="grid grid-2">
-          {groups.map((g) => (
-            <div key={g.id} className="card">
-              <div className="row between wrap">
-                <div>
-                  <h2 style={{ marginBottom: 4 }}>{g.title}</h2>
-                  <span className="badge admin">{g.category?.name}</span>{" "}
-                  <StatusBadge status={g.status} />
+        <>
+          <div className="grid grid-2">
+            {groups.map((g) => (
+              <div key={g.id} className="card">
+                <div className="row between wrap">
+                  <div>
+                    <h2 style={{ marginBottom: 4 }}>{g.title}</h2>
+                    <span className="badge admin">{g.category?.name}</span>{" "}
+                    <StatusBadge status={g.status} />
+                  </div>
+                </div>
+                <div className="small muted mt">
+                  📅 {new Date(`${g.order_date}T00:00:00`).toLocaleDateString("vi-VN")}
+                </div>
+                <div className="mt">
+                  <SellerPaidCheck
+                    group={g}
+                    onChanged={(ng) => setGroups((gs) => gs.map((x) => (x.id === g.id ? ng : x)))}
+                  />
+                </div>
+                <div className="row between mt">
+                  <span className="small">
+                    {g.order_count} đơn · <strong>{formatVND(g.total_amount || "0")}</strong>
+                  </span>
+                  <button className="secondary small" onClick={() => openDetail(g.id)}>
+                    Xem & chốt
+                  </button>
                 </div>
               </div>
-              <div className="small muted mt">
-                📅 {new Date(`${g.order_date}T00:00:00`).toLocaleDateString("vi-VN")}
-              </div>
-              <div className="row between mt">
-                <span className="small">
-                  {g.order_count} đơn · <strong>{formatVND(g.total_amount || "0")}</strong>
-                </span>
-                <button className="secondary small" onClick={() => openDetail(g.id)}>
-                  Xem & chốt
-                </button>
-              </div>
+            ))}
+          </div>
+
+          {meta.total_pages > 1 && (
+            <div className="row between mt">
+              <button
+                className="secondary small"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ← Trước
+              </button>
+              <span className="small muted">
+                Trang {page}/{meta.total_pages}
+              </span>
+              <button
+                className="secondary small"
+                disabled={page >= meta.total_pages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Sau →
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {creating && (
@@ -700,7 +784,9 @@ function GroupOrdersTab() {
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
-            load();
+            // Đợt mới nhất nằm trang 1 — đứng trang sau thì nhảy về mới thấy
+            if (page === 1) load();
+            else setPage(1);
           }}
         />
       )}
@@ -930,9 +1016,11 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
           </div>
         </div>
         {msg && <div className="alert success mt">{msg}</div>}
-        <div className="row between mt">
-          <span className="muted small">{orders.length} đơn</span>
-          <strong>Tổng: {formatVND(group.total_amount || "0")}</strong>
+        <div className="row between wrap mt">
+          <SellerPaidCheck group={group} onChanged={setGroup} />
+          <span className="muted small">
+            {orders.length} đơn · <strong>Tổng: {formatVND(group.total_amount || "0")}</strong>
+          </span>
         </div>
       </div>
 

@@ -17,6 +17,7 @@ defmodule FoodStreet.Ordering.GroupOrder do
              :note,
              :deadline,
              :closed_at,
+             :seller_paid_at,
              :runner_count,
              :category_id,
              :created_by_id,
@@ -32,6 +33,10 @@ defmodule FoodStreet.Ordering.GroupOrder do
     field :note, :string
     field :deadline, :utc_datetime
     field :closed_at, :utc_datetime
+
+    # Thời điểm admin tick tay "đã thanh toán cho người bán" — null = chưa trả (issue #10).
+    # Không cast trong changeset thường; chỉ set qua seller_paid_changeset/2.
+    field :seller_paid_at, :utc_datetime
     field :runner_count, :integer, default: 0
 
     belongs_to :category, Category
@@ -63,5 +68,10 @@ defmodule FoodStreet.Ordering.GroupOrder do
     group_order
     |> cast(attrs, [:status, :closed_at])
     |> validate_inclusion(:status, @statuses)
+  end
+
+  @doc "Tick/bỏ tick đã thanh toán người bán (`at` = thời điểm tick, nil = bỏ tick)."
+  def seller_paid_changeset(group_order, at) do
+    change(group_order, seller_paid_at: at)
   end
 end

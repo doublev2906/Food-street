@@ -14,12 +14,43 @@ defmodule FoodStreet.Fund do
   alias FoodStreet.Fund.FundTransaction
   alias FoodStreet.Fund.ExternalPurchase
 
-  @doc "Lịch sử giao dịch quỹ của 1 user."
-  def list_user_transactions(user_id) do
-    FundTransaction
-    |> where([t], t.user_id == ^user_id)
-    |> order_by([t], desc: t.inserted_at)
-    |> Repo.all()
+  @doc """
+  Lịch sử giao dịch quỹ của 1 user — phân trang (`"page"`, `"page_size"` mặc định
+  20, tối đa 100). Trả kèm `total_in`/`total_out` là tổng tiền vào (>= 0) / ra (< 0)
+  của TOÀN BỘ lịch sử — FE hiện "Tổng đã nạp / Tổng đã chi" nên không thể cộng từ
+  1 trang.
+  """
+  def paginate_user_transactions(user_id, params \\ %{}) do
+    page = params |> Map.get("page", 1) |> to_int(1) |> max(1)
+    page_size = params |> Map.get("page_size", 20) |> to_int(20) |> min(100) |> max(1)
+
+    query = where(FundTransaction, [t], t.user_id == ^user_id)
+    total = Repo.aggregate(query, :count, :id)
+
+    %{total_in: total_in, total_out: total_out} =
+      query
+      |> select([t], %{
+        total_in: coalesce(sum(fragment("CASE WHEN ? >= 0 THEN ? END", t.amount, t.amount)), 0),
+        total_out: coalesce(sum(fragment("CASE WHEN ? < 0 THEN ? END", t.amount, t.amount)), 0)
+      })
+      |> Repo.one()
+
+    entries =
+      query
+      |> order_by([t], desc: t.inserted_at)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total: total,
+      total_pages: max(ceil(total / page_size), 1),
+      total_in: total_in,
+      total_out: total_out
+    }
   end
 
   @tx_types ~w(deposit order adjustment split)

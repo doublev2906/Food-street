@@ -30,18 +30,41 @@ defmodule FoodStreet.Ordering do
     |> Repo.all()
   end
 
-  @doc "Tất cả đợt đặt (admin), lọc theo `:status` tùy chọn."
-  def list_group_orders(filters \\ %{}) do
-    GroupOrder
-    |> maybe_filter_status(filters[:status] || filters["status"])
-    |> order_by([g], desc: g.order_date, desc: g.inserted_at)
-    |> preload([:category, orders: [:items, :user]])
-    |> Repo.all()
-  end
-
   defp maybe_filter_status(query, nil), do: query
   defp maybe_filter_status(query, ""), do: query
   defp maybe_filter_status(query, status), do: where(query, [g], g.status == ^status)
+
+  @doc """
+  Đợt đặt (admin) — phân trang + lọc. Không có bản load-tất-cả: mỗi đợt preload
+  toàn bộ đơn nên danh sách lớn dần theo ngày, load cả bảng sẽ rất nặng.
+
+  `params` (map string-key, đều tuỳ chọn): `"page"`, `"page_size"` (mặc định 10,
+  tối đa 50), `"status"`. Giá trị không hợp lệ rơi về mặc định.
+  Trả `%{entries, page, page_size, total, total_pages}`.
+  """
+  def paginate_group_orders(params \\ %{}) do
+    page = params |> Map.get("page", 1) |> to_int(1) |> max(1)
+    page_size = params |> Map.get("page_size", 10) |> to_int(10) |> min(50) |> max(1)
+
+    query = maybe_filter_status(GroupOrder, params["status"])
+    total = Repo.aggregate(query, :count, :id)
+
+    entries =
+      query
+      |> order_by([g], desc: g.order_date, desc: g.inserted_at)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> preload([:category, orders: [:items, :user]])
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total: total,
+      total_pages: max(ceil(total / page_size), 1)
+    }
+  end
 
   def get_group_order(id) do
     case Repo.get(GroupOrder, id) do
@@ -67,6 +90,21 @@ defmodule FoodStreet.Ordering do
   end
 
   def delete_group_order(%GroupOrder{} = go), do: Repo.delete(go)
+
+  @doc """
+  Tick tay của admin: đợt đã thanh toán tiền cho NGƯỜI BÁN chưa (issue #10).
+  `paid?` true -> ghi thời điểm tick vào `seller_paid_at`, false -> bỏ tick (nil).
+  Không ràng buộc trạng thái đợt — việc trả tiền người bán diễn ra ngoài hệ thống,
+  admin tự quyết lúc nào tick.
+  """
+  def set_seller_paid(%GroupOrder{} = go, paid?) do
+    at = if paid?, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+    go
+    |> GroupOrder.seller_paid_changeset(at)
+    |> Repo.update()
+    |> preload_group()
+  end
 
   defp preload_group({:ok, go}),
     do: {:ok, Repo.preload(go, [:category, orders: [:items, :user]], force: true)}
@@ -219,13 +257,41 @@ defmodule FoodStreet.Ordering do
 
   # ===================== User orders =====================
 
-  @doc "Danh sách đơn của 1 user (mới nhất trước)."
-  def list_user_orders(user_id) do
-    Order
-    |> where([o], o.user_id == ^user_id)
-    |> order_by([o], desc: o.order_date, desc: o.inserted_at)
-    |> preload([:items, group_order: :category])
-    |> Repo.all()
+  @doc """
+  Danh sách đơn của 1 user (mới nhất trước) — phân trang (`"page"`, `"page_size"`
+  mặc định 10, tối đa 50). Trả kèm `status_counts` đếm TOÀN BỘ đơn theo trạng thái
+  (vd %{"pending" => 2}) — FE hiện dòng tổng kết nên không thể đếm từ 1 trang.
+  """
+  def paginate_user_orders(user_id, params \\ %{}) do
+    page = params |> Map.get("page", 1) |> to_int(1) |> max(1)
+    page_size = params |> Map.get("page_size", 10) |> to_int(10) |> min(50) |> max(1)
+
+    query = where(Order, [o], o.user_id == ^user_id)
+    total = Repo.aggregate(query, :count, :id)
+
+    status_counts =
+      query
+      |> group_by([o], o.status)
+      |> select([o], {o.status, count(o.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    entries =
+      query
+      |> order_by([o], desc: o.order_date, desc: o.inserted_at)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> preload([:items, group_order: :category])
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total: total,
+      total_pages: max(ceil(total / page_size), 1),
+      status_counts: status_counts
+    }
   end
 
   @doc """
@@ -459,4 +525,16 @@ defmodule FoodStreet.Ordering do
   end
 
   defp to_int(_), do: 0
+
+  # Bản có default cho param phân trang (giống Fund.to_int/2).
+  defp to_int(v, _default) when is_integer(v), do: v
+
+  defp to_int(v, default) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, _} -> n
+      _ -> default
+    end
+  end
+
+  defp to_int(_, default), do: default
 end

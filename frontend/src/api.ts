@@ -76,6 +76,8 @@ export interface GroupOrder {
   note: string | null;
   deadline: string | null;
   closed_at?: string | null;
+  /** Thời điểm admin tick tay "đã thanh toán người bán" — null = chưa trả (issue #10). */
+  seller_paid_at?: string | null;
   runner_count?: number;
   category_id?: string | null;
   category?: Category | null;
@@ -324,12 +326,20 @@ export const api = {
 
   // ---- User ----
   menu: () => request<{ data: MenuItem[] }>("/menu"),
-  myOrders: () => request<{ data: Order[] }>("/orders"),
+  // status_counts đếm TOÀN BỘ đơn theo trạng thái (dòng tổng kết không đếm từ 1 trang được)
+  myOrders: (page = 1, pageSize = 10) =>
+    request<Paginated<Order> & { status_counts: Record<string, number> }>(
+      `/orders?page=${page}&page_size=${pageSize}`
+    ),
   cancelOrder: (id: string) =>
     request<{ data: Order }>(`/orders/${id}`, { method: "DELETE" }),
   balance: () =>
     request<{ balance: string; user_id: string; name: string }>("/fund/balance"),
-  myTransactions: () => request<{ data: FundTransaction[] }>("/fund/transactions"),
+  // total_in/total_out là tổng vào/ra TOÀN lịch sử (hero "Tổng đã nạp / Tổng đã chi")
+  myTransactions: (page = 1, pageSize = 20) =>
+    request<Paginated<FundTransaction> & { total_in: string; total_out: string }>(
+      `/fund/transactions?page=${page}&page_size=${pageSize}`
+    ),
   // Tình trạng nợ (gốc + lãi) của chính user
   myInterest: () => request<{ data: InterestStatus }>("/interest/me"),
 
@@ -394,11 +404,12 @@ export const api = {
     deleteCategory: (id: string) =>
       request<void>(`/admin/categories/${id}`, { method: "DELETE" }),
 
-    // Đợt đặt nhóm
-    groupOrders: (status?: string) =>
-      request<{ data: GroupOrder[] }>(
-        `/admin/group_orders${status ? `?status=${status}` : ""}`
-      ),
+    // Đợt đặt nhóm (phân trang server-side — list lớn dần theo ngày)
+    groupOrders: (page = 1, status?: string, pageSize = 10) => {
+      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+      if (status) qs.set("status", status);
+      return request<Paginated<GroupOrder>>(`/admin/group_orders?${qs}`);
+    },
     groupOrder: (id: string) =>
       request<{ data: GroupOrder }>(`/admin/group_orders/${id}`),
     createGroupOrder: (payload: {
@@ -420,6 +431,12 @@ export const api = {
       }),
     deleteGroupOrder: (id: string) =>
       request<void>(`/admin/group_orders/${id}`, { method: "DELETE" }),
+    // Tick tay "đã thanh toán cho người bán" (issue #10)
+    setSellerPaid: (id: string, paid: boolean) =>
+      request<{ data: GroupOrder }>(`/admin/group_orders/${id}/seller_paid`, {
+        method: "PUT",
+        body: JSON.stringify({ paid }),
+      }),
     updateOrder: (
       id: string,
       payload: {
