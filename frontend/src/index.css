@@ -2111,7 +2111,8 @@ button:active:not(:disabled) {
   cursor: url("/cursor-open.png") 14 6, auto !important;
 }
 
-/* 4 bộ dưới đây lấy từ sweezy-cursors.com (fan-art — dùng nội bộ), resize 36px.
+/* 4 bộ dưới đây lấy từ sweezy-cursors.com (fan-art — dùng nội bộ), resize 36px
+   (riêng mbappe 48px cho rõ mặt ngài).
    Bộ có animation: CSS cursor: url() không tự animate được -> JS (Header) xoay
    data-cursor-frame trên <html>, CSS đổi ảnh theo frame.
    cursor kế thừa từ <html> (mang data-cursor) nên chỉ cần set gốc + đè nhóm
@@ -2192,12 +2193,12 @@ button:active:not(:disabled) {
 /* 🫡 Dictator Mbappe (meme) — tướng quân chỉ tay (tĩnh). Hover chỗ bấm được ->
    mặt Mbappe đội mũ. Hotspot = đầu ngón tay chỉ / đỉnh mũ. */
 [data-cursor="mbappe"] {
-  cursor: url("/cursors/mbappe.png") 1 1, auto;
+  cursor: url("/cursors/mbappe.png") 2 2, auto;
 }
 [data-cursor="mbappe"]
   :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/cursors/mbappe-pointer.png") 16 4, pointer;
+  cursor: url("/cursors/mbappe-pointer.png") 22 5, pointer;
 }
 [data-cursor="mbappe"] button:disabled {
-  cursor: url("/cursors/mbappe.png") 1 1, not-allowed;
+  cursor: url("/cursors/mbappe.png") 2 2, not-allowed;
 }
