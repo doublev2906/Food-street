@@ -73,6 +73,8 @@ defmodule FoodStreetWeb.Router do
     put "/group_orders/:id", GroupOrderController, :update
     delete "/group_orders/:id", GroupOrderController, :delete
     post "/group_orders/:id/close", GroupOrderController, :close
+    post "/group_orders/:id/reopen", GroupOrderController, :reopen
+    post "/group_orders/:id/cancel", GroupOrderController, :cancel
     post "/group_orders/:id/send_to_seller", GroupOrderController, :send_to_seller
     # Tick tay "đã thanh toán cho người bán" (issue #10)
     put "/group_orders/:id/seller_paid", GroupOrderController, :set_seller_paid

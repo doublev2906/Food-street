@@ -940,6 +940,41 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
+  // Chốt nhầm — 2 lối ra: hoàn + mở lại (sửa xong chốt lại) / hoàn + huỷ hẳn (bỏ luôn đợt)
+  const reopen = async () => {
+    const confirmed = orders.filter((o) => o.status === "confirmed").length;
+    if (
+      !confirm(
+        `Mở lại đợt "${group.title}"? Sẽ hoàn quỹ ${confirmed} đơn đã trừ, đơn và đợt quay về trạng thái trước khi chốt.`
+      )
+    )
+      return;
+    try {
+      const r = await api.admin.reopenGroupOrder(id);
+      setMsg(`Đã mở lại đợt, hoàn quỹ ${r.data.refunded} đơn.`);
+      load();
+    } catch (e: any) {
+      setMsg(e.message);
+    }
+  };
+
+  const cancelClosed = async () => {
+    const confirmed = orders.filter((o) => o.status === "confirmed").length;
+    if (
+      !confirm(
+        `Huỷ hẳn đợt "${group.title}"? Sẽ hoàn quỹ ${confirmed} đơn đã trừ, toàn bộ đơn và đợt chuyển sang ĐÃ HUỶ (không chốt lại được).`
+      )
+    )
+      return;
+    try {
+      const r = await api.admin.cancelGroupOrder(id);
+      setMsg(`Đã huỷ đợt, hoàn quỹ ${r.data.refunded} đơn.`);
+      load();
+    } catch (e: any) {
+      setMsg(e.message);
+    }
+  };
+
   const del = async () => {
     if (!confirm("Xóa đợt này? Mọi đơn trong đợt cũng bị xóa.")) return;
     await api.admin.deleteGroupOrder(id);
@@ -1009,6 +1044,24 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <button className="success" onClick={close} disabled={pending === 0}>
                 Chốt đợt ({pending})
               </button>
+            )}
+            {group.status === "closed" && (
+              <>
+                <button
+                  className="secondary"
+                  onClick={reopen}
+                  title="Chốt nhầm, cần sửa rồi chốt lại: hoàn quỹ và mở lại đợt"
+                >
+                  ↩️ Hoàn & mở lại
+                </button>
+                <button
+                  className="danger"
+                  onClick={cancelClosed}
+                  title="Chốt nhầm, bỏ luôn đợt: hoàn quỹ và huỷ hẳn (không chốt lại được)"
+                >
+                  🚫 Hoàn & huỷ đợt
+                </button>
+              </>
             )}
             <button className="danger" onClick={del}>
               Xóa đợt

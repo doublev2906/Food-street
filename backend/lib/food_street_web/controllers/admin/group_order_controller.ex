@@ -158,6 +158,29 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   end
 
   @doc """
+  Mở lại đợt đã chốt (chốt nhầm): hoàn quỹ, đơn về pending, đợt về open.
+  Không gửi tin Panchat — admin tự đính chính trong channel nếu cần.
+  """
+  def reopen(conn, %{"id" => id}), do: undo_close(conn, id, &Ordering.reopen_group_order/2)
+
+  @doc "Huỷ hẳn đợt đã chốt: hoàn quỹ, đơn + đợt về cancelled. Cũng không gửi tin Panchat."
+  def cancel(conn, %{"id" => id}), do: undo_close(conn, id, &Ordering.cancel_group_order/2)
+
+  defp undo_close(conn, id, fun) do
+    admin = Guardian.Plug.current_resource(conn)
+
+    case Ordering.get_group_order(id) do
+      nil ->
+        {:error, :not_found}
+
+      go ->
+        with {:ok, result} <- fun.(go, admin) do
+          json(conn, %{data: %{refunded: result.refunded, group_order: shape(result.group)}})
+        end
+    end
+  end
+
+  @doc """
   Gửi đơn gộp của đợt cho nhà bán qua Pancake Page (nút bấm thủ công của admin).
 
   Danh mục của đợt phải cấu hình sẵn Pancake (page_id + conversation_id + token). Đợt

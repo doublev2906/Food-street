@@ -8,6 +8,9 @@ defmodule FoodStreet.Ordering do
      Mỗi user 1 đơn / đợt; sửa lại sẽ thay thế đơn cũ. Chỉ khi đợt còn `open`.
   3. Admin **chốt đợt** (`close_group_order`) -> trừ quỹ từng user, ghi
      `fund_transactions`, đổi đơn sang `confirmed`, đóng đợt. Toàn bộ atomic.
+  4. Chốt nhầm thì 2 lối ra: **mở lại đợt** (`reopen_group_order` — hoàn quỹ,
+     đơn về `pending`, đợt về `open`, sửa xong chốt lại) hoặc **huỷ hẳn**
+     (`cancel_group_order` — hoàn quỹ, đơn + đợt về `cancelled`).
   """
 
   import Ecto.Query, warn: false
@@ -167,6 +170,75 @@ defmodule FoodStreet.Ordering do
     |> Repo.transaction()
     |> case do
       {:ok, _} -> {:ok, %{confirmed: length(orders), group: get_group_order(go.id)}}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Mở lại đợt đã chốt (chốt nhầm, cần sửa rồi chốt lại): hoàn quỹ mọi đơn
+  `confirmed`, đơn về `pending`, đợt về `open`. Atomic như `close_group_order`.
+  """
+  def reopen_group_order(%GroupOrder{} = go, %User{} = admin), do: undo_close(go, admin, :reopen)
+
+  @doc """
+  Huỷ hẳn đợt đã chốt (chốt nhầm, bỏ luôn đợt): hoàn quỹ như `reopen_group_order`
+  nhưng đơn -> `cancelled`, đợt -> `cancelled` (terminal — không chốt lại được).
+  Giữ nguyên `closed_at` làm vết thời điểm đã từng chốt.
+  """
+  def cancel_group_order(%GroupOrder{} = go, %User{} = admin), do: undo_close(go, admin, :cancel)
+
+  # Core hoàn tiền chung cho reopen/cancel — đảo ngược đúng những gì close làm.
+  #
+  # Giao dịch hoàn ghi type "adjustment" (KHÔNG phải "order"): stats tính
+  # `spent` = abs(tổng type order/split) — nếu ghi khoản hoàn dương vào "order",
+  # kỳ nào chỉ có hoàn tiền sẽ bị abs() đếm ngược thành tiền chi. Adjustment giữ
+  # dấu ± nên công thức `nạp - chi + điều_chỉnh` vẫn cân.
+  defp undo_close(%GroupOrder{status: status}, _admin, _mode) when status != "closed",
+    do: {:error, :not_closed}
+
+  defp undo_close(go, admin, mode) do
+    {order_status, group_attrs, desc} =
+      case mode do
+        :reopen -> {"pending", %{status: "open", closed_at: nil}, "Mở lại đợt (hoàn tiền)"}
+        :cancel -> {"cancelled", %{status: "cancelled"}, "Huỷ đợt (hoàn tiền)"}
+      end
+
+    orders =
+      Order
+      |> where([o], o.group_order_id == ^go.id and o.status == "confirmed")
+      |> preload(:user)
+      |> Repo.all()
+
+    multi =
+      Enum.reduce(orders, Multi.new(), fn order, m ->
+        user = order.user
+        new_balance = Decimal.add(user.balance, order.total_amount)
+
+        m
+        |> Multi.update({:user, order.id}, User.balance_changeset(user, new_balance))
+        |> Multi.update(
+          {:order, order.id},
+          Order.status_changeset(order, %{status: order_status, confirmed_at: nil})
+        )
+        |> Multi.insert(
+          {:tx, order.id},
+          FundTransaction.changeset(%FundTransaction{}, %{
+            user_id: user.id,
+            amount: order.total_amount,
+            type: "adjustment",
+            description: "#{desc}: #{go.title} (#{go.order_date})",
+            balance_after: new_balance,
+            order_id: order.id,
+            created_by_id: admin.id
+          })
+        )
+      end)
+
+    multi
+    |> Multi.update(:group, GroupOrder.status_changeset(go, group_attrs))
+    |> Repo.transaction()
+    |> case do
+      {:ok, _} -> {:ok, %{refunded: length(orders), group: get_group_order(go.id)}}
       {:error, _step, reason, _} -> {:error, reason}
     end
   end

@@ -26,6 +26,7 @@ defmodule FoodStreetWeb.FallbackController do
 
   defp message(:order_not_editable), do: "Đơn đã chốt, không sửa được."
   defp message(:group_not_open), do: "Đợt đã đóng, không thao tác được."
+  defp message(:not_closed), do: "Đợt chưa chốt, không có gì để mở lại."
   defp message(:empty_items), do: "Hãy chọn ít nhất 1 món."
   defp message(:invalid_items), do: "Có món không hợp lệ hoặc không thuộc danh mục của đợt."
   defp message(reason), do: to_string(reason)
