@@ -951,7 +951,8 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
       return;
     try {
       const r = await api.admin.reopenGroupOrder(id);
-      setMsg(`Đã mở lại đợt, hoàn quỹ ${r.data.refunded} đơn.`);
+      const note = r.panchat?.sent ? " Đã báo tin vào Panchat." : " (Không gửi được tin Panchat.)";
+      setMsg(`Đã mở lại đợt, hoàn quỹ ${r.data.refunded} đơn.${note}`);
       load();
     } catch (e: any) {
       setMsg(e.message);
@@ -968,7 +969,8 @@ function GroupDetail({ id, onBack }: { id: string; onBack: () => void }) {
       return;
     try {
       const r = await api.admin.cancelGroupOrder(id);
-      setMsg(`Đã huỷ đợt, hoàn quỹ ${r.data.refunded} đơn.`);
+      const note = r.panchat?.sent ? " Đã báo tin vào Panchat." : " (Không gửi được tin Panchat.)";
+      setMsg(`Đã huỷ đợt, hoàn quỹ ${r.data.refunded} đơn.${note}`);
       load();
     } catch (e: any) {
       setMsg(e.message);

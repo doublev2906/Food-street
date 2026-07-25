@@ -234,12 +234,17 @@ defmodule FoodStreet.Ordering do
         )
       end)
 
+    total = Enum.reduce(orders, Decimal.new(0), &Decimal.add(&2, &1.total_amount))
+
     multi
     |> Multi.update(:group, GroupOrder.status_changeset(go, group_attrs))
     |> Repo.transaction()
     |> case do
-      {:ok, _} -> {:ok, %{refunded: length(orders), group: get_group_order(go.id)}}
-      {:error, _step, reason, _} -> {:error, reason}
+      {:ok, _} ->
+        {:ok, %{refunded: length(orders), refunded_total: total, group: get_group_order(go.id)}}
+
+      {:error, _step, reason, _} ->
+        {:error, reason}
     end
   end
 

@@ -85,6 +85,25 @@ defmodule FoodStreet.Panchat do
     end
   end
 
+  @doc """
+  Gửi tin báo hoàn quỹ khi mở lại (`:reopen`) hoặc huỷ (`:cancel`) đợt đã chốt,
+  bằng `token` của admin thực hiện.
+  """
+  def send_group_refunded(%GroupOrder{} = go, count, total, mode, token)
+      when mode in [:reopen, :cancel] do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
+
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          send_channel_message(token, refund_text(go, count, total, mode))
+        end
+    end
+  end
+
   @doc "Gửi tin báo huỷ/xoá đợt, bằng `token` của admin thực hiện."
   def send_group_deleted(%GroupOrder{} = go, token) do
     case token do
@@ -338,6 +357,23 @@ defmodule FoodStreet.Panchat do
     """
     ✅ Đã chốt đợt: "#{go.title}" (📅 #{go.order_date})
     #{count} đơn · tổng #{format_vnd(total)} 👉 #{link}
+    """
+    |> String.trim_trailing()
+  end
+
+  @doc "Nội dung tin báo hoàn quỹ khi mở lại / huỷ đợt đã chốt (thuần, không gọi mạng)."
+  def refund_text(%GroupOrder{} = go, count, total, :reopen) do
+    """
+    ↩️ Đã mở lại đợt: "#{go.title}" (📅 #{go.order_date})
+    Hoàn quỹ #{count} đơn · #{format_vnd(total)} — sửa xong sẽ chốt lại.
+    """
+    |> String.trim_trailing()
+  end
+
+  def refund_text(%GroupOrder{} = go, count, total, :cancel) do
+    """
+    🚫 Đã huỷ đợt: "#{go.title}" (📅 #{go.order_date})
+    Hoàn quỹ #{count} đơn · #{format_vnd(total)}.
     """
     |> String.trim_trailing()
   end

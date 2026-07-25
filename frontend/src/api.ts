@@ -460,15 +460,15 @@ export const api = {
         runners_panchat: { sent?: boolean; skipped?: boolean; error?: string };
       }>(`/admin/group_orders/${id}/close`, { method: "POST" }),
     reopenGroupOrder: (id: string) =>
-      request<{ data: { refunded: number; group_order: GroupOrder } }>(
-        `/admin/group_orders/${id}/reopen`,
-        { method: "POST" }
-      ),
+      request<{
+        data: { refunded: number; group_order: GroupOrder };
+        panchat: { sent: boolean; error?: string };
+      }>(`/admin/group_orders/${id}/reopen`, { method: "POST" }),
     cancelGroupOrder: (id: string) =>
-      request<{ data: { refunded: number; group_order: GroupOrder } }>(
-        `/admin/group_orders/${id}/cancel`,
-        { method: "POST" }
-      ),
+      request<{
+        data: { refunded: number; group_order: GroupOrder };
+        panchat: { sent: boolean; error?: string };
+      }>(`/admin/group_orders/${id}/cancel`, { method: "POST" }),
     sendGroupOrderToSeller: (id: string) =>
       request<{ data: { sent: boolean; error?: string } }>(
         `/admin/group_orders/${id}/send_to_seller`,

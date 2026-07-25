@@ -60,6 +60,39 @@ defmodule FoodStreet.PanchatTest do
     end
   end
 
+  describe "refund_text/4 và send_group_refunded/5" do
+    test "refund_text :reopen chứa tiêu đề, ngày, số đơn hoàn và tổng tiền" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
+      text = Panchat.refund_text(go, 3, Decimal.new("90000"), :reopen)
+
+      assert text =~ "mở lại"
+      assert text =~ "Sáng T2"
+      assert text =~ "2026-07-02"
+      assert text =~ "3 đơn"
+      assert text =~ "90.000đ"
+    end
+
+    test "refund_text :cancel báo huỷ, không nói chốt lại" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
+      text = Panchat.refund_text(go, 2, Decimal.new("50000"), :cancel)
+
+      assert text =~ "huỷ đợt"
+      assert text =~ "2 đơn"
+      assert text =~ "50.000đ"
+      refute text =~ "chốt lại"
+    end
+
+    test "send_group_refunded lỗi khi thiếu token, không gọi mạng" do
+      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+
+      assert Panchat.send_group_refunded(go, 1, Decimal.new("1000"), :reopen, nil) ==
+               {:error, :panchat_token_missing}
+
+      assert Panchat.send_group_refunded(go, 1, Decimal.new("1000"), :cancel, "  ") ==
+               {:error, :panchat_token_missing}
+    end
+  end
+
   describe "deleted_text/1 và send_group_deleted/2" do
     test "deleted_text chứa tiêu đề và ngày" do
       go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}

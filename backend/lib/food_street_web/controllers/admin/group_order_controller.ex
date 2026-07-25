@@ -159,15 +159,21 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
   @doc """
   Mở lại đợt đã chốt (chốt nhầm): hoàn quỹ, đơn về pending, đợt về open.
-  Không gửi tin Panchat — admin tự đính chính trong channel nếu cần.
+  Báo tin hoàn quỹ vào Panchat (best-effort như lúc chốt).
   """
-  def reopen(conn, %{"id" => id}), do: undo_close(conn, id, &Ordering.reopen_group_order/2)
+  def reopen(conn, %{"id" => id}), do: undo_close(conn, id, :reopen)
 
-  @doc "Huỷ hẳn đợt đã chốt: hoàn quỹ, đơn + đợt về cancelled. Cũng không gửi tin Panchat."
-  def cancel(conn, %{"id" => id}), do: undo_close(conn, id, &Ordering.cancel_group_order/2)
+  @doc "Huỷ hẳn đợt đã chốt: hoàn quỹ, đơn + đợt về cancelled. Cũng báo tin Panchat."
+  def cancel(conn, %{"id" => id}), do: undo_close(conn, id, :cancel)
 
-  defp undo_close(conn, id, fun) do
+  defp undo_close(conn, id, mode) do
     admin = Guardian.Plug.current_resource(conn)
+
+    fun =
+      case mode do
+        :reopen -> &Ordering.reopen_group_order/2
+        :cancel -> &Ordering.cancel_group_order/2
+      end
 
     case Ordering.get_group_order(id) do
       nil ->
@@ -175,8 +181,26 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
       go ->
         with {:ok, result} <- fun.(go, admin) do
-          json(conn, %{data: %{refunded: result.refunded, group_order: shape(result.group)}})
+          panchat =
+            notify_refunded(result.group, result.refunded, result.refunded_total, mode, admin)
+
+          json(conn, %{
+            data: %{refunded: result.refunded, group_order: shape(result.group)},
+            panchat: panchat
+          })
         end
+    end
+  end
+
+  # Báo Panchat khi hoàn quỹ (mở lại / huỷ đợt) — best-effort, token admin thực hiện.
+  defp notify_refunded(group, count, total, mode, admin) do
+    case Panchat.send_group_refunded(group, count, total, mode, Settings.panchat_token(admin.id)) do
+      {:ok, _} ->
+        %{sent: true}
+
+      {:error, reason} ->
+        Logger.warning("Không gửi được tin hoàn quỹ đợt #{group.id}: #{inspect(reason)}")
+        %{sent: false, error: format_error(reason)}
     end
   end
 
