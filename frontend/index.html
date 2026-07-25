@@ -20,8 +20,10 @@
         var a = localStorage.getItem("accent");
         if (a === "green" || a === "blue" || a === "lychee" || a === "namdinh")
           document.documentElement.dataset.accent = a;
-        // Con trỏ chuột (mèo mặc định / hoa đào-đũa / hệ thống) — set sớm để khỏi chớp
-        document.documentElement.dataset.cursor = localStorage.getItem("cursor") || "cat";
+        // Con trỏ chuột (mèo mặc định / katana / lightsaber / hệ thống) — set sớm để khỏi chớp
+        var c = localStorage.getItem("cursor") || "cat";
+        if (c === "sakura") c = "katana"; // bộ quạt sakura cũ đã thay bằng katana Shinobu
+        document.documentElement.dataset.cursor = c;
       })();
     </script>
   </head>

@@ -2111,22 +2111,49 @@ button:active:not(:disabled) {
   cursor: url("/cursor-open.png") 14 6, auto !important;
 }
 
-/* 🌸 Bộ pixel "Cherry Blossom Fan & Sakura Hand" (sweezy-cursors.com, fan-art —
-   dùng nội bộ). 3 trạng thái: quạt = mặc định, tay chỉ = hover chỗ bấm được,
-   tay bóp nhẹ + tối = đang bấm (:active). Hotspot = đầu nhọn quạt / đầu ngón tay.
+/* 🦋 Katana Shinobu (Demon Slayer, sweezy-cursors.com fan-art — dùng nội bộ).
+   Kiếm Nichirin + đàn bướm quanh lưỡi. CSS cursor: url() không tự animate được
+   -> JS (Header) xoay data-cursor-frame 1→5 trên <html> để bướm bay.
+   Hover chỗ bấm được -> mặt Shinobu. Hotspot = mũi kiếm / đỉnh đầu.
    cursor kế thừa từ <html> (mang data-cursor) nên chỉ cần set gốc + đè nhóm
    phần tử tương tác (không thì tụi nó rớt về con trỏ pointer/hand mặc định). */
-[data-cursor="sakura"] {
-  cursor: url("/anime/cursor-fan.png") 0 0, auto;
+[data-cursor="katana"] {
+  cursor: url("/anime/katana-1.png") 1 1, auto;
 }
-[data-cursor="sakura"]
+[data-cursor="katana"][data-cursor-frame="2"] {
+  cursor: url("/anime/katana-2.png") 1 1, auto;
+}
+[data-cursor="katana"][data-cursor-frame="3"] {
+  cursor: url("/anime/katana-3.png") 1 1, auto;
+}
+[data-cursor="katana"][data-cursor-frame="4"] {
+  cursor: url("/anime/katana-4.png") 1 1, auto;
+}
+[data-cursor="katana"][data-cursor-frame="5"] {
+  cursor: url("/anime/katana-5.png") 1 1, auto;
+}
+[data-cursor="katana"]
   :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/anime/cursor-hand.png") 6 0, pointer;
+  cursor: url("/anime/katana-pointer.png") 5 5, pointer;
 }
-[data-cursor="sakura"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]):active {
-  cursor: url("/anime/cursor-hand-press.png") 7 2, pointer;
+[data-cursor="katana"] button:disabled {
+  cursor: url("/anime/katana-1.png") 1 1, not-allowed;
 }
-[data-cursor="sakura"] button:disabled {
-  cursor: url("/anime/cursor-fan.png") 0 0, not-allowed;
+
+/* ⚔️ Lightsaber Obi-Wan (Star Wars, sweezy-cursors.com fan-art — dùng nội bộ).
+   2 frame lưỡi gươm lóe sáng, cũng animate qua data-cursor-frame (JS xoay 1↔2).
+   Bộ gốc pointer cũng là thanh gươm -> hover chỗ bấm được vẫn là gươm (bản pointer).
+   Hotspot = mũi gươm. */
+[data-cursor="saber"] {
+  cursor: url("/saber-1.png") 10 6, auto;
+}
+[data-cursor="saber"][data-cursor-frame="2"] {
+  cursor: url("/saber-2.png") 10 6, auto;
+}
+[data-cursor="saber"]
+  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/saber-pointer.png") 10 6, pointer;
+}
+[data-cursor="saber"] button:disabled {
+  cursor: url("/saber-1.png") 10 6, not-allowed;
 }

@@ -16,9 +16,17 @@ const ACCENTS = [
 // Con trỏ chuột user chọn được (mèo popcat mặc định)
 const CURSORS = [
   { key: "cat", icon: "🐱", label: "Mèo" },
-  { key: "sakura", icon: "🌸", label: "Quạt hoa đào" },
+  { key: "katana", icon: "🦋", label: "Katana Shinobu" },
+  { key: "saber", icon: "⚔️", label: "Lightsaber Obi-Wan" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
+
+// Bộ cursor động: CSS cursor url() không tự animate -> JS xoay data-cursor-frame
+// trên <html>, CSS đổi ảnh theo frame. 300ms/frame = nhịp bản gốc trên Sweezy.
+const CURSOR_FRAMES: Record<string, { total: number; url: (f: number) => string }> = {
+  katana: { total: 5, url: (f) => `/anime/katana-${f}.png` },
+  saber: { total: 2, url: (f) => `/saber-${f}.png` },
+};
 
 export function Header({ subtitle }: { subtitle?: string }) {
   const { user, logout } = useAuth();
@@ -58,6 +66,24 @@ export function Header({ subtitle }: { subtitle?: string }) {
     },
     []
   );
+
+  // Cursor động: xoay data-cursor-frame để CSS đổi ảnh. Preload các frame trước,
+  // không thì lần xoay đầu ảnh chưa tải kịp -> con trỏ chớp về mặc định.
+  // Tôn trọng prefers-reduced-motion (cùng convention với nền anime): đứng yên frame 1.
+  useEffect(() => {
+    const anim = CURSOR_FRAMES[cursor];
+    if (!anim || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    for (let f = 2; f <= anim.total; f++) new Image().src = anim.url(f);
+    let frame = 1;
+    const id = window.setInterval(() => {
+      frame = (frame % anim.total) + 1;
+      document.documentElement.dataset.cursorFrame = String(frame);
+    }, 300);
+    return () => {
+      window.clearInterval(id);
+      delete document.documentElement.dataset.cursorFrame;
+    };
+  }, [cursor]);
 
   const isAdmin = user?.role === "admin";
   const onAdminPage = location.pathname.startsWith("/admin");
