@@ -16,16 +16,19 @@ const ACCENTS = [
 // Con trỏ chuột user chọn được (mèo popcat mặc định)
 const CURSORS = [
   { key: "cat", icon: "🐱", label: "Mèo" },
-  { key: "katana", icon: "🦋", label: "Katana Shinobu" },
   { key: "saber", icon: "⚔️", label: "Lightsaber Obi-Wan" },
+  { key: "jinwoo", icon: "🌑", label: "Dark Flames Jin-Woo" },
+  { key: "sukuna", icon: "👹", label: "Sukuna Flame Arrow" },
+  { key: "mbappe", icon: "🫡", label: "Dictator Mbappe" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
 
 // Bộ cursor động: CSS cursor url() không tự animate -> JS xoay data-cursor-frame
-// trên <html>, CSS đổi ảnh theo frame. 300ms/frame = nhịp bản gốc trên Sweezy.
-const CURSOR_FRAMES: Record<string, { total: number; url: (f: number) => string }> = {
-  katana: { total: 5, url: (f) => `/anime/katana-${f}.png` },
-  saber: { total: 2, url: (f) => `/saber-${f}.png` },
+// trên <html>, CSS đổi ảnh theo frame. ms = nhịp mỗi frame, quy từ tổng chu kỳ
+// animationSpeed của bản gốc Sweezy (saber 300/2, jinwoo 2200/11).
+const CURSOR_FRAMES: Record<string, { total: number; ms: number; url: (f: number) => string }> = {
+  saber: { total: 2, ms: 150, url: (f) => `/cursors/saber-${f}.png` },
+  jinwoo: { total: 11, ms: 200, url: (f) => `/cursors/jinwoo-${f}.png` },
 };
 
 export function Header({ subtitle }: { subtitle?: string }) {
@@ -78,7 +81,7 @@ export function Header({ subtitle }: { subtitle?: string }) {
     const id = window.setInterval(() => {
       frame = (frame % anim.total) + 1;
       document.documentElement.dataset.cursorFrame = String(frame);
-    }, 300);
+    }, anim.ms);
     return () => {
       window.clearInterval(id);
       delete document.documentElement.dataset.cursorFrame;

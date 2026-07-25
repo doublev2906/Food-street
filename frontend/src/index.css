@@ -2111,49 +2111,93 @@ button:active:not(:disabled) {
   cursor: url("/cursor-open.png") 14 6, auto !important;
 }
 
-/* 🦋 Katana Shinobu (Demon Slayer, sweezy-cursors.com fan-art — dùng nội bộ).
-   Kiếm Nichirin + đàn bướm quanh lưỡi. CSS cursor: url() không tự animate được
-   -> JS (Header) xoay data-cursor-frame 1→5 trên <html> để bướm bay.
-   Hover chỗ bấm được -> mặt Shinobu. Hotspot = mũi kiếm / đỉnh đầu.
+/* 4 bộ dưới đây lấy từ sweezy-cursors.com (fan-art — dùng nội bộ), resize 48px.
+   Bộ có animation: CSS cursor: url() không tự animate được -> JS (Header) xoay
+   data-cursor-frame trên <html>, CSS đổi ảnh theo frame.
    cursor kế thừa từ <html> (mang data-cursor) nên chỉ cần set gốc + đè nhóm
    phần tử tương tác (không thì tụi nó rớt về con trỏ pointer/hand mặc định). */
-[data-cursor="katana"] {
-  cursor: url("/anime/katana-1.png") 1 1, auto;
-}
-[data-cursor="katana"][data-cursor-frame="2"] {
-  cursor: url("/anime/katana-2.png") 1 1, auto;
-}
-[data-cursor="katana"][data-cursor-frame="3"] {
-  cursor: url("/anime/katana-3.png") 1 1, auto;
-}
-[data-cursor="katana"][data-cursor-frame="4"] {
-  cursor: url("/anime/katana-4.png") 1 1, auto;
-}
-[data-cursor="katana"][data-cursor-frame="5"] {
-  cursor: url("/anime/katana-5.png") 1 1, auto;
-}
-[data-cursor="katana"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/anime/katana-pointer.png") 5 5, pointer;
-}
-[data-cursor="katana"] button:disabled {
-  cursor: url("/anime/katana-1.png") 1 1, not-allowed;
-}
 
-/* ⚔️ Lightsaber Obi-Wan (Star Wars, sweezy-cursors.com fan-art — dùng nội bộ).
-   2 frame lưỡi gươm lóe sáng, cũng animate qua data-cursor-frame (JS xoay 1↔2).
-   Bộ gốc pointer cũng là thanh gươm -> hover chỗ bấm được vẫn là gươm (bản pointer).
-   Hotspot = mũi gươm. */
+/* ⚔️ Lightsaber Obi-Wan (Star Wars) — 2 frame lưỡi gươm lóe sáng.
+   Bộ gốc pointer cũng là thanh gươm -> hover chỗ bấm được vẫn là gươm. Hotspot = mũi gươm. */
 [data-cursor="saber"] {
-  cursor: url("/saber-1.png") 10 6, auto;
+  cursor: url("/cursors/saber-1.png") 8 5, auto;
 }
 [data-cursor="saber"][data-cursor-frame="2"] {
-  cursor: url("/saber-2.png") 10 6, auto;
+  cursor: url("/cursors/saber-2.png") 8 5, auto;
 }
 [data-cursor="saber"]
   :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/saber-pointer.png") 10 6, pointer;
+  cursor: url("/cursors/saber-pointer.png") 8 5, pointer;
 }
 [data-cursor="saber"] button:disabled {
-  cursor: url("/saber-1.png") 10 6, not-allowed;
+  cursor: url("/cursors/saber-1.png") 8 5, not-allowed;
+}
+
+/* 🌑 Dark Flames Sung Jin-Woo (Solo Leveling) — mũi tên đen bọc lửa tím, 11 frame
+   lửa cháy. Hover chỗ bấm được -> bóng Shadow Monarch mắt tím. Hotspot = mũi tên. */
+[data-cursor="jinwoo"] {
+  cursor: url("/cursors/jinwoo-1.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="2"] {
+  cursor: url("/cursors/jinwoo-2.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="3"] {
+  cursor: url("/cursors/jinwoo-3.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="4"] {
+  cursor: url("/cursors/jinwoo-4.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="5"] {
+  cursor: url("/cursors/jinwoo-5.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="6"] {
+  cursor: url("/cursors/jinwoo-6.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="7"] {
+  cursor: url("/cursors/jinwoo-7.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="8"] {
+  cursor: url("/cursors/jinwoo-8.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="9"] {
+  cursor: url("/cursors/jinwoo-9.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="10"] {
+  cursor: url("/cursors/jinwoo-10.png") 2 2, auto;
+}
+[data-cursor="jinwoo"][data-cursor-frame="11"] {
+  cursor: url("/cursors/jinwoo-11.png") 2 2, auto;
+}
+[data-cursor="jinwoo"]
+  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/cursors/jinwoo-pointer.png") 15 1, pointer;
+}
+[data-cursor="jinwoo"] button:disabled {
+  cursor: url("/cursors/jinwoo-1.png") 2 2, not-allowed;
+}
+
+/* 👹 Sukuna Flame Arrow (Jujutsu Kaisen) — mũi tên lửa đỏ khắc chú ấn (tĩnh).
+   Hover chỗ bấm được -> bàn tay Sukuna ngón trỏ bốc lửa. Hotspot = mũi tên / đầu ngón. */
+[data-cursor="sukuna"] {
+  cursor: url("/cursors/sukuna.png") 4 1, auto;
+}
+[data-cursor="sukuna"]
+  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/cursors/sukuna-pointer.png") 4 2, pointer;
+}
+[data-cursor="sukuna"] button:disabled {
+  cursor: url("/cursors/sukuna.png") 4 1, not-allowed;
+}
+
+/* 🫡 Dictator Mbappe (meme) — tướng quân chỉ tay (tĩnh). Hover chỗ bấm được ->
+   mặt Mbappe đội mũ. Hotspot = đầu ngón tay chỉ / đỉnh mũ. */
+[data-cursor="mbappe"] {
+  cursor: url("/cursors/mbappe.png") 2 2, auto;
+}
+[data-cursor="mbappe"]
+  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
+  cursor: url("/cursors/mbappe-pointer.png") 22 5, pointer;
+}
+[data-cursor="mbappe"] button:disabled {
+  cursor: url("/cursors/mbappe.png") 2 2, not-allowed;
 }
