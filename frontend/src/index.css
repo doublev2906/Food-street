@@ -279,6 +279,96 @@
     }
   }
 }
+/* ===== Theme thứ 4: SYNTHWAVE (🌆 - neon 80s, VẼ 100% BẰNG CSS, KHÔNG ảnh ngoài) =====
+   Không dùng ảnh nền -> không dính bản quyền, pull về là chạy (khác anime cần file
+   ảnh trong public/). Đặt SAU block anime để palette đè accent. Cảnh dựng hoàn toàn CSS:
+   trời gradient tím→hồng + mặt trời retro (::before), lưới neon chạy về chân trời
+   (::after) — tự sinh bằng gradient nên zero asset. */
+[data-theme="synthwave"] {
+  color-scheme: dark;
+  --bg: #1a0b2e;
+  --surface: rgba(38, 22, 66, 0.72);
+  --border: rgba(255, 120, 200, 0.3);
+  --text: #f4e9ff;
+  --muted: #b79ddb;
+  --primary: #ff3ca0; /* hot pink neon - dấu ấn synthwave */
+  --primary-dark: #ff5cb4; /* hover: rực hơn trên nền tối */
+  --primary-soft: #3a0f2c;
+  --primary-text: #ff86c6;
+  --success: #35e2a0;
+  --success-soft: #0f3028;
+  --danger: #ff5d73;
+  --danger-soft: #3a1220;
+  --warn: #ffc04d;
+  --warn-soft: #33260f;
+  --shadow: 0 2px 16px rgba(255, 46, 151, 0.22);
+  --header-bg: rgba(26, 11, 46, 0.72);
+  --accent-border: rgba(94, 240, 255, 0.35);
+  --accent-grad-hi: #5ef0ff; /* cyan - cặp màu neon còn lại */
+  --accent-shadow: rgba(255, 60, 160, 0.3);
+  --welcome-grad-1: rgba(58, 20, 74, 0.85);
+  --welcome-grad-2: rgba(40, 16, 66, 0.85);
+  --login-grad-1: rgba(40, 16, 60, 0.6);
+  --login-grad-2: rgba(26, 11, 40, 0.6);
+  --badge-user-bg: rgba(150, 90, 200, 0.26);
+  --surface-hover: rgba(56, 32, 88, 0.85);
+  --steam: #a479c8;
+  --hover: rgba(150, 90, 200, 0.16);
+  --modal-bg: #241041;
+}
+/* Trời + mặt trời retro (::before): mặt trời là đĩa gradient vàng→hồng ở chân trời,
+   phía trên là trời tím→hồng. Fixed phủ toàn màn, nằm sau nội dung. */
+[data-theme="synthwave"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 66%, #ffd15c 0%, #ff7ac0 24%, rgba(255, 122, 192, 0) 42%),
+    linear-gradient(to bottom, #140a2e 0%, #2a0f4a 42%, #57145f 66%, #8a1a5c 84%, #b3245a 100%);
+}
+/* Card kính mờ + viền/bóng neon cyan cho nổi trên nền tím tối */
+[data-theme="synthwave"] .card,
+[data-theme="synthwave"] .side-nav {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0 0 1px rgba(94, 240, 255, 0.12), 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+/* Lưới neon chạy về chân trời (::after): mặt phẳng nghiêng bằng perspective + rotateX,
+   line ngang cuộn về phía người xem. Để loop liền mạch: dời ĐÚNG 1 ô lưới (80px) mỗi
+   vòng. mask fade dần phía chân trời cho lưới tan vào trời. Lưới tĩnh luôn hiện; chỉ
+   thêm animation khi user không tắt motion (prefers-reduced-motion). */
+[data-theme="synthwave"] body::after {
+  content: "";
+  position: fixed;
+  left: -50%;
+  right: -50%;
+  bottom: 0;
+  height: 55vh;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(to right, rgba(94, 240, 255, 0.5) 0 2px, transparent 2px 80px),
+    repeating-linear-gradient(to bottom, rgba(255, 60, 160, 0.5) 0 2px, transparent 2px 80px);
+  transform: perspective(340px) rotateX(62deg);
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 45%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 45%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="synthwave"] body::after {
+    animation: synthwave-grid 3.2s linear infinite;
+  }
+  @keyframes synthwave-grid {
+    from {
+      background-position: 0 0, 0 0;
+    }
+    to {
+      background-position: 0 0, 0 80px;
+    }
+  }
+}
 * {
   box-sizing: border-box;
 }

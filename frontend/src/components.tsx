@@ -91,9 +91,9 @@ export function Header({ subtitle }: { subtitle?: string }) {
   const isAdmin = user?.role === "admin";
   const onAdminPage = location.pathname.startsWith("/admin");
 
-  // 3 giao diện xoay vòng: sáng -> tối -> anime -> sáng
-  const THEME_CYCLE: Record<string, string> = { light: "dark", dark: "anime", anime: "light" };
-  const THEME_ICON: Record<string, string> = { light: "☀️", dark: "🌙", anime: "🌸" };
+  // 4 giao diện xoay vòng: sáng -> tối -> anime -> synthwave -> sáng
+  const THEME_CYCLE: Record<string, string> = { light: "dark", dark: "anime", anime: "synthwave", synthwave: "light" };
+  const THEME_ICON: Record<string, string> = { light: "☀️", dark: "🌙", anime: "🌸", synthwave: "🌆" };
   const toggleTheme = () => {
     const next = THEME_CYCLE[theme] ?? "light";
     document.documentElement.dataset.theme = next;
@@ -102,13 +102,13 @@ export function Header({ subtitle }: { subtitle?: string }) {
     document.documentElement.dataset.animeTime = h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
     localStorage.setItem("theme", next);
     setTheme(next);
-    // Sang anime thì đóng menu màu đang mở (picker màu bị disable ở theme này)
-    if (next === "anime") setAccentOpen(false);
+    // Sang anime/synthwave thì đóng menu màu đang mở (picker màu bị disable ở 2 theme này)
+    if (next === "anime" || next === "synthwave") setAccentOpen(false);
   };
 
-  // Theme anime dùng palette sakura riêng, CSS anime đè mọi accent -> chọn màu
+  // Anime (sakura) và synthwave (neon) có palette riêng, CSS đè mọi accent -> chọn màu
   // không có tác dụng, disable picker cho đỡ gây hiểu nhầm.
-  const accentDisabled = theme === "anime";
+  const accentDisabled = theme === "anime" || theme === "synthwave";
 
   const pickAccent = (key: string) => {
     if (key === "orange") {
@@ -182,7 +182,7 @@ export function Header({ subtitle }: { subtitle?: string }) {
             disabled={accentDisabled}
             title={
               accentDisabled
-                ? "Theme anime dùng bảng màu sakura riêng — về giao diện sáng/tối để chọn màu"
+                ? "Theme anime/synthwave dùng bảng màu riêng — về giao diện sáng/tối để chọn màu"
                 : "Chọn màu giao diện"
             }
           >
@@ -232,7 +232,7 @@ export function Header({ subtitle }: { subtitle?: string }) {
         <button
           className="ghost icon-btn"
           onClick={toggleTheme}
-          title="Đổi giao diện (sáng / tối / anime)"
+          title="Đổi giao diện (sáng / tối / anime / synthwave)"
         >
           {THEME_ICON[theme] ?? "☀️"}
         </button>
