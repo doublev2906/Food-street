@@ -279,11 +279,9 @@
     }
   }
 }
-/* ===== Theme thứ 4: SYNTHWAVE (🌆 - neon 80s, VẼ 100% BẰNG CSS, KHÔNG ảnh ngoài) =====
-   Không dùng ảnh nền -> không dính bản quyền, pull về là chạy (khác anime cần file
-   ảnh trong public/). Đặt SAU block anime để palette đè accent. Cảnh dựng hoàn toàn CSS:
-   trời gradient tím→hồng + mặt trời retro (::before), lưới neon chạy về chân trời
-   (::after) — tự sinh bằng gradient nên zero asset. */
+/* ===== Theme thứ 4: SYNTHWAVE (🌆 - neon 80s, ảnh nền outrun) =====
+   Nền là ảnh synthwave (public/synthwave/bg.jpg) + veil cho chữ nổi, cùng cơ chế ảnh
+   như anime. Đặt SAU block anime để palette đè được accent đang chọn. */
 [data-theme="synthwave"] {
   color-scheme: dark;
   --bg: #1a0b2e;
@@ -316,8 +314,7 @@
   --hover: rgba(150, 90, 200, 0.16);
   --modal-bg: #241041;
 }
-/* Trời + mặt trời retro (::before): mặt trời là đĩa gradient vàng→hồng ở chân trời,
-   phía trên là trời tím→hồng. Fixed phủ toàn màn, nằm sau nội dung. */
+/* Ảnh nền synthwave + veil (lớp phủ tím) cho chữ nổi. Fixed phủ toàn màn, sau nội dung. */
 [data-theme="synthwave"] body::before {
   content: "";
   position: fixed;
@@ -325,8 +322,8 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 66%, #ffd15c 0%, #ff7ac0 24%, rgba(255, 122, 192, 0) 42%),
-    linear-gradient(to bottom, #140a2e 0%, #2a0f4a 42%, #57145f 66%, #8a1a5c 84%, #b3245a 100%);
+    linear-gradient(rgba(20, 8, 40, 0.32), rgba(26, 11, 46, 0.55)),
+    url("/synthwave/bg.jpg") center / cover no-repeat;
 }
 /* Card kính mờ + viền/bóng neon cyan cho nổi trên nền tím tối */
 [data-theme="synthwave"] .card,
@@ -335,37 +332,18 @@
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 0 0 1px rgba(94, 240, 255, 0.12), 0 6px 24px rgba(0, 0, 0, 0.4);
 }
-/* Lưới neon chạy về chân trời (::after): mặt phẳng nghiêng bằng perspective + rotateX,
-   line ngang cuộn về phía người xem. Để loop liền mạch: dời ĐÚNG 1 ô lưới (80px) mỗi
-   vòng. mask fade dần phía chân trời cho lưới tan vào trời. Lưới tĩnh luôn hiện; chỉ
-   thêm animation khi user không tắt motion (prefers-reduced-motion). */
-[data-theme="synthwave"] body::after {
-  content: "";
-  position: fixed;
-  left: -50%;
-  right: -50%;
-  bottom: 0;
-  height: 55vh;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    repeating-linear-gradient(to right, rgba(94, 240, 255, 0.5) 0 2px, transparent 2px 80px),
-    repeating-linear-gradient(to bottom, rgba(255, 60, 160, 0.5) 0 2px, transparent 2px 80px);
-  transform: perspective(340px) rotateX(62deg);
-  transform-origin: bottom center;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 45%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 45%);
-}
+/* Ken Burns: ảnh zoom rất chậm cho đỡ tĩnh (scale > 1 nên không hở mép). Chỉ chạy khi
+   user không tắt motion (prefers-reduced-motion). */
 @media (prefers-reduced-motion: no-preference) {
-  [data-theme="synthwave"] body::after {
-    animation: synthwave-grid 3.2s linear infinite;
+  [data-theme="synthwave"] body::before {
+    animation: synthwave-breathe 55s ease-in-out infinite alternate;
   }
-  @keyframes synthwave-grid {
+  @keyframes synthwave-breathe {
     from {
-      background-position: 0 0, 0 0;
+      transform: scale(1);
     }
     to {
-      background-position: 0 0, 0 80px;
+      transform: scale(1.06);
     }
   }
 }
