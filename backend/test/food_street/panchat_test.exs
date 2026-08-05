@@ -299,6 +299,15 @@ defmodule FoodStreet.PanchatTest do
       assert [%{"type" => "mention"}] = first["spans"]
       refute Map.has_key?(second, "spans")
     end
+
+    test "mention_all: false → không tag @all, paragraph đầu là paragraph thường" do
+      body = Panchat.build_body("hello\nworld", mention_all: false)
+
+      assert %{"text" => [first | _]} = body
+      assert first["content"] == "hello"
+      refute Map.has_key?(first, "spans")
+      refute inspect(body) =~ "@all"
+    end
   end
 
   describe "send_channel_message/2 — HTTP request v2" do

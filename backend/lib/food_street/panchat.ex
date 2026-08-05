@@ -411,10 +411,13 @@ defmodule FoodStreet.Panchat do
 
   `token` là JWT của admin (xem `FoodStreet.Settings.panchat_token/1`), gửi qua
   header Bearer. Thành công khi HTTP 2xx (200 trả về message vừa tạo, 204 khi là
-  lệnh không tạo tin). Tách `build_body/1` ra để test thuần payload không gọi mạng.
+  lệnh không tạo tin). Tách `build_body/2` ra để test thuần payload không gọi mạng.
+
+  Truyền `mention_all: false` trong `opts` để KHÔNG tag `@all` (vd tin relay phản
+  hồi nhà bán — chỉ để cả nhóm đọc, không cần ping tất cả).
   """
-  def send_channel_message(token, message) do
-    post_message(token, build_body(message))
+  def send_channel_message(token, message, opts \\ []) do
+    post_message(token, build_body(message, opts))
   end
 
   # POST body `SendMessageRequest` đã dựng sẵn vào channel cố định.
@@ -449,7 +452,8 @@ defmodule FoodStreet.Panchat do
 
   Nội dung là RichText — danh sách paragraph node. Mỗi dòng của `message` thành 1
   paragraph; @all được gắn bằng 1 `mention` span (ref `all`) ở đầu paragraph thứ
-  nhất, offset 0..4 ứng với đúng chữ "@all".
+  nhất, offset 0..4 ứng với đúng chữ "@all". Truyền `mention_all: false` để bỏ tag
+  @all (paragraph đầu thành paragraph thường như các dòng khác).
 
   Mọi URL http/https trong nội dung được gắn thêm 1 `link` span để hiển thị link
   bấm được. `link_previews` KHÔNG gửi ở request — server tự trích từ URL trong
@@ -460,9 +464,21 @@ defmodule FoodStreet.Panchat do
   OpenAPI ghi "grapheme offset" nhưng client thực tế dùng UTF-16, vd link ở
   offset 71 chứ không phải 69 khi có 2 emoji đứng trước.)
   """
-  def build_body(message) do
+  def build_body(message, opts \\ []) do
     [first | rest] = String.split(message, "\n")
 
+    first_paragraph =
+      if Keyword.get(opts, :mention_all, true) do
+        mention_all_paragraph(first)
+      else
+        paragraph(first)
+      end
+
+    %{"text" => [first_paragraph | Enum.map(rest, &paragraph/1)]}
+  end
+
+  # Paragraph đầu có tag @all: prefix "@all " + 1 mention span (ref all) offset 0..4.
+  defp mention_all_paragraph(first) do
     first_content = "@all " <> first
 
     mention_span = %{
@@ -472,13 +488,11 @@ defmodule FoodStreet.Panchat do
       "ref" => %{"type" => "all", "channel_id" => @channel_id}
     }
 
-    first_paragraph = %{
+    %{
       "type" => "paragraph",
       "content" => first_content,
       "spans" => [mention_span | link_spans(first_content)]
     }
-
-    %{"text" => [first_paragraph | Enum.map(rest, &paragraph/1)]}
   end
 
   # 1 dòng -> paragraph node; chỉ thêm khoá "spans" khi có link để giữ payload gọn.

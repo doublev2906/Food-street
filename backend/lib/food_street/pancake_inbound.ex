@@ -4,7 +4,8 @@ defmodule FoodStreet.PancakeInbound do
   relay nguyên văn tin đó vào **Panchat nội bộ** để cả nhóm đổi/đặt lại đơn.
 
   Vì webhook không gắn admin cụ thể, tin relay được gửi bằng **token 1 admin ngẫu nhiên**
-  (`Settings.random_admin_panchat_token/0`). `Panchat.send_channel_message/2` tự tag `@all`.
+  (`Settings.random_admin_panchat_token/0`). Tin relay KHÔNG tag `@all` (gửi với
+  `mention_all: false`) — chỉ để cả nhóm đọc, không ping tất cả.
 
   Được gọi async từ `PancakeWebhookController` (đã trả 200 cho Pancake trước đó).
   """
@@ -106,7 +107,7 @@ defmodule FoodStreet.PancakeInbound do
         {:error, :no_admin_token}
 
       token ->
-        case Panchat.send_channel_message(token, relay_text(category, ctx)) do
+        case Panchat.send_channel_message(token, relay_text(category, ctx), mention_all: false) do
           {:ok, _} ->
             {:ok, :relayed}
 
