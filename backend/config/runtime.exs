@@ -41,9 +41,7 @@ if gemini_api_key = System.get_env("GEMINI_API_KEY") do
 end
 
 # Override model Gemini (mặc định gemini-2.5-flash-lite) khi cần.
-if gemini_model = System.get_env("GEMINI_MODEL") do
-  config :food_street, :gemini_model, gemini_model
-end
+config :food_street, :gemini_model, "gemini-3.1-flash-lite"
 
 # Token của tài khoản BOT Panchat — dùng cho các tin TỰ ĐỘNG (relay webhook nhà bán,
 # báo số dư quỹ, mở đợt theo lịch). Chưa đặt thì các luồng này bỏ qua (best-effort).
