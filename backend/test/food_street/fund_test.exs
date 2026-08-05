@@ -83,6 +83,37 @@ defmodule FoodStreet.FundTest do
     end
   end
 
+  describe "adjust/4 — điều chỉnh dương cũng gạt nợ lãi (issue #12, trước bỏ sót)" do
+    test "điều chỉnh dương: gạt nợ lãi trước rồi mới vào số dư" do
+      a = admin()
+      u = make("usr1", "user", "-100000")
+      set_interest_debt(u, "272")
+      u = Repo.get(User, u.id)
+
+      {:ok, %{interest_paid: paid, transaction: tx}} = Fund.adjust(u, "100000", a)
+
+      # 272 gạt nợ lãi, 99.728 vào số dư → -100.000 + 99.728 = -272.
+      assert Decimal.equal?(paid, 272)
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("0"))
+      assert Decimal.equal?(bal(u.id), Decimal.new("-272"))
+      assert tx.type == "adjustment"
+      assert tx.description =~ "nợ lãi"
+    end
+
+    test "điều chỉnh âm: trừ thẳng số dư, KHÔNG đụng nợ lãi" do
+      a = admin()
+      u = make("usr1", "user", "50000")
+      set_interest_debt(u, "300")
+      u = Repo.get(User, u.id)
+
+      {:ok, %{interest_paid: paid}} = Fund.adjust(u, "-20000", a)
+
+      assert Decimal.equal?(paid, 0)
+      assert Decimal.equal?(interest_debt(u.id), Decimal.new("300"))
+      assert Decimal.equal?(bal(u.id), Decimal.new("30000"))
+    end
+  end
+
   describe "record_external_purchase/2" do
     test "chia đều: trừ số dư từng người, tạo tx split + external_purchase" do
       a = admin()

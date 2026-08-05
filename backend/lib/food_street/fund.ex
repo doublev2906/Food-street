@@ -161,79 +161,68 @@ defmodule FoodStreet.Fund do
   """
   def deposit(%User{} = user, amount, %User{} = admin, description \\ nil) do
     with {:ok, decimal} <- to_decimal(amount) do
-      interest_debt = user.interest_debt || Decimal.new(0)
-
-      # Chỉ tiền nạp dương mới gạt nợ lãi; nạp âm (nếu có) coi như điều chỉnh thuần.
-      pay_interest =
-        if Decimal.compare(decimal, 0) == :gt,
-          do: Decimal.min(decimal, interest_debt),
-          else: Decimal.new(0)
-
-      remainder = Decimal.sub(decimal, pay_interest)
-      new_interest_debt = Decimal.sub(interest_debt, pay_interest)
-      new_balance = Decimal.add(user.balance, remainder)
-
-      Multi.new()
-      |> Multi.update(:user, User.settle_changeset(user, new_balance, new_interest_debt))
-      |> Multi.insert(:tx, fn _ ->
-        FundTransaction.changeset(%FundTransaction{}, %{
-          user_id: user.id,
-          amount: remainder,
-          type: "deposit",
-          description: deposit_description(description, pay_interest),
-          balance_after: new_balance,
-          created_by_id: admin.id
-        })
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{user: updated, tx: tx}} ->
-          {:ok, %{user: updated, transaction: tx, interest_paid: pay_interest}}
-
-        {:error, _step, reason, _} ->
-          {:error, reason}
-      end
-    end
-  end
-
-  defp deposit_description(description, pay_interest) do
-    base = description || "Nạp quỹ"
-
-    if Decimal.compare(pay_interest, 0) == :gt do
-      "#{base} (đã trừ #{pay_interest}đ nợ lãi)"
-    else
-      base
+      settle_credit(user, decimal, "deposit", admin, description || "Nạp quỹ")
     end
   end
 
   @doc """
   Điều chỉnh số dư: `amount` có thể âm hoặc dương. Dùng để sửa sai/hoàn tiền.
+
+  Điều chỉnh **DƯƠNG** cũng gạt nợ lãi trước y như nạp quỹ (issue #12) — trước đây
+  chỉ cộng thẳng số dư, bỏ sót nợ lãi. Điều chỉnh âm thì trừ thẳng số dư, không đụng
+  nợ lãi. Trả `{:ok, %{user, transaction, interest_paid}}`.
   """
   def adjust(%User{} = user, amount, %User{} = admin, description \\ nil) do
-    apply_delta(user, amount, "adjustment", admin, description || "Điều chỉnh quỹ")
+    with {:ok, decimal} <- to_decimal(amount) do
+      settle_credit(user, decimal, "adjustment", admin, description || "Điều chỉnh quỹ")
+    end
   end
 
-  defp apply_delta(user, amount, type, admin, description) do
-    with {:ok, decimal} <- to_decimal(amount) do
-      new_balance = Decimal.add(user.balance, decimal)
+  # Ghi 1 khoản tiền vào quỹ (nạp/điều chỉnh) theo cùng 1 quy tắc — dùng chung cho cả
+  # deposit lẫn adjust để 2 đường không lệch nhau:
+  #   * amount > 0  → gạt hết nợ lãi (interest_debt) trước, phần còn lại mới cộng số dư.
+  #   * amount <= 0 → trừ thẳng số dư, KHÔNG đụng nợ lãi (điều chỉnh/hoàn thuần).
+  # tx.amount ghi = phần THỰC biến động số dư (remainder), giữ bất biến "tổng amount =
+  # số dư" mà stats.fund_total_until dựa vào để tái dựng quỹ. Trả kèm interest_paid.
+  defp settle_credit(%User{} = user, decimal, type, admin, description) do
+    interest_debt = user.interest_debt || Decimal.new(0)
 
-      Multi.new()
-      |> Multi.update(:user, User.balance_changeset(user, new_balance))
-      |> Multi.insert(:tx, fn _ ->
-        FundTransaction.changeset(%FundTransaction{}, %{
-          user_id: user.id,
-          amount: decimal,
-          type: type,
-          description: description,
-          balance_after: new_balance,
-          created_by_id: admin.id
-        })
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{user: updated, tx: tx}} -> {:ok, %{user: updated, transaction: tx}}
-        {:error, _step, reason, _} -> {:error, reason}
-      end
+    pay_interest =
+      if Decimal.compare(decimal, 0) == :gt,
+        do: Decimal.min(decimal, interest_debt),
+        else: Decimal.new(0)
+
+    remainder = Decimal.sub(decimal, pay_interest)
+    new_interest_debt = Decimal.sub(interest_debt, pay_interest)
+    new_balance = Decimal.add(user.balance, remainder)
+
+    Multi.new()
+    |> Multi.update(:user, User.settle_changeset(user, new_balance, new_interest_debt))
+    |> Multi.insert(:tx, fn _ ->
+      FundTransaction.changeset(%FundTransaction{}, %{
+        user_id: user.id,
+        amount: remainder,
+        type: type,
+        description: settle_description(description, pay_interest),
+        balance_after: new_balance,
+        created_by_id: admin.id
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: updated, tx: tx}} ->
+        {:ok, %{user: updated, transaction: tx, interest_paid: pay_interest}}
+
+      {:error, _step, reason, _} ->
+        {:error, reason}
+    end
+  end
+
+  defp settle_description(description, pay_interest) do
+    if Decimal.compare(pay_interest, 0) == :gt do
+      "#{description} (đã trừ #{pay_interest}đ nợ lãi)"
+    else
+      description
     end
   end
 
