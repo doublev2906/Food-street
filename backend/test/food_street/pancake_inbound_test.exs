@@ -145,9 +145,9 @@ defmodule FoodStreet.PancakeInboundTest do
       cat = make_category()
       text = PancakeInbound.relay_text(cat, %{text: "hết xôi"})
 
-      assert text =~ ~s(Nhà bán "Ăn sáng")
+      assert text =~ ~s(Nhà bán hàng "Ăn sáng")
       assert text =~ "hết xôi"
-      assert text =~ "đặt lại đơn"
+      refute text =~ "đặt lại đơn"
     end
   end
 
@@ -260,7 +260,8 @@ defmodule FoodStreet.PancakeInboundTest do
 
       assert {:ok, :relayed} = PancakeInbound.handle_messaging(inbox_payload())
       assert_received {:panchat, _auth, body}
-      assert inspect(body) =~ "HẾT MÓN"
+      assert inspect(body) =~ "hết Xôi rồi"
+      assert inspect(body) =~ "đổi lại giúp mình"
       assert inspect(body) =~ "@annie"
       assert inspect(body) =~ "33333333-3333-3333-3333-333333333333"
     end
@@ -279,7 +280,7 @@ defmodule FoodStreet.PancakeInboundTest do
       assert {:ok, :relayed} = PancakeInbound.handle_messaging(inbox_payload())
       assert_received {:panchat, _auth, body}
       assert inspect(body) =~ "phản hồi"
-      refute inspect(body) =~ "HẾT MÓN"
+      refute inspect(body) =~ "đổi lại giúp mình"
     end
 
     test "READY_FOR_PICKUP: ping đúng nhóm runners đã lưu" do
@@ -295,7 +296,8 @@ defmodule FoodStreet.PancakeInboundTest do
 
       assert {:ok, :relayed} = PancakeInbound.handle_messaging(inbox_payload())
       assert_received {:panchat, _auth, body}
-      assert inspect(body) =~ "Người đi lấy đồ"
+      assert inspect(body) =~ "Người bán đã ship rồi"
+      assert inspect(body) =~ "đi lấy đồ giúp mọi người"
       assert inspect(body) =~ "@runna"
       assert inspect(body) =~ "44444444-4444-4444-4444-444444444444"
     end
@@ -311,7 +313,7 @@ defmodule FoodStreet.PancakeInboundTest do
       assert {:ok, :relayed} = PancakeInbound.handle_messaging(inbox_payload())
       assert_received {:panchat, _auth, body}
       assert inspect(body) =~ "phản hồi"
-      refute inspect(body) =~ "Người đi lấy đồ"
+      refute inspect(body) =~ "Người bán đã ship rồi"
     end
 
     test "PAYMENT: relay nội dung + nhắc admin chuyển khoản, KHÔNG tag @all" do

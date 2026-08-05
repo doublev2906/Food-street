@@ -210,9 +210,12 @@ defmodule FoodStreet.Panchat do
   end
 
   # Paragraph "👉 @A @B @C" với mention span (offset UTF-16) cho người có UUID Panchat.
-  defp runners_paragraph(users) do
-    prefix = "👉 "
+  defp runners_paragraph(users), do: tag_paragraph("👉 ", users, "")
 
+  # 1 paragraph: `prefix` + "@A @B @C" (cách nhau bằng khoảng trắng) + `suffix`. Mỗi
+  # người có `panchat_user_id` được gắn 1 mention span (offset theo UTF-16 code unit;
+  # emoji ngoài BMP tính 2). Dùng chung cho tin bốc người / báo lấy hàng / báo hết món.
+  defp tag_paragraph(prefix, users, suffix) do
     {content, spans, _offset} =
       users
       |> Enum.with_index()
@@ -233,17 +236,15 @@ defmodule FoodStreet.Panchat do
         {content <> sep <> mention, new_spans, offset + m_len}
       end)
 
-    %{"type" => "paragraph", "content" => content, "spans" => spans}
+    %{"type" => "paragraph", "content" => content <> suffix, "spans" => spans}
   end
 
   @doc """
-  Gửi tin báo **hết món**: nhà bán báo hết 1 số món, ping những người đã đặt món
-  đó vào đổi, bằng `token` của admin (webhook dùng token admin ngẫu nhiên).
-
-  `users` là danh sách `%User{}` đã đặt món bị hết; chỉ mention thật ai có
-  `panchat_user_id`. `seller_text` là nguyên văn tin nhà bán (để cả nhóm đối chiếu).
+  Gửi tin báo **hết món** (ping người đã đặt món đó vào đổi), bằng `token`.
+  `users` = danh sách `%User{}` đã đặt món bị hết (mention thật ai có
+  `panchat_user_id`); `item_names` = tên các món bị hết (hiển thị trong tin).
   """
-  def send_stock_alert(%GroupOrder{} = go, users, seller_text, token) do
+  def send_stock_alert(users, item_names, token) do
     case token do
       nil ->
         {:error, :panchat_token_missing}
@@ -252,26 +253,53 @@ defmodule FoodStreet.Panchat do
         if String.trim(token) == "" do
           {:error, :panchat_token_missing}
         else
-          post_message(token, stock_alert_body(go, users, seller_text))
+          post_message(token, stock_alert_body(users, item_names))
         end
     end
   end
 
   @doc """
-  Body tin báo hết món: header + trích nguyên văn tin nhà bán + paragraph mention
-  người cần đổi món (tái dùng `runners_paragraph/1` → mention thật + offset UTF-16
-  đúng) + footer. Tách ra để test thuần payload, không gọi mạng.
+  Body tin báo hết món: 1 paragraph "@A @B hết <món> rồi nhé, đổi lại giúp mình".
+  Tách ra để test thuần payload, không gọi mạng.
   """
-  def stock_alert_body(%GroupOrder{} = go, users, seller_text) do
-    header = %{
-      "type" => "paragraph",
-      "content" => "🛒 Nhà bán \"#{go.title}\" báo HẾT MÓN:"
-    }
+  def stock_alert_body(users, item_names) do
+    items = item_names |> List.wrap() |> Enum.join(", ")
+    p = tag_paragraph("", users, " hết #{items} rồi nhé, đổi lại giúp mình")
+    %{"text" => [p]}
+  end
 
-    quote_p = %{"type" => "paragraph", "content" => "\"#{String.trim(seller_text)}\""}
-    footer = %{"type" => "paragraph", "content" => "Mọi người đổi món giúp nhé 🙏"}
+  @doc """
+  Gửi tin báo **nhà bán đã ship, xuống lấy hàng**: tag lại nhóm runners đã bốc lúc
+  chốt đợt, bằng `token`. `runners` = danh sách `%User{}` (mention thật ai có
+  `panchat_user_id`).
+  """
+  def send_pickup_alert(%GroupOrder{} = go, runners, token) do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
 
-    %{"text" => [header, quote_p, runners_paragraph(users), footer]}
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          post_message(token, pickup_alert_body(go, runners))
+        end
+    end
+  end
+
+  @doc """
+  Body tin báo lấy hàng: 1 paragraph "Đơn <tên đợt>. @A @B xong đi lấy đồ giúp mọi
+  người nhé. Người bán đã ship rồi". Tách ra để test thuần payload, không gọi mạng.
+  """
+  def pickup_alert_body(%GroupOrder{} = go, runners) do
+    p =
+      tag_paragraph(
+        "Đơn #{go.title}. ",
+        runners,
+        " xong đi lấy đồ giúp mọi người nhé. Người bán đã ship rồi"
+      )
+
+    %{"text" => [p]}
   end
 
   defp mention_span(from, to, user_id) do

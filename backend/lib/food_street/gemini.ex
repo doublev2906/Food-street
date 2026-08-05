@@ -111,7 +111,7 @@ defmodule FoodStreet.Gemini do
 
     """
     Danh mục: #{category}
-    Các món đã đặt trong đợt đang mở:
+    Các món đã đặt trong đợt hiện tại:
     #{items_block}
 
     Tin nhắn của người bán:

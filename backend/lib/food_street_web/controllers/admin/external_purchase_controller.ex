@@ -38,9 +38,12 @@ defmodule FoodStreetWeb.Admin.ExternalPurchaseController do
     end
   end
 
-  # Báo Panchat khi chia tiền (best-effort, tag @all, token admin thực hiện).
+  # Báo Panchat khi chia tiền (best-effort, tag @all). Ưu tiên token admin; chưa
+  # cấu hình thì fallback token bot (env `PANCHAT_BOT_TOKEN`) để tin vẫn gửi được.
   defp notify_split(purchase, admin) do
-    case Panchat.send_external_purchase(purchase, Settings.panchat_token(admin.id)) do
+    token = Settings.panchat_token(admin.id) || Panchat.bot_token()
+
+    case Panchat.send_external_purchase(purchase, token) do
       {:ok, _} ->
         %{sent: true}
 

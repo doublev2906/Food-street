@@ -35,13 +35,15 @@ defmodule FoodStreet.Ordering do
   end
 
   @doc """
-  Đợt đang mở MỚI NHẤT của 1 danh mục (hoặc `nil`). Dùng khi xử lý tin nhà bán:
-  cần đợt hiện hành để tìm người đã đặt / người đi lấy đồ. `order_by desc` +
-  `limit(1)` để deterministic khi lỡ có nhiều đợt mở cùng danh mục.
+  Đợt CÒN HIỆU LỰC gần nhất của 1 danh mục — `status` là `"open"` hoặc `"closed"`
+  (bỏ `"cancelled"`), hoặc `nil`. Dùng khi xử lý tin nhà bán: cần đợt hiện hành để
+  tìm người đã đặt (hết món) / người đi lấy đồ (runners). Nhà bán thường báo SAU khi
+  đã chốt & gửi đơn (đợt `"closed"`) nên phải gồm cả đợt đã chốt, không chỉ `"open"`.
+  `order_by desc` + `limit(1)` để deterministic khi lỡ có nhiều đợt cùng danh mục.
   """
-  def get_open_group_order_for_category(category_id) do
+  def get_active_group_order_for_category(category_id) do
     GroupOrder
-    |> where([g], g.category_id == ^category_id and g.status == "open")
+    |> where([g], g.category_id == ^category_id and g.status in ["open", "closed"])
     |> order_by([g], desc: g.order_date, desc: g.inserted_at)
     |> limit(1)
     |> Repo.one()

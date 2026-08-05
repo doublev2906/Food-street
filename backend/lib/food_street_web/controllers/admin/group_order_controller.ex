@@ -33,26 +33,18 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   def create(conn, params) do
     admin = Guardian.Plug.current_resource(conn)
 
-    # Bắt buộc admin đã cấu hình Panchat token CỦA MÌNH: không có thì không cho mở
-    # đợt (vì lời mời được gửi bằng chính token của admin tạo đợt).
-    if Settings.panchat_configured?(admin.id) do
-      with {:ok, go} <- Ordering.create_group_order(params, admin) do
-        panchat = send_invite(go, Settings.panchat_token(admin.id))
+    with {:ok, go} <- Ordering.create_group_order(params, admin) do
+      panchat = send_invite(go, admin_token(admin))
 
-        conn
-        |> put_status(:created)
-        |> json(%{data: shape(go), panchat: panchat})
-      end
-    else
       conn
-      |> put_status(:unprocessable_entity)
-      |> json(%{
-        error: "panchat_token_missing",
-        message:
-          "Bạn chưa cấu hình Panchat token của mình. Vào tab Cài đặt để nhập token trước khi tạo đợt."
-      })
+      |> put_status(:created)
+      |> json(%{data: shape(go), panchat: panchat})
     end
   end
+
+  # Token gửi Panchat cho thao tác của admin: ưu tiên token riêng của admin; admin
+  # chưa cấu hình thì fallback token bot (env `PANCHAT_BOT_TOKEN`) để tin vẫn gửi được.
+  defp admin_token(admin), do: Settings.panchat_token(admin.id) || Panchat.bot_token()
 
   # Gửi lời mời vào Panchat (best-effort): lỗi mạng không rollback đợt đã tạo,
   # chỉ báo lại trạng thái để admin biết.
@@ -119,7 +111,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
   # Báo Panchat khi xoá đợt (best-effort, token admin thực hiện).
   defp notify_deleted(go, admin) do
-    case Panchat.send_group_deleted(go, Settings.panchat_token(admin.id)) do
+    case Panchat.send_group_deleted(go, admin_token(admin)) do
       {:ok, _} ->
         :ok
 
@@ -196,7 +188,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
   # Báo Panchat khi hoàn quỹ (mở lại / huỷ đợt) — best-effort, token admin thực hiện.
   defp notify_refunded(group, count, total, mode, admin) do
-    case Panchat.send_group_refunded(group, count, total, mode, Settings.panchat_token(admin.id)) do
+    case Panchat.send_group_refunded(group, count, total, mode, admin_token(admin)) do
       {:ok, _} ->
         %{sent: true}
 
@@ -263,7 +255,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
         if o.status == "cancelled", do: acc, else: Decimal.add(acc, o.total_amount)
       end)
 
-    case Panchat.send_group_closed_summary(group, count, total, Settings.panchat_token(admin.id)) do
+    case Panchat.send_group_closed_summary(group, count, total, admin_token(admin)) do
       {:ok, _} ->
         %{sent: true}
 
@@ -278,7 +270,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
   defp notify_runners(_go, [], _admin), do: %{skipped: true}
 
   defp notify_runners(go, runners, admin) do
-    case Panchat.send_runners_picked(go, runners, Settings.panchat_token(admin.id)) do
+    case Panchat.send_runners_picked(go, runners, admin_token(admin)) do
       {:ok, _} ->
         %{sent: true}
 

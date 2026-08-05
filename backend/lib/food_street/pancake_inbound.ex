@@ -6,8 +6,8 @@ defmodule FoodStreet.PancakeInbound do
   - `OUT_OF_STOCK` (hết món) → ping những người đã đặt đúng món đó vào đổi món.
   - `READY_FOR_PICKUP` (báo xuống lấy hàng) → ping nhóm đã bốc đi lấy đồ (runners).
   - `PAYMENT` (báo thanh toán) → relay nội dung + nhắc admin chuyển khoản (không ping ai).
-  - `OTHER` / không có đợt mở / Gemini lỗi → relay nguyên văn như cũ. Riêng Gemini
-    lỗi/timeout thì relay kèm 1 dòng báo phân loại lỗi.
+  - `OTHER` / không có đợt hiệu lực / Gemini lỗi → relay nguyên văn như cũ. Riêng
+    Gemini lỗi/timeout thì relay kèm 1 dòng báo phân loại lỗi.
 
   Vì webhook không gắn admin cụ thể, tin gửi bằng **token bot** (`Panchat.bot_token/0`,
   env `PANCHAT_BOT_TOKEN`). Chưa cấu hình `GEMINI_API_KEY` thì bỏ qua phân loại, relay
@@ -115,22 +115,23 @@ defmodule FoodStreet.PancakeInbound do
     |> Repo.insert(on_conflict: :nothing, conflict_target: :message_id)
   end
 
-  # Phân loại tin nhà bán rồi hành động theo ý định. Đợt đang mở (nếu có) cần cho
-  # OUT_OF_STOCK/READY_FOR_PICKUP; không có đợt mở thì mọi thứ về relay nguyên văn.
+  # Phân loại tin nhà bán rồi hành động theo ý định. Đợt còn hiệu lực gần nhất (mở
+  # hoặc đã chốt — nhà bán thường báo sau khi đã chốt/gửi đơn) cần cho
+  # OUT_OF_STOCK/READY_FOR_PICKUP; không có đợt thì mọi thứ về relay nguyên văn.
   defp dispatch(category, ctx, token) do
-    go = Ordering.get_open_group_order_for_category(category.id)
+    go = Ordering.get_active_group_order_for_category(category.id)
 
-    case classify_intent(category, ctx, go) do
+    case classify_intent(category, ctx, go) |> IO.inspect(label: "Gemini Classification") do
       {:ok, %{intent: "OUT_OF_STOCK", items: items}} when not is_nil(go) ->
         case Ordering.users_ordering_items(go, items) do
           [] -> plain_relay(category, ctx, token)
-          users -> normalize(Panchat.send_stock_alert(go, users, ctx.text, token))
+          users -> normalize(Panchat.send_stock_alert(users, items, token))
         end
 
       {:ok, %{intent: "READY_FOR_PICKUP"}} when not is_nil(go) ->
         case Ordering.list_runners(go) do
           [] -> plain_relay(category, ctx, token)
-          runners -> normalize(Panchat.send_runners_picked(go, runners, token))
+          runners -> normalize(Panchat.send_pickup_alert(go, runners, token))
         end
 
       {:ok, %{intent: "PAYMENT"}} ->
@@ -187,9 +188,8 @@ defmodule FoodStreet.PancakeInbound do
   @doc "Nội dung tin relay nguyên văn vào Panchat (thuần, không gọi mạng — tách để test)."
   def relay_text(%Catalog.Category{} = category, ctx) do
     """
-    🛒 Nhà bán "#{category.name}" phản hồi:
+    🛒 Nhà bán hàng "#{category.name}" phản hồi:
     "#{String.trim(ctx.text)}"
-    ⚠️ Có thể hết/đổi món — mọi người kiểm tra & đặt lại đơn nhé.
     """
     |> String.trim_trailing()
   end
@@ -197,7 +197,7 @@ defmodule FoodStreet.PancakeInbound do
   @doc "Nội dung tin báo nhà bán yêu cầu thanh toán (thuần, không gọi mạng)."
   def payment_text(%Catalog.Category{} = category, ctx) do
     """
-    💳 Nhà bán "#{category.name}" báo thanh toán:
+    💳 Nhà bán hàng "#{category.name}" báo thanh toán:
     "#{String.trim(ctx.text)}"
     🔔 Admin kiểm tra & chuyển khoản cho nhà bán nhé.
     """

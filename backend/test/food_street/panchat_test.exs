@@ -357,39 +357,56 @@ defmodule FoodStreet.PanchatTest do
     end
   end
 
-  describe "stock_alert_body/3 và send_stock_alert/4" do
+  describe "stock_alert_body/2 và send_stock_alert/3" do
     @uid_stock "22222222-2222-2222-2222-222222222222"
 
-    test "header báo HẾT MÓN + trích nguyên văn (trim) + footer đổi món; mention thật chỉ user có UUID" do
-      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
-
+    test "1 paragraph '@A @B hết <món> rồi nhé, đổi lại giúp mình'; mention thật chỉ user có UUID" do
       users = [
         %User{name: "An", panchat_user_id: @uid_stock},
         %User{name: "Bình", panchat_user_id: nil}
       ]
 
-      body = Panchat.stock_alert_body(go, users, "  hết xôi nhé cả nhà  ")
-      [header, quote_p, runner_p, footer] = body["text"]
+      body = Panchat.stock_alert_body(users, ["Xôi", "Bánh mì"])
+      assert [p] = body["text"]
+      assert p["content"] == "@An @Bình hết Xôi, Bánh mì rồi nhé, đổi lại giúp mình"
 
-      assert header["content"] =~ "HẾT MÓN"
-      assert header["content"] =~ "Sáng T2"
-      # Nguyên văn tin nhà bán đã trim, nằm trong dấu ngoặc kép.
-      assert quote_p["content"] == ~s("hết xôi nhé cả nhà")
-      assert runner_p["content"] =~ "@An"
-      assert runner_p["content"] =~ "@Bình"
-      assert footer["content"] =~ "đổi món"
-
-      # Chỉ An (có UUID) được mention thật; Bình không sinh span.
-      assert [%{"type" => "mention", "ref" => %{"type" => "user", "user_id" => @uid_stock}}] =
-               runner_p["spans"]
+      # Chỉ An (có UUID) được mention thật (offset 0..3 = "@An"); Bình không sinh span.
+      assert [%{"type" => "mention", "from" => 0, "to" => 3, "ref" => ref}] = p["spans"]
+      assert ref == %{"type" => "user", "user_id" => @uid_stock}
     end
 
     test "send_stock_alert lỗi khi thiếu token, không gọi mạng" do
-      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
       users = [%User{name: "An", panchat_user_id: @uid_stock}]
 
-      assert Panchat.send_stock_alert(go, users, "hết", nil) == {:error, :panchat_token_missing}
-      assert Panchat.send_stock_alert(go, users, "hết", "  ") == {:error, :panchat_token_missing}
+      assert Panchat.send_stock_alert(users, ["Xôi"], nil) == {:error, :panchat_token_missing}
+      assert Panchat.send_stock_alert(users, ["Xôi"], "  ") == {:error, :panchat_token_missing}
+    end
+  end
+
+  describe "pickup_alert_body/2 và send_pickup_alert/3" do
+    @uid_pk "33333333-3333-3333-3333-333333333333"
+
+    test "1 paragraph 'Đơn <đợt>. @A xong đi lấy đồ...'; mention thật + offset UTF-16" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
+      runners = [%User{name: "An", panchat_user_id: @uid_pk}]
+
+      body = Panchat.pickup_alert_body(go, runners)
+      assert [p] = body["text"]
+
+      assert p["content"] ==
+               ~s(Đơn Sáng T2. @An xong đi lấy đồ giúp mọi người nhé. Người bán đã ship rồi)
+
+      # "Đơn Sáng T2. " = 13 code unit UTF-16 → @An ở 13..16.
+      assert [%{"type" => "mention", "from" => 13, "to" => 16, "ref" => ref}] = p["spans"]
+      assert ref == %{"type" => "user", "user_id" => @uid_pk}
+    end
+
+    test "send_pickup_alert lỗi khi thiếu token, không gọi mạng" do
+      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+      runners = [%User{name: "An", panchat_user_id: @uid_pk}]
+
+      assert Panchat.send_pickup_alert(go, runners, nil) == {:error, :panchat_token_missing}
+      assert Panchat.send_pickup_alert(go, runners, "  ") == {:error, :panchat_token_missing}
     end
   end
 end

@@ -259,18 +259,18 @@ defmodule FoodStreet.OrderingTest do
     end
   end
 
-  describe "get_open_group_order_for_category/1" do
-    test "lấy đợt mở MỚI NHẤT của danh mục, bỏ đợt đã đóng/huỷ" do
-      %{admin: a, cat: cat, go: old_open} = setup_group()
+  describe "get_active_group_order_for_category/1" do
+    test "lấy đợt gần nhất còn hiệu lực (mở HOẶC đã chốt), bỏ đợt đã huỷ" do
+      %{admin: a, cat: cat} = setup_group()
 
-      # Đợt mở mới hơn (order_date muộn hơn) cùng danh mục.
-      {:ok, new_open} =
+      # Đợt mở mới hơn setup_group (2026-07-02).
+      {:ok, _open2} =
         Ordering.create_group_order(
           %{"title" => "Sáng T3", "order_date" => "2026-07-03", "category_id" => cat.id},
           a
         )
 
-      # Đợt đã đóng (không được chọn) dù order_date muộn nhất.
+      # Đợt đã CHỐT — vẫn còn hiệu lực (nhà bán báo sau khi chốt) và mới hơn.
       {:ok, closed} =
         Ordering.create_group_order(
           %{"title" => "Sáng T4", "order_date" => "2026-07-04", "category_id" => cat.id},
@@ -279,17 +279,26 @@ defmodule FoodStreet.OrderingTest do
 
       {:ok, _} = Ordering.update_group_order(closed, %{"status" => "closed"})
 
-      got = Ordering.get_open_group_order_for_category(cat.id)
-      assert got.id == new_open.id
-      refute got.id == old_open.id
+      # Đợt đã HUỶ — mới nhất nhưng phải bị loại.
+      {:ok, cancelled} =
+        Ordering.create_group_order(
+          %{"title" => "Sáng T5", "order_date" => "2026-07-05", "category_id" => cat.id},
+          a
+        )
+
+      {:ok, _} = Ordering.update_group_order(cancelled, %{"status" => "cancelled"})
+
+      # 07-05 huỷ (loại) → chọn 07-04 đã chốt (mới nhất còn hiệu lực).
+      got = Ordering.get_active_group_order_for_category(cat.id)
+      assert got.id == closed.id
     end
 
-    test "danh mục khác không lẫn; không có đợt mở → nil" do
+    test "danh mục khác không lẫn; không có đợt hiệu lực → nil" do
       %{cat: cat} = setup_group()
       {:ok, other} = Catalog.create_category(%{name: "Ăn trưa"})
 
-      assert Ordering.get_open_group_order_for_category(other.id) == nil
-      assert %{} = Ordering.get_open_group_order_for_category(cat.id)
+      assert Ordering.get_active_group_order_for_category(other.id) == nil
+      assert %{} = Ordering.get_active_group_order_for_category(cat.id)
     end
   end
 
