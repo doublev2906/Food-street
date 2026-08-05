@@ -1,7 +1,8 @@
 defmodule FoodStreet.BalanceReportTest do
-  use FoodStreet.DataCase, async: true
+  # async: false — test "no bot token" tạm xoá Application env `:panchat_bot_token`.
+  use FoodStreet.DataCase, async: false
 
-  alias FoodStreet.{BalanceReport, Settings, Accounts}
+  alias FoodStreet.{BalanceReport, Accounts}
 
   # 10:00 UTC = 17:00 giờ VN.
   @at_5pm ~U[2026-07-02 10:00:00Z]
@@ -28,9 +29,7 @@ defmodule FoodStreet.BalanceReportTest do
     Repo.update!(Ecto.Changeset.change(u, balance: Decimal.new(balance)))
   end
 
-  test "gửi 1 lần lúc 17:00, idempotent trong ngày" do
-    a = make("admin1", "admin", "0")
-    Settings.put_panchat_token(a.id, "tok")
+  test "gửi 1 lần lúc 17:00 bằng token bot, idempotent trong ngày" do
     make("usr1", "user", "50000")
 
     assert {:ok, :sent} = BalanceReport.run_tick(@at_5pm)
@@ -39,16 +38,16 @@ defmodule FoodStreet.BalanceReportTest do
   end
 
   test "chưa tới 17:00 thì bỏ qua" do
-    a = make("admin1", "admin", "0")
-    Settings.put_panchat_token(a.id, "tok")
-
     assert {:ok, :skipped, :too_early} = BalanceReport.run_tick(@before_5pm)
   end
 
-  test "không admin nào có token → bỏ qua" do
-    make("admin1", "admin", "0")
+  test "chưa cấu hình bot token → bỏ qua" do
     make("usr1", "user", "50000")
 
-    assert {:ok, :skipped, :no_admin_token} = BalanceReport.run_tick(@at_5pm)
+    prev = Application.get_env(:food_street, :panchat_bot_token)
+    Application.delete_env(:food_street, :panchat_bot_token)
+    on_exit(fn -> Application.put_env(:food_street, :panchat_bot_token, prev) end)
+
+    assert {:ok, :skipped, :no_bot_token} = BalanceReport.run_tick(@at_5pm)
   end
 end

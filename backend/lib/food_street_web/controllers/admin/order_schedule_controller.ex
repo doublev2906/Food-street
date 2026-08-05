@@ -3,7 +3,7 @@ defmodule FoodStreetWeb.Admin.OrderScheduleController do
   use FoodStreetWeb, :controller
 
   alias FoodStreet.Scheduling
-  alias FoodStreet.Settings
+  alias FoodStreet.Panchat
 
   action_fallback FoodStreetWeb.FallbackController
 
@@ -19,11 +19,11 @@ defmodule FoodStreetWeb.Admin.OrderScheduleController do
       enabled? and (is_nil(owner_id) or owner_id == "") ->
         error(conn, "owner_required", "Hãy chọn admin đứng tên trước khi bật lịch.")
 
-      enabled? and not Settings.panchat_configured?(owner_id) ->
+      enabled? and is_nil(Panchat.bot_token()) ->
         error(
           conn,
-          "owner_panchat_token_missing",
-          "Admin đứng tên chưa cấu hình Panchat token của mình — không thể bật lịch hẹn."
+          "panchat_bot_token_missing",
+          "Hệ thống chưa cấu hình token bot Panchat (PANCHAT_BOT_TOKEN) — không thể bật lịch hẹn."
         )
 
       true ->
@@ -33,9 +33,9 @@ defmodule FoodStreetWeb.Admin.OrderScheduleController do
     end
   end
 
-  # Bổ sung cờ `panchat_ready` để UI cảnh báo khi chủ lịch chưa có token.
+  # Cờ `panchat_ready`: đợt tự động gửi bằng token bot → sẵn sàng khi bot token đã cấu hình.
   defp shape(schedule) do
-    ready = not is_nil(schedule.owner_id) and Settings.panchat_configured?(schedule.owner_id)
+    ready = not is_nil(Panchat.bot_token())
 
     %{
       id: schedule.id,

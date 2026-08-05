@@ -2,14 +2,14 @@ defmodule FoodStreet.BalanceReport do
   @moduledoc """
   Báo số dư quỹ của từng người vào Panchat lúc 17:00 (GMT+7) mỗi ngày.
 
-  `run_tick/1` được `FoodStreet.OrderScheduler` gọi định kỳ. Tin gửi bằng token
-  của một admin NGẪU NHIÊN có cấu hình Panchat token. Chống gửi trùng trong ngày
-  bằng `job_runs` (key "balance_report"). Giờ tính theo giờ VN (UTC+7, không DST).
+  `run_tick/1` được `FoodStreet.OrderScheduler` gọi định kỳ. Tin gửi bằng **token bot**
+  (`Panchat.bot_token/0`, env `PANCHAT_BOT_TOKEN`). Chống gửi trùng trong ngày bằng
+  `job_runs` (key "balance_report"). Giờ tính theo giờ VN (UTC+7, không DST).
   """
   import Ecto.Query, warn: false
   require Logger
 
-  alias FoodStreet.{Repo, Settings, Panchat, Scheduling}
+  alias FoodStreet.{Repo, Panchat, Scheduling}
   alias FoodStreet.Accounts.User
 
   @job "balance_report"
@@ -36,10 +36,10 @@ defmodule FoodStreet.BalanceReport do
   end
 
   defp do_send(vn_date) do
-    case pick_admin_token() do
+    case Panchat.bot_token() do
       nil ->
-        Logger.warning("[BalanceReport] Không có admin nào cấu hình Panchat token — bỏ qua")
-        {:ok, :skipped, :no_admin_token}
+        Logger.warning("[BalanceReport] chưa cấu hình PANCHAT_BOT_TOKEN — bỏ qua")
+        {:ok, :skipped, :no_bot_token}
 
       token ->
         case Panchat.send_balance_report(active_users(), vn_date, token) do
@@ -56,16 +56,6 @@ defmodule FoodStreet.BalanceReport do
 
   defp active_users do
     Repo.all(from u in User, where: u.active == true, order_by: [asc: u.name])
-  end
-
-  # Chọn ngẫu nhiên 1 admin đang hoạt động đã cấu hình Panchat token; nil nếu không có.
-  defp pick_admin_token do
-    admins = Repo.all(from u in User, where: u.role == "admin" and u.active == true)
-
-    case Enum.filter(admins, &Settings.panchat_configured?(&1.id)) do
-      [] -> nil
-      list -> Settings.panchat_token(Enum.random(list).id)
-    end
   end
 
   defp vn_now(now_utc) do

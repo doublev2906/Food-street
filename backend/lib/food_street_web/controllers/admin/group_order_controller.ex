@@ -140,9 +140,11 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
         with {:ok, result} <- Ordering.close_group_order(go, admin) do
           panchat = notify_closed(result.group, result.confirmed, admin)
 
-          # Chốt xong tự bốc ngẫu nhiên người đi lấy đồ theo số đã chọn khi tạo đợt.
+          # Chốt xong tự bốc ngẫu nhiên người đi lấy đồ theo số đã chọn khi tạo đợt,
+          # rồi LƯU lại (runner_user_ids) để tái dùng khi nhà bán báo "xuống lấy hàng".
           runners = Ordering.pick_runners(result.group, result.group.runner_count)
-          runners_panchat = notify_runners(result.group, runners, admin)
+          {:ok, group} = Ordering.set_runners(result.group, runners)
+          runners_panchat = notify_runners(group, runners, admin)
 
           json(conn, %{
             data: %{

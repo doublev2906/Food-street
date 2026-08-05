@@ -14,6 +14,11 @@ config :food_street,
 # URL gốc của frontend, dùng để dựng link trong lời mời gửi vào Panchat.
 config :food_street, :frontend_url, "https://dev.pancake.vn:3200"
 
+# Kênh Panchat đích (mặc định = kênh THẬT "Pancake Food Street" cho prod). Dev/test
+# override sang kênh thử (xem dev.exs / test.exs) để khỏi làm phiền kênh chung.
+config :food_street, :panchat_workspace_id, 4
+config :food_street, :panchat_channel_id, 11_813
+
 # Ticker lịch hẹn tự động mở đợt đặt món (bật theo mặc định; kiểm tra mỗi 60s).
 config :food_street, FoodStreet.OrderScheduler, enabled: true, interval_ms: 60_000
 

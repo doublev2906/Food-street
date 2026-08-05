@@ -1,7 +1,8 @@
 defmodule FoodStreet.SchedulingTest do
-  use FoodStreet.DataCase, async: true
+  # async: false — test "chưa cấu hình bot token" tạm xoá Application env `:panchat_bot_token`.
+  use FoodStreet.DataCase, async: false
 
-  alias FoodStreet.{Scheduling, Settings, Accounts, Catalog}
+  alias FoodStreet.{Scheduling, Accounts, Catalog}
   alias FoodStreet.Scheduling.DailyOrderSchedule
 
   # 02:00 UTC = 09:00 giờ Việt Nam (UTC+7).
@@ -57,9 +58,7 @@ defmodule FoodStreet.SchedulingTest do
 
   describe "due?/2" do
     setup do
-      owner = admin("owner")
-      Settings.put_panchat_token(owner.id, "tok")
-      %{owner: owner, cat: category()}
+      %{owner: admin("owner"), cat: category()}
     end
 
     test "true khi đúng ngày, đã qua giờ tạo, chưa chạy hôm nay", %{owner: o, cat: c} do
@@ -96,9 +95,8 @@ defmodule FoodStreet.SchedulingTest do
   end
 
   describe "run_tick/1" do
-    test "tạo đúng 1 đợt và idempotent trong ngày" do
+    test "tạo đúng 1 đợt (gửi mời bằng token bot) và idempotent trong ngày" do
       o = admin("owner")
-      Settings.put_panchat_token(o.id, "tok")
       c = category()
       save!(base_attrs(o, c))
 
@@ -119,7 +117,6 @@ defmodule FoodStreet.SchedulingTest do
 
     test "đợt tạo tự động mang runner_count của lịch" do
       o = admin("owner")
-      Settings.put_panchat_token(o.id, "tok")
       c = category()
       save!(base_attrs(o, c, %{"runner_count" => 2}))
 
@@ -127,18 +124,21 @@ defmodule FoodStreet.SchedulingTest do
       assert go.runner_count == 2
     end
 
-    test "bỏ qua khi chủ lịch chưa có token Panchat" do
+    test "bỏ qua khi chưa cấu hình bot token" do
       o = admin("owner")
       c = category()
       save!(base_attrs(o, c))
 
-      assert {:ok, :skipped, :owner_token_missing} = Scheduling.run_tick(@now)
+      prev = Application.get_env(:food_street, :panchat_bot_token)
+      Application.delete_env(:food_street, :panchat_bot_token)
+      on_exit(fn -> Application.put_env(:food_street, :panchat_bot_token, prev) end)
+
+      assert {:ok, :skipped, :bot_token_missing} = Scheduling.run_tick(@now)
       assert list_group_orders() == []
     end
 
     test "bỏ qua khi chưa tới giờ" do
       o = admin("owner")
-      Settings.put_panchat_token(o.id, "tok")
       c = category()
       save!(base_attrs(o, c, %{"create_time" => ~T[10:00:00], "deadline_time" => ~T[11:00:00]}))
 

@@ -25,3 +25,6 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 food_street-*.tar
 
+# Secret dev ở máy local (vd PANCHAT_BOT_TOKEN) — không commit. Dùng dev.local.exs.example làm mẫu.
+/config/dev.local.exs
+

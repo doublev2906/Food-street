@@ -33,8 +33,23 @@ config :food_street, FoodStreet.Interest,
 # Không gọi HTTP Panchat thật trong test — định tuyến qua Req.Test stub.
 config :food_street, :panchat_req_options, plug: {Req.Test, FoodStreet.Panchat}
 
+# Test bắn vào kênh THỬ (giống dev). Req.Test key theo module nên số kênh không ảnh
+# hưởng stub — chỉ để assert URL/mention @all đúng theo config.
+config :food_street, :panchat_workspace_id, 5979
+config :food_street, :panchat_channel_id, 15_515
+
+# Token bot giả để luồng tự động (relay webhook, báo số dư, mở đợt theo lịch) chạy
+# happy-path trong test. Test nào cần "thiếu token" tự xoá env này rồi khôi phục.
+config :food_street, :panchat_bot_token, "bot_test_tok"
+
 # Không gọi HTTP Pancake Page thật trong test — định tuyến qua Req.Test stub.
 config :food_street, :pancake_req_options, plug: {Req.Test, FoodStreet.PancakePage}
+
+# Không gọi HTTP Gemini thật trong test — định tuyến qua Req.Test stub.
+config :food_street, :gemini_req_options, plug: {Req.Test, FoodStreet.Gemini}
+
+# Key giả để `Gemini.enabled?/0` = true trong test (test tự tắt bằng cách xoá nếu cần).
+config :food_street, :gemini_api_key, "test_gemini_key"
 
 # Secret webhook Pancake cố định cho test.
 config :food_street, :pancake_webhook_secret, "test_webhook_secret"

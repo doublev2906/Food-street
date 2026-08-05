@@ -2,15 +2,20 @@ defmodule FoodStreet.Panchat do
   @moduledoc """
   Gửi tin nhắn vào Panchat (pancakework.vn).
 
-  Dùng để báo cho cả nhóm khi admin mở 1 đợt đặt đồ ăn sáng: gửi 1 tin gốc vào
-  channel "Pancake Food Street" (workspace 4 / channel 11813), tag `@all` kèm
-  link để mọi người vào đặt món.
+  Kênh đích cấu hình theo môi trường (`:panchat_workspace_id` / `:panchat_channel_id`):
+  prod = kênh THẬT "Pancake Food Street" (workspace 4 / channel 11813), dev/test = kênh
+  thử (workspace 5979 / channel 15515) để khỏi làm phiền kênh chung.
 
-  Token của admin tạo đợt (mỗi admin một token riêng — xem
-  `FoodStreet.Settings.panchat_token/1`) được gửi qua header Bearer. Endpoint và
-  payload theo Pancake Work API v2 (operation `sendChannelMessage`):
+  Hai nguồn token:
 
-      POST https://pancakework.vn/api/v2/channels/11813/messages?workspace_id=4
+    * **Token admin** — tin do admin bấm (mở/chốt/hoàn/huỷ đợt, bốc người, mua ngoài);
+      mỗi admin một token riêng (`FoodStreet.Settings.panchat_token/1`).
+    * **Token bot** (`bot_token/0`, env `PANCHAT_BOT_TOKEN`) — tin TỰ ĐỘNG không do admin
+      bấm: relay webhook nhà bán, báo số dư quỹ, mở đợt theo lịch.
+
+  Token gửi qua header Bearer. Endpoint/payload theo Pancake Work API v2 (`sendChannelMessage`):
+
+      POST https://pancakework.vn/api/v2/channels/<channel_id>/messages?workspace_id=<ws>
       Authorization: Bearer <TOKEN>
       body: %{text: [%{type: "paragraph", content: ..., spans: [mention @all]}]}
   """
@@ -22,11 +27,32 @@ defmodule FoodStreet.Panchat do
   alias FoodStreet.Fund.ExternalPurchase
 
   @base_url "https://pancakework.vn"
-  @workspace_id 4
-  @channel_id 11_813
+
+  # Kênh đích mặc định = kênh THẬT (prod). Dev/test override qua config
+  # `:panchat_workspace_id` / `:panchat_channel_id` (xem config/*.exs). Giữ default
+  # dạng attr để @doc/moduledoc nội suy được và làm giá trị fallback cho hàm.
+  @default_workspace_id 4
+  @default_channel_id 11_813
 
   # URL trong nội dung tin (http/https, tới khoảng trắng đầu tiên).
   @url_regex ~r{https?://\S+}
+
+  @doc """
+  Token của tài khoản BOT Panchat (env `PANCHAT_BOT_TOKEN`), dùng cho các tin TỰ ĐỘNG
+  (relay webhook nhà bán, báo số dư, mở đợt theo lịch). Trả `nil` nếu chưa cấu hình /
+  rỗng — caller tự bỏ qua (best-effort).
+  """
+  def bot_token do
+    case Application.get_env(:food_street, :panchat_bot_token) do
+      token when is_binary(token) and token != "" -> token
+      _ -> nil
+    end
+  end
+
+  defp workspace_id,
+    do: Application.get_env(:food_street, :panchat_workspace_id, @default_workspace_id)
+
+  defp channel_id, do: Application.get_env(:food_street, :panchat_channel_id, @default_channel_id)
 
   @doc """
   Gửi lời mời ăn sáng cho 1 đợt đặt nhóm vào channel Panchat bằng `token` của
@@ -144,8 +170,8 @@ defmodule FoodStreet.Panchat do
   Test nhanh việc gửi thông báo Panchat: lấy TẤT CẢ user trong DB có
   `panchat_user_id` rồi gửi 1 tin mention thử vào channel — KHÔNG cần tạo đợt/đơn.
 
-  ⚠️ Gửi thật vào channel Pancake Food Street (workspace #{@workspace_id} /
-  channel #{@channel_id}), nên tiêu đề đánh dấu "[TEST]" cho mọi người biết.
+  ⚠️ Gửi thật vào kênh Panchat đang cấu hình (prod: workspace #{@default_workspace_id} /
+  channel #{@default_channel_id}), nên tiêu đề đánh dấu "[TEST]" cho mọi người biết.
 
   Cần token Panchat của 1 admin (mỗi admin 1 token — xem `FoodStreet.Settings`).
   Chạy trong IEx trên server:
@@ -208,6 +234,44 @@ defmodule FoodStreet.Panchat do
       end)
 
     %{"type" => "paragraph", "content" => content, "spans" => spans}
+  end
+
+  @doc """
+  Gửi tin báo **hết món**: nhà bán báo hết 1 số món, ping những người đã đặt món
+  đó vào đổi, bằng `token` của admin (webhook dùng token admin ngẫu nhiên).
+
+  `users` là danh sách `%User{}` đã đặt món bị hết; chỉ mention thật ai có
+  `panchat_user_id`. `seller_text` là nguyên văn tin nhà bán (để cả nhóm đối chiếu).
+  """
+  def send_stock_alert(%GroupOrder{} = go, users, seller_text, token) do
+    case token do
+      nil ->
+        {:error, :panchat_token_missing}
+
+      token ->
+        if String.trim(token) == "" do
+          {:error, :panchat_token_missing}
+        else
+          post_message(token, stock_alert_body(go, users, seller_text))
+        end
+    end
+  end
+
+  @doc """
+  Body tin báo hết món: header + trích nguyên văn tin nhà bán + paragraph mention
+  người cần đổi món (tái dùng `runners_paragraph/1` → mention thật + offset UTF-16
+  đúng) + footer. Tách ra để test thuần payload, không gọi mạng.
+  """
+  def stock_alert_body(%GroupOrder{} = go, users, seller_text) do
+    header = %{
+      "type" => "paragraph",
+      "content" => "🛒 Nhà bán \"#{go.title}\" báo HẾT MÓN:"
+    }
+
+    quote_p = %{"type" => "paragraph", "content" => "\"#{String.trim(seller_text)}\""}
+    footer = %{"type" => "paragraph", "content" => "Mọi người đổi món giúp nhé 🙏"}
+
+    %{"text" => [header, quote_p, runners_paragraph(users), footer]}
   end
 
   defp mention_span(from, to, user_id) do
@@ -422,12 +486,12 @@ defmodule FoodStreet.Panchat do
 
   # POST body `SendMessageRequest` đã dựng sẵn vào channel cố định.
   defp post_message(token, body) do
-    url = "#{@base_url}/api/v2/channels/#{@channel_id}/messages"
+    url = "#{@base_url}/api/v2/channels/#{channel_id()}/messages"
 
     # `:panchat_req_options` cho phép test tiêm Req.Test plug thay vì gọi mạng thật.
     opts =
       [
-        params: [workspace_id: @workspace_id],
+        params: [workspace_id: workspace_id()],
         auth: {:bearer, token},
         json: body,
         receive_timeout: 10_000
@@ -485,7 +549,7 @@ defmodule FoodStreet.Panchat do
       "type" => "mention",
       "from" => 0,
       "to" => 4,
-      "ref" => %{"type" => "all", "channel_id" => @channel_id}
+      "ref" => %{"type" => "all", "channel_id" => channel_id()}
     }
 
     %{

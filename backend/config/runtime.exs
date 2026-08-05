@@ -33,6 +33,34 @@ if webhook_secret = System.get_env("PANCAKE_WEBHOOK_SECRET") do
   config :food_street, :pancake_webhook_secret, webhook_secret
 end
 
+# Key Gemini để phân loại tin phản hồi nhà bán (hết món / lấy hàng / thanh toán).
+# Chưa đặt thì PancakeInbound relay nguyên văn như cũ (không phân loại). Lấy key
+# dạng `AIza…` từ Google AI Studio — KHÔNG commit vào repo.
+if gemini_api_key = System.get_env("GEMINI_API_KEY") do
+  config :food_street, :gemini_api_key, gemini_api_key
+end
+
+# Override model Gemini (mặc định gemini-2.5-flash-lite) khi cần.
+if gemini_model = System.get_env("GEMINI_MODEL") do
+  config :food_street, :gemini_model, gemini_model
+end
+
+# Token của tài khoản BOT Panchat — dùng cho các tin TỰ ĐỘNG (relay webhook nhà bán,
+# báo số dư quỹ, mở đợt theo lịch). Chưa đặt thì các luồng này bỏ qua (best-effort).
+# KHÔNG commit token vào repo.
+if panchat_bot_token = System.get_env("PANCHAT_BOT_TOKEN") do
+  config :food_street, :panchat_bot_token, panchat_bot_token
+end
+
+# Override kênh Panchat đích qua env khi cần (mặc định 4/11813 ở config.exs).
+if ws = System.get_env("PANCHAT_WORKSPACE_ID") do
+  config :food_street, :panchat_workspace_id, String.to_integer(ws)
+end
+
+if ch = System.get_env("PANCHAT_CHANNEL_ID") do
+  config :food_street, :panchat_channel_id, String.to_integer(ch)
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

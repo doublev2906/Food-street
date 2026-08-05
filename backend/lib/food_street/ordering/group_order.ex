@@ -19,6 +19,7 @@ defmodule FoodStreet.Ordering.GroupOrder do
              :closed_at,
              :seller_paid_at,
              :runner_count,
+             :runner_user_ids,
              :category_id,
              :created_by_id,
              :inserted_at
@@ -38,6 +39,10 @@ defmodule FoodStreet.Ordering.GroupOrder do
     # Không cast trong changeset thường; chỉ set qua seller_paid_changeset/2.
     field :seller_paid_at, :utc_datetime
     field :runner_count, :integer, default: 0
+
+    # Snapshot user được bốc đi lấy đồ (ghi lúc chốt qua runners_changeset/2, không
+    # cast trong changeset thường). Thứ tự = thứ tự bốc; user xoá tự rớt khi load.
+    field :runner_user_ids, {:array, :binary_id}, default: []
 
     belongs_to :category, Category
     belongs_to :created_by, User
@@ -73,5 +78,10 @@ defmodule FoodStreet.Ordering.GroupOrder do
   @doc "Tick/bỏ tick đã thanh toán người bán (`at` = thời điểm tick, nil = bỏ tick)."
   def seller_paid_changeset(group_order, at) do
     change(group_order, seller_paid_at: at)
+  end
+
+  @doc "Lưu snapshot danh sách user được bốc đi lấy đồ (`ids` = list user id, giữ thứ tự)."
+  def runners_changeset(group_order, ids) when is_list(ids) do
+    change(group_order, runner_user_ids: ids)
   end
 end

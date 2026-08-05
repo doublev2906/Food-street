@@ -12,3 +12,4 @@
 
 # Playwright MCP artifacts
 .playwright-mcp/
+/backend/config/dev.local.exs.example

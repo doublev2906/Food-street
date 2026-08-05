@@ -61,6 +61,10 @@ config :food_street, FoodStreetWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :food_street, dev_routes: true
 
+# Dev bắn Panchat vào kênh THỬ (workspace 5979 / channel 15515), không đụng kênh thật.
+config :food_street, :panchat_workspace_id, 5979
+config :food_street, :panchat_channel_id, 15_515
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 
@@ -70,3 +74,9 @@ config :phoenix, :stacktrace_depth, 20
 
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Secret cho DEV ở máy local (vd PANCHAT_BOT_TOKEN) — khỏi phải `export` mỗi lần chạy.
+# Nạp `config/dev.local.exs` nếu có (file này KHÔNG commit — xem dev.local.exs.example).
+if File.exists?(Path.join(__DIR__, "dev.local.exs")) do
+  import_config "dev.local.exs"
+end

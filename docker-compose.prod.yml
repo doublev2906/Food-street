@@ -36,6 +36,11 @@ services:
       POOL_SIZE: "10"
       # Secret bảo vệ webhook Pancake Page (nhúng trong URL webhook đăng ký với Pancake).
       PANCAKE_WEBHOOK_SECRET: ${PANCAKE_WEBHOOK_SECRET}
+      # Key Gemini phân loại tin phản hồi nhà bán (để trống thì relay nguyên văn như cũ).
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Token tài khoản BOT Panchat — dùng cho tin tự động (relay webhook nhà bán, báo
+      # số dư, mở đợt theo lịch). Để trống thì các luồng tự động bỏ qua gửi tin.
+      PANCHAT_BOT_TOKEN: ${PANCHAT_BOT_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

@@ -258,4 +258,127 @@ defmodule FoodStreet.OrderingTest do
                Ordering.aggregate_seller_text(Ordering.get_group_order(go.id))
     end
   end
+
+  describe "get_open_group_order_for_category/1" do
+    test "lấy đợt mở MỚI NHẤT của danh mục, bỏ đợt đã đóng/huỷ" do
+      %{admin: a, cat: cat, go: old_open} = setup_group()
+
+      # Đợt mở mới hơn (order_date muộn hơn) cùng danh mục.
+      {:ok, new_open} =
+        Ordering.create_group_order(
+          %{"title" => "Sáng T3", "order_date" => "2026-07-03", "category_id" => cat.id},
+          a
+        )
+
+      # Đợt đã đóng (không được chọn) dù order_date muộn nhất.
+      {:ok, closed} =
+        Ordering.create_group_order(
+          %{"title" => "Sáng T4", "order_date" => "2026-07-04", "category_id" => cat.id},
+          a
+        )
+
+      {:ok, _} = Ordering.update_group_order(closed, %{"status" => "closed"})
+
+      got = Ordering.get_open_group_order_for_category(cat.id)
+      assert got.id == new_open.id
+      refute got.id == old_open.id
+    end
+
+    test "danh mục khác không lẫn; không có đợt mở → nil" do
+      %{cat: cat} = setup_group()
+      {:ok, other} = Catalog.create_category(%{name: "Ăn trưa"})
+
+      assert Ordering.get_open_group_order_for_category(other.id) == nil
+      assert %{} = Ordering.get_open_group_order_for_category(cat.id)
+    end
+  end
+
+  describe "users_ordering_items/2 (người đã đặt món bị hết)" do
+    test "khớp tên món không phân biệt hoa/thường, distinct theo user, loại đơn huỷ" do
+      %{go: go, mi1: mi1, mi2: mi2} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+      u3 = user("usr3")
+
+      # u1 đặt Xôi, u2 đặt Bánh mì, u3 đặt Xôi rồi huỷ.
+      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi2, 1}])})
+      {:ok, o3} = Ordering.place_order_in_group(u3, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.cancel_order(o3)
+
+      go = Ordering.get_group_order(go.id)
+
+      # "xôi" thường → vẫn khớp "Xôi"; chỉ u1 (u3 đã huỷ).
+      users = Ordering.users_ordering_items(go, ["xôi"])
+      assert [%{id: id}] = users
+      assert id == u1.id
+    end
+
+    test "nhiều tên món → gộp người đặt bất kỳ món nào, distinct" do
+      %{go: go, mi1: mi1, mi2: mi2} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}])})
+      {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi2, 1}])})
+
+      go = Ordering.get_group_order(go.id)
+      ids = go |> Ordering.users_ordering_items(["Xôi", "Bánh mì"]) |> Enum.map(& &1.id)
+      assert Enum.sort(ids) == Enum.sort([u1.id, u2.id])
+    end
+
+    test "danh sách món rỗng → []" do
+      %{go: go, mi1: mi1} = setup_group()
+      {:ok, _} = Ordering.place_order_in_group(user("usr1"), go.id, %{"items" => items([{mi1, 1}])})
+
+      assert Ordering.users_ordering_items(Ordering.get_group_order(go.id), []) == []
+    end
+  end
+
+  describe "item_names_in_group/1" do
+    test "trả tên món distinct đã đặt (bỏ đơn huỷ), nil → []" do
+      %{go: go, mi1: mi1, mi2: mi2} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}, {mi2, 1}])})
+      {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi1, 2}])})
+
+      names = go.id |> Ordering.get_group_order() |> Ordering.item_names_in_group() |> Enum.sort()
+      assert names == ["Bánh mì", "Xôi"]
+      assert Ordering.item_names_in_group(nil) == []
+    end
+  end
+
+  describe "set_runners/2 + list_runners/1 (lưu người đi lấy đồ)" do
+    test "round-trip giữ đúng thứ tự bốc" do
+      %{go: go} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+      u3 = user("usr3")
+
+      {:ok, _} = Ordering.set_runners(go, [u2, u3, u1])
+
+      go = Ordering.get_group_order(go.id)
+      assert go.runner_user_ids == [u2.id, u3.id, u1.id]
+      assert Ordering.list_runners(go) |> Enum.map(& &1.id) == [u2.id, u3.id, u1.id]
+    end
+
+    test "user đã xoá tự rớt khỏi list_runners, giữ thứ tự còn lại" do
+      %{go: go} = setup_group()
+      u1 = user("usr1")
+      u2 = user("usr2")
+
+      {:ok, _} = Ordering.set_runners(go, [u1, u2])
+      {:ok, _} = Accounts.delete_user(u1)
+
+      go = Ordering.get_group_order(go.id)
+      assert Ordering.list_runners(go) |> Enum.map(& &1.id) == [u2.id]
+    end
+
+    test "chưa bốc ai → []" do
+      %{go: go} = setup_group()
+      assert Ordering.list_runners(Ordering.get_group_order(go.id)) == []
+    end
+  end
 end

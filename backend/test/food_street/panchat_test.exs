@@ -6,6 +6,11 @@ defmodule FoodStreet.PanchatTest do
   alias FoodStreet.Fund.{ExternalPurchase, FundTransaction}
   alias FoodStreet.Accounts.User
 
+  # Kênh đích cấu hình theo môi trường (test = 5979/15515). Đọc từ config để assert
+  # payload đúng theo môi trường thay vì hardcode.
+  defp channel_id, do: Application.get_env(:food_street, :panchat_channel_id)
+  defp workspace_id, do: Application.get_env(:food_street, :panchat_workspace_id)
+
   describe "invite_text/1" do
     test "contains title, date and app link (@all is sent via mention attachment, not text)" do
       go = %GroupOrder{title: "Ăn sáng thứ 2", order_date: ~D[2026-07-01], note: nil}
@@ -267,7 +272,7 @@ defmodule FoodStreet.PanchatTest do
       assert first["content"] == "@all hello"
 
       assert [%{"type" => "mention", "from" => 0, "to" => 4, "ref" => ref}] = first["spans"]
-      assert ref == %{"type" => "all", "channel_id" => 11_813}
+      assert ref == %{"type" => "all", "channel_id" => channel_id()}
 
       # Mỗi dòng tiếp theo là 1 paragraph riêng, không span.
       assert [%{"type" => "paragraph", "content" => "world"}] = rest
@@ -329,8 +334,8 @@ defmodule FoodStreet.PanchatTest do
       assert {:ok, _} = Panchat.send_channel_message("tok123", "xin chào\ndòng 2")
 
       assert_received {:req, "POST", path, qs, auth, body}
-      assert path == "/api/v2/channels/11813/messages"
-      assert qs =~ "workspace_id=4"
+      assert path == "/api/v2/channels/#{channel_id()}/messages"
+      assert qs =~ "workspace_id=#{workspace_id()}"
       assert auth == ["Bearer tok123"]
 
       assert [
@@ -349,6 +354,42 @@ defmodule FoodStreet.PanchatTest do
       end)
 
       assert {:error, {:panchat, "http_422"}} = Panchat.send_channel_message("tok", "hi")
+    end
+  end
+
+  describe "stock_alert_body/3 và send_stock_alert/4" do
+    @uid_stock "22222222-2222-2222-2222-222222222222"
+
+    test "header báo HẾT MÓN + trích nguyên văn (trim) + footer đổi món; mention thật chỉ user có UUID" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
+
+      users = [
+        %User{name: "An", panchat_user_id: @uid_stock},
+        %User{name: "Bình", panchat_user_id: nil}
+      ]
+
+      body = Panchat.stock_alert_body(go, users, "  hết xôi nhé cả nhà  ")
+      [header, quote_p, runner_p, footer] = body["text"]
+
+      assert header["content"] =~ "HẾT MÓN"
+      assert header["content"] =~ "Sáng T2"
+      # Nguyên văn tin nhà bán đã trim, nằm trong dấu ngoặc kép.
+      assert quote_p["content"] == ~s("hết xôi nhé cả nhà")
+      assert runner_p["content"] =~ "@An"
+      assert runner_p["content"] =~ "@Bình"
+      assert footer["content"] =~ "đổi món"
+
+      # Chỉ An (có UUID) được mention thật; Bình không sinh span.
+      assert [%{"type" => "mention", "ref" => %{"type" => "user", "user_id" => @uid_stock}}] =
+               runner_p["spans"]
+    end
+
+    test "send_stock_alert lỗi khi thiếu token, không gọi mạng" do
+      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+      users = [%User{name: "An", panchat_user_id: @uid_stock}]
+
+      assert Panchat.send_stock_alert(go, users, "hết", nil) == {:error, :panchat_token_missing}
+      assert Panchat.send_stock_alert(go, users, "hết", "  ") == {:error, :panchat_token_missing}
     end
   end
 end

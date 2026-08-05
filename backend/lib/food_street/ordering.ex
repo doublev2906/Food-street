@@ -19,6 +19,7 @@ defmodule FoodStreet.Ordering do
   alias FoodStreet.Accounts.User
   alias FoodStreet.Catalog.MenuItem
   alias FoodStreet.Ordering.Order
+  alias FoodStreet.Ordering.OrderItem
   alias FoodStreet.Ordering.GroupOrder
   alias FoodStreet.Fund.FundTransaction
 
@@ -31,6 +32,19 @@ defmodule FoodStreet.Ordering do
     |> order_by([g], desc: g.order_date, desc: g.inserted_at)
     |> preload(:category)
     |> Repo.all()
+  end
+
+  @doc """
+  Đợt đang mở MỚI NHẤT của 1 danh mục (hoặc `nil`). Dùng khi xử lý tin nhà bán:
+  cần đợt hiện hành để tìm người đã đặt / người đi lấy đồ. `order_by desc` +
+  `limit(1)` để deterministic khi lỡ có nhiều đợt mở cùng danh mục.
+  """
+  def get_open_group_order_for_category(category_id) do
+    GroupOrder
+    |> where([g], g.category_id == ^category_id and g.status == "open")
+    |> order_by([g], desc: g.order_date, desc: g.inserted_at)
+    |> limit(1)
+    |> Repo.one()
   end
 
   defp maybe_filter_status(query, nil), do: query
@@ -269,6 +283,69 @@ defmodule FoodStreet.Ordering do
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.id)
   end
+
+  @doc """
+  Những user (distinct, `%User{}`) đã đặt 1 trong các món `item_names` (đơn chưa
+  huỷ) trong đợt. Khớp `OrderItem.item_name` (snapshot) **không phân biệt hoa/thường**.
+  Trả `[]` khi `item_names` rỗng. Dùng khi nhà bán báo hết món → ping người đổi món.
+  """
+  def users_ordering_items(%GroupOrder{} = go, item_names) when is_list(item_names) do
+    downcased = item_names |> Enum.map(&String.downcase/1) |> Enum.uniq()
+
+    if downcased == [] do
+      []
+    else
+      Order
+      |> join(:inner, [o], oi in OrderItem, on: oi.order_id == o.id)
+      |> where([o, oi], o.group_order_id == ^go.id and o.status != "cancelled")
+      |> where([o, oi], fragment("lower(?)", oi.item_name) in ^downcased)
+      |> preload(:user)
+      |> Repo.all()
+      |> Enum.map(& &1.user)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq_by(& &1.id)
+    end
+  end
+
+  @doc "Tên món (distinct) đã đặt trong đợt — feed cho grounding của Gemini."
+  def item_names_in_group(%GroupOrder{} = go) do
+    Order
+    |> join(:inner, [o], oi in OrderItem, on: oi.order_id == o.id)
+    |> where([o, oi], o.group_order_id == ^go.id and o.status != "cancelled")
+    |> select([o, oi], oi.item_name)
+    |> distinct(true)
+    |> Repo.all()
+  end
+
+  def item_names_in_group(nil), do: []
+
+  @doc """
+  Lưu snapshot danh sách người đi lấy đồ vào đợt (lúc chốt) để tái dùng khi nhà
+  bán báo "xuống lấy hàng". Nhận list `%User{}`, lưu id giữ nguyên thứ tự bốc.
+  """
+  def set_runners(%GroupOrder{} = go, users) when is_list(users) do
+    ids = Enum.map(users, & &1.id)
+
+    go
+    |> GroupOrder.runners_changeset(ids)
+    |> Repo.update()
+  end
+
+  @doc """
+  Danh sách `%User{}` đã bốc đi lấy đồ của đợt, theo đúng thứ tự đã lưu. User đã
+  bị xoá khỏi hệ thống tự rớt khỏi danh sách. `[]` khi chưa bốc ai.
+  """
+  def list_runners(%GroupOrder{runner_user_ids: ids}) when is_list(ids) and ids != [] do
+    users =
+      User
+      |> where([u], u.id in ^ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    Enum.flat_map(ids, fn id -> List.wrap(users[id]) end)
+  end
+
+  def list_runners(%GroupOrder{}), do: []
 
   @doc """
   Gộp đơn của 1 đợt thành text gửi nhà bán — tái hiện đúng phần `copy` của

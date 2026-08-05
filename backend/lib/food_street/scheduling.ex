@@ -11,7 +11,7 @@ defmodule FoodStreet.Scheduling do
 
   alias FoodStreet.Repo
   alias FoodStreet.Scheduling.{DailyOrderSchedule, JobRun}
-  alias FoodStreet.{Accounts, Ordering, Settings, Panchat}
+  alias FoodStreet.{Accounts, Ordering, Panchat}
 
   # Việt Nam: UTC+7 cố định, không có DST → không cần tzdata.
   @vn_offset_seconds 7 * 3600
@@ -95,9 +95,9 @@ defmodule FoodStreet.Scheduling do
 
         {:ok, :skipped, :owner_invalid}
 
-      not Settings.panchat_configured?(owner.id) ->
-        Logger.warning("[Scheduling] Bỏ qua: chủ lịch chưa cấu hình Panchat token")
-        {:ok, :skipped, :owner_token_missing}
+      is_nil(Panchat.bot_token()) ->
+        Logger.warning("[Scheduling] Bỏ qua: chưa cấu hình PANCHAT_BOT_TOKEN")
+        {:ok, :skipped, :bot_token_missing}
 
       true ->
         create_and_notify(schedule, owner, now_utc)
@@ -120,7 +120,7 @@ defmodule FoodStreet.Scheduling do
       {:ok, go} ->
         # Đánh dấu đã chạy NGAY sau khi tạo thành công (chống tạo trùng dù Panchat lỗi).
         schedule |> DailyOrderSchedule.ran_changeset(vn_date) |> Repo.update!()
-        send_invite(go, owner)
+        send_invite(go)
         {:ok, :created, go}
 
       {:error, reason} = err ->
@@ -129,8 +129,8 @@ defmodule FoodStreet.Scheduling do
     end
   end
 
-  defp send_invite(go, owner) do
-    case Panchat.send_breakfast_invite(go, Settings.panchat_token(owner.id)) do
+  defp send_invite(go) do
+    case Panchat.send_breakfast_invite(go, Panchat.bot_token()) do
       {:ok, _} ->
         :ok
 
