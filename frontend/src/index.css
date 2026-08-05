@@ -240,27 +240,34 @@
 
 /* ---- Làm nền anime "sống" (ảnh gốc vẫn là ảnh tĩnh) ----
    1. Ảnh nền zoom qua lại rất chậm (Ken Burns) — scale > 1 nên không hở mép.
-   2. Cánh hoa đào rơi: 2 lớp SVG data-URI tile trên body::after (nằm TRÊN ảnh nền,
-      DƯỚI nội dung — cùng z-index -1 thì ::after vẽ sau ::before). Cánh sau card
-      kính mờ bị backdrop-blur nhoè đi, đúng chất anime.
-   Muốn loop không bị khớp nối: độ dời background-position mỗi vòng PHẢI là bội số
-   kích thước tile (lớp 1: 480×640 dời -480/+1280; lớp 2: 720×880 dời +720/+880). */
+   2. Cánh hoa đào rơi: 2 lớp SVG data-URI tile trên body::after (TRÊN ảnh nền, DƯỚI
+      nội dung). Animate bằng transform: translateY, KHÔNG dùng background-position —
+      background-position bắt trình duyệt repaint cả màn mỗi frame (không GPU), đè thêm
+      backdrop-filter của card thì NHÁY/giật. transform thì GPU compose nên mượt.
+   Để loop liền mạch không hở mép: element cao hơn viewport 640px (top: -640) rồi trượt
+   xuống ĐÚNG 640px = chiều cao tile của CẢ 2 lớp (đã hạ lớp 2 về 640) — hết chu kỳ ảnh
+   trùng khít lại như cũ. will-change: transform giữ layer trên GPU cho ổn định. */
 @media (prefers-reduced-motion: no-preference) {
   [data-theme="anime"] body::before {
     animation: anime-bg-breathe 45s ease-in-out infinite alternate;
+    will-change: transform;
   }
   [data-theme="anime"] body::after {
     content: "";
     position: fixed;
-    inset: 0;
+    left: 0;
+    right: 0;
+    top: -640px;
+    height: calc(100vh + 640px);
     z-index: -1;
     pointer-events: none;
     background-image:
       url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='480' height='640'><g fill='%23ffb3d1'><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(70 90) rotate(35)' opacity='.95'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(330 260) rotate(-28) scale(1.25)' opacity='.8'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(170 500) rotate(64) scale(1.1)' opacity='.9'/></g></svg>"),
       url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='720' height='880'><g fill='%23ffd2e3'><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(140 120) rotate(48) scale(.7)' opacity='.65'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(520 380) rotate(-40) scale(.6)' opacity='.55'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(300 720) rotate(20) scale(.75)' opacity='.6'/></g></svg>");
-    background-size: 480px 640px, 720px 880px;
+    background-size: 480px 640px, 720px 640px;
     background-repeat: repeat;
-    animation: sakura-fall 36s linear infinite;
+    animation: sakura-fall 16s linear infinite;
+    will-change: transform;
   }
   @keyframes anime-bg-breathe {
     from {
@@ -272,10 +279,10 @@
   }
   @keyframes sakura-fall {
     from {
-      background-position: 0 0, 0 0;
+      transform: translate3d(0, 0, 0);
     }
     to {
-      background-position: -480px 1280px, 720px 880px;
+      transform: translate3d(0, 640px, 0);
     }
   }
 }
