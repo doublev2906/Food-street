@@ -768,8 +768,7 @@ function FundTab() {
             </div>
             <p className="small muted mt" style={{ marginBottom: 0 }}>
               Mỗi ngày còn nợ là bị cộng thêm <b>~{formatVND(interest.estimated_daily_interest)}</b>{" "}
-              tiền lãi (lãi kép {interest.annual_rate_percent}%/năm, tối thiểu{" "}
-              {formatVND(interest.min_daily_interest)}/ngày). Nạp quỹ sẽ trừ hết nợ lãi trước 👉
+              tiền lãi (lãi suất 20%/năm, phần còn lại là phí dịch vụ). Nạp quỹ sẽ trừ hết nợ lãi trước 👉
               donate sớm kẻo <b>lãi mẹ đẻ lãi con</b> 😈
             </p>
           </div>

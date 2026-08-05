@@ -23,6 +23,13 @@ config :food_street, FoodStreetWeb.Endpoint,
 # Không chạy ticker lịch hẹn trong test (gọi Scheduling.run_tick/1 trực tiếp thay vì).
 config :food_street, FoodStreet.OrderScheduler, enabled: false
 
+# Pin lãi suất test = 99% (config prod là 200%) để test công thức lãi (interest_test)
+# deterministic, không phụ thuộc suất thật ngoài prod.
+config :food_street, FoodStreet.Interest,
+  annual_rate_percent: 99,
+  min_daily_interest: 150,
+  accrual_hour: 2
+
 # Không gọi HTTP Panchat thật trong test — định tuyến qua Req.Test stub.
 config :food_street, :panchat_req_options, plug: {Req.Test, FoodStreet.Panchat}
 

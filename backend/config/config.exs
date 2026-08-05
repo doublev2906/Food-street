@@ -17,10 +17,10 @@ config :food_street, :frontend_url, "https://dev.pancake.vn:3200"
 # Ticker lịch hẹn tự động mở đợt đặt món (bật theo mặc định; kiểm tra mỗi 60s).
 config :food_street, FoodStreet.OrderScheduler, enabled: true, interval_ms: 60_000
 
-# Tính lãi trên số dư âm (issue #12). Lãi suất năm danh nghĩa 99% (sát dưới ngưỡng
-# 100% cấu thành cho vay nặng lãi), sàn tối thiểu 150đ/ngày, chạy sau 02:00 giờ VN.
+# Tính lãi trên số dư âm (issue #12). Nội bộ cho vui: suất 200%/năm, sàn 150đ/ngày,
+# chạy sau 02:00 giờ VN. (UI cố tình hiển thị "20%/năm + phí dịch vụ" cho đỡ giật mình.)
 config :food_street, FoodStreet.Interest,
-  annual_rate_percent: 99,
+  annual_rate_percent: 200,
   min_daily_interest: 150,
   accrual_hour: 2
 

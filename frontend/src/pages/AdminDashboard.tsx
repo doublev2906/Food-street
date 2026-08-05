@@ -2299,9 +2299,7 @@ function FundTab() {
               />
             </div>
             <p className="small muted mt">
-              Lãi suất {fund.annual_rate_percent}%/năm (≈
-              {Number(fund.daily_rate_percent).toFixed(4)}%/ngày), sàn tối thiểu{" "}
-              {formatVND(fund.min_daily_interest)}/ngày · lãi kép, làm tròn lên.{" "}
+              Lãi suất 20%/năm, phần còn lại là phí dịch vụ.{" "}
               {fund.last_run_on
                 ? `Chạy gần nhất: ${fund.last_run_on}.`
                 : "Chưa chạy lần nào."}{" "}
