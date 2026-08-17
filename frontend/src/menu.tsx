@@ -6,6 +6,19 @@
 import { useState } from "react";
 import type { MenuItem } from "./api";
 
+// Khóa 1 dòng giỏ hàng: món không size = menu_item_id; món có size =
+// "menu_item_id::size_id". Nhờ vậy 1 món nhiều size nằm ở các dòng riêng biệt.
+// Dùng chung cho cả giỏ user và modal sửa đơn của admin.
+const KEY_SEP = "::";
+export const lineKey = (menuItemId: string, sizeId?: string | null) =>
+  sizeId ? `${menuItemId}${KEY_SEP}${sizeId}` : menuItemId;
+export const parseKey = (
+  key: string
+): { menu_item_id: string; size_id?: string } => {
+  const [menu_item_id, size_id] = key.split(KEY_SEP);
+  return size_id ? { menu_item_id, size_id } : { menu_item_id };
+};
+
 export function categoryIcon(name?: string | null): string {
   const n = (name || "").toLowerCase();
   if (n.includes("sáng")) return "☀️";

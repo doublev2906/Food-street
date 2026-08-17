@@ -9,11 +9,13 @@ defmodule FoodStreet.Catalog do
   # ---- Menu items ----
 
   def list_menu_items do
-    Repo.all(from m in MenuItem, order_by: [asc: m.name], preload: :category)
+    Repo.all(from m in MenuItem, order_by: [asc: m.name], preload: [:category, :sizes])
   end
 
   def list_available_menu_items do
-    Repo.all(from m in MenuItem, where: m.available == true, order_by: [asc: m.name])
+    Repo.all(
+      from m in MenuItem, where: m.available == true, order_by: [asc: m.name], preload: :sizes
+    )
   end
 
   @doc "Các món còn bán thuộc 1 danh mục (dùng khi đặt theo đợt nhóm)."
@@ -21,12 +23,19 @@ defmodule FoodStreet.Catalog do
     Repo.all(
       from m in MenuItem,
         where: m.available == true and m.category_id == ^category_id,
-        order_by: [asc: m.name]
+        order_by: [asc: m.name],
+        preload: :sizes
     )
   end
 
-  def get_menu_item!(id), do: Repo.get!(MenuItem, id)
-  def get_menu_item(id), do: Repo.get(MenuItem, id)
+  def get_menu_item!(id), do: Repo.get!(MenuItem, id) |> Repo.preload(:sizes)
+
+  def get_menu_item(id) do
+    case Repo.get(MenuItem, id) do
+      nil -> nil
+      item -> Repo.preload(item, :sizes)
+    end
+  end
 
   def create_menu_item(attrs) do
     %MenuItem{}
@@ -35,7 +44,9 @@ defmodule FoodStreet.Catalog do
   end
 
   def update_menu_item(%MenuItem{} = item, attrs) do
+    # Preload :sizes để cast_assoc so sánh & xóa (on_replace: :delete) đúng.
     item
+    |> Repo.preload(:sizes)
     |> MenuItem.changeset(attrs)
     |> Repo.update()
   end

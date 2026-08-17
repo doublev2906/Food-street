@@ -338,7 +338,9 @@ defmodule FoodStreet.OrderingTest do
 
     test "danh sách món rỗng → []" do
       %{go: go, mi1: mi1} = setup_group()
-      {:ok, _} = Ordering.place_order_in_group(user("usr1"), go.id, %{"items" => items([{mi1, 1}])})
+
+      {:ok, _} =
+        Ordering.place_order_in_group(user("usr1"), go.id, %{"items" => items([{mi1, 1}])})
 
       assert Ordering.users_ordering_items(Ordering.get_group_order(go.id), []) == []
     end
@@ -350,7 +352,9 @@ defmodule FoodStreet.OrderingTest do
       u1 = user("usr1")
       u2 = user("usr2")
 
-      {:ok, _} = Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}, {mi2, 1}])})
+      {:ok, _} =
+        Ordering.place_order_in_group(u1, go.id, %{"items" => items([{mi1, 1}, {mi2, 1}])})
+
       {:ok, _} = Ordering.place_order_in_group(u2, go.id, %{"items" => items([{mi1, 2}])})
 
       names = go.id |> Ordering.get_group_order() |> Ordering.item_names_in_group() |> Enum.sort()
@@ -388,6 +392,76 @@ defmodule FoodStreet.OrderingTest do
     test "chưa bốc ai → []" do
       %{go: go} = setup_group()
       assert Ordering.list_runners(Ordering.get_group_order(go.id)) == []
+    end
+  end
+
+  describe "đặt món có size" do
+    # Món "Bánh mì" (mi2) gắn 2 size Nhỏ/Lớn với giá riêng.
+    defp with_sizes(mi) do
+      {:ok, mi} =
+        Catalog.update_menu_item(mi, %{
+          "sizes" => [
+            %{"name" => "Nhỏ", "price" => "15000", "sort_order" => 0},
+            %{"name" => "Lớn", "price" => "25000", "sort_order" => 1}
+          ]
+        })
+
+      mi
+    end
+
+    test "chọn size → snapshot đúng giá + tên kèm size" do
+      %{mi2: mi2, go: go} = setup_group()
+      mi2 = with_sizes(mi2)
+      big = Enum.find(mi2.sizes, &(&1.name == "Lớn"))
+      u = user("usz1")
+
+      {:ok, o} =
+        Ordering.place_order_in_group(u, go.id, %{
+          "items" => [%{"menu_item_id" => mi2.id, "size_id" => big.id, "quantity" => 2}]
+        })
+
+      assert [item] = o.items
+      assert item.item_name == "Bánh mì (Lớn)"
+      assert item.size_name == "Lớn"
+      assert item.menu_item_size_id == big.id
+      assert Decimal.equal?(item.unit_price, Decimal.new("25000"))
+      assert Decimal.equal?(item.subtotal, Decimal.new("50000"))
+    end
+
+    test "món có size mà thiếu size_id → {:error, :invalid_items}" do
+      %{mi2: mi2, go: go} = setup_group()
+      mi2 = with_sizes(mi2)
+      u = user("usz2")
+
+      assert {:error, :invalid_items} =
+               Ordering.place_order_in_group(u, go.id, %{
+                 "items" => [%{"menu_item_id" => mi2.id, "quantity" => 1}]
+               })
+    end
+
+    test "size_id lạ (không thuộc món có size) → {:error, :invalid_items}" do
+      %{mi2: mi2, go: go} = setup_group()
+      mi2 = with_sizes(mi2)
+      u = user("usz3")
+
+      assert {:error, :invalid_items} =
+               Ordering.place_order_in_group(u, go.id, %{
+                 "items" => [
+                   %{"menu_item_id" => mi2.id, "size_id" => Ecto.UUID.generate(), "quantity" => 1}
+                 ]
+               })
+    end
+
+    test "món không size vẫn đặt bình thường (size_id bị bỏ qua)" do
+      %{mi1: mi1, go: go} = setup_group()
+      u = user("usz4")
+
+      {:ok, o} =
+        Ordering.place_order_in_group(u, go.id, %{
+          "items" => [%{"menu_item_id" => mi1.id, "quantity" => 1}]
+        })
+
+      assert [%{item_name: "Xôi", size_name: nil, menu_item_size_id: nil}] = o.items
     end
   end
 end

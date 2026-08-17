@@ -17,7 +17,7 @@ defmodule FoodStreet.Ordering do
   alias Ecto.Multi
   alias FoodStreet.Repo
   alias FoodStreet.Accounts.User
-  alias FoodStreet.Catalog.MenuItem
+  alias FoodStreet.Catalog.{MenuItem, MenuItemSize}
   alias FoodStreet.Ordering.Order
   alias FoodStreet.Ordering.OrderItem
   alias FoodStreet.Ordering.GroupOrder
@@ -593,22 +593,27 @@ defmodule FoodStreet.Ordering do
     results =
       Enum.map(raw_items, fn item ->
         menu_item_id = item["menu_item_id"] || item[:menu_item_id]
+        size_id = item["size_id"] || item[:size_id]
         quantity = to_int(item["quantity"] || item[:quantity] || 1)
         note = item["note"] || item[:note]
 
-        case Repo.get(MenuItem, menu_item_id) do
-          %MenuItem{available: true, category_id: ^category_id} = mi when quantity > 0 ->
+        with %MenuItem{available: true, category_id: ^category_id} = mi <-
+               menu_item_id |> maybe_get_menu_item() |> Repo.preload(:sizes),
+             true <- quantity > 0,
+             {:ok, price, name, snap} <- resolve_price(mi, size_id) do
+          Map.merge(
             %{
               menu_item_id: mi.id,
-              item_name: mi.name,
+              item_name: name,
               quantity: quantity,
-              unit_price: mi.price,
-              subtotal: Decimal.mult(mi.price, quantity),
+              unit_price: price,
+              subtotal: Decimal.mult(price, quantity),
               note: note
-            }
-
-          _ ->
-            :invalid
+            },
+            snap
+          )
+        else
+          _ -> :invalid
         end
       end)
 
@@ -616,6 +621,24 @@ defmodule FoodStreet.Ordering do
       {:error, :invalid_items}
     else
       {:ok, results}
+    end
+  end
+
+  defp maybe_get_menu_item(nil), do: nil
+  defp maybe_get_menu_item(id), do: Repo.get(MenuItem, id)
+
+  # Món KHÔNG có size → dùng giá gốc (giữ hành vi cũ).
+  defp resolve_price(%MenuItem{sizes: []} = mi, _size_id),
+    do: {:ok, mi.price, mi.name, %{size_name: nil, menu_item_size_id: nil}}
+
+  # Món CÓ size → bắt buộc chọn 1 size hợp lệ thuộc món đó.
+  defp resolve_price(%MenuItem{sizes: sizes} = mi, size_id) when is_list(sizes) do
+    case Enum.find(sizes, &(&1.id == size_id)) do
+      %MenuItemSize{} = s ->
+        {:ok, s.price, "#{mi.name} (#{s.name})", %{size_name: s.name, menu_item_size_id: s.id}}
+
+      nil ->
+        :invalid
     end
   end
 

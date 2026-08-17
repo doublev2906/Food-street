@@ -32,6 +32,13 @@ export interface Category {
   pancake_page_access_token?: string;
 }
 
+export interface MenuItemSize {
+  id: string;
+  name: string;
+  price: string;
+  sort_order: number;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -41,16 +48,41 @@ export interface MenuItem {
   image_url: string | null;
   category_id: string | null;
   category?: Category | null;
+  /** Các size của món; rỗng = món 1 giá (dùng `price`). */
+  sizes?: MenuItemSize[];
 }
 
 export interface OrderItem {
   id?: string;
   menu_item_id: string;
+  menu_item_size_id?: string | null;
   item_name: string;
+  size_name?: string | null;
   quantity: number;
   unit_price: string;
   subtotal: string;
   note?: string | null;
+}
+
+/** 1 dòng gửi lên khi đặt/sửa đơn (kèm size nếu món có size). */
+export interface OrderLineInput {
+  menu_item_id: string;
+  size_id?: string;
+  quantity: number;
+  note?: string;
+}
+
+/** 1 size khi admin tạo/sửa món. `id` có = size cũ (update), không có = size mới. */
+export interface MenuSizeInput {
+  id?: string;
+  name: string;
+  price: string;
+  sort_order?: number;
+}
+
+/** Payload tạo/sửa món (admin) — sizes lồng nhau, cast_assoc ở BE xử lý. */
+export interface MenuItemInput extends Partial<Omit<MenuItem, "sizes">> {
+  sizes?: MenuSizeInput[];
 }
 
 export interface Order {
@@ -352,7 +384,7 @@ export const api = {
     id: string,
     payload: {
       note?: string;
-      items: { menu_item_id: string; quantity: number; note?: string }[];
+      items: OrderLineInput[];
     }
   ) =>
     request<{ data: Order }>(`/group_orders/${id}/order`, {
@@ -377,12 +409,12 @@ export const api = {
       request<void>(`/admin/users/${id}`, { method: "DELETE" }),
 
     menu: () => request<{ data: MenuItem[] }>("/admin/menu"),
-    createMenu: (payload: Partial<MenuItem>) =>
+    createMenu: (payload: MenuItemInput) =>
       request<{ data: MenuItem }>("/admin/menu", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    updateMenu: (id: string, payload: Partial<MenuItem>) =>
+    updateMenu: (id: string, payload: MenuItemInput) =>
       request<{ data: MenuItem }>(`/admin/menu/${id}`, {
         method: "PUT",
         body: JSON.stringify(payload),
@@ -442,7 +474,7 @@ export const api = {
       id: string,
       payload: {
         note?: string;
-        items: { menu_item_id: string; quantity: number; note?: string }[];
+        items: OrderLineInput[];
       }
     ) =>
       request<{ data: Order }>(`/admin/orders/${id}`, {

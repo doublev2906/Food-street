@@ -31,7 +31,7 @@ import {
 } from "recharts";
 import { Header, Modal, Money, Spinner, StatusBadge } from "../components";
 import { useTabParam } from "../hooks";
-import { FoodThumb } from "../menu";
+import { FoodThumb, lineKey, parseKey } from "../menu";
 
 type Tab =
   | "stats"
@@ -1153,12 +1153,17 @@ function AdminEditOrderModal({
   onSaved: () => void;
 }) {
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  // key = lineKey(menu_item_id, size_id?) → số lượng.
   const [cart, setCart] = useState<Record<string, number>>(() =>
-    Object.fromEntries(order.items.map((it) => [it.menu_item_id, it.quantity]))
+    Object.fromEntries(
+      order.items.map((it) => [lineKey(it.menu_item_id, it.menu_item_size_id), it.quantity])
+    )
   );
   const [itemNotes, setItemNotes] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      order.items.filter((it) => it.note).map((it) => [it.menu_item_id, it.note as string])
+      order.items
+        .filter((it) => it.note)
+        .map((it) => [lineKey(it.menu_item_id, it.menu_item_size_id), it.note as string])
     )
   );
   const [note, setNote] = useState(order.note || "");
@@ -1173,17 +1178,25 @@ function AdminEditOrderModal({
       );
   }, [categoryId]);
 
-  const setQty = (id: string, q: number) =>
+  const setQty = (key: string, q: number) =>
     setCart((c) => {
       const next = { ...c };
-      if (q <= 0) delete next[id];
-      else next[id] = q;
+      if (q <= 0) delete next[key];
+      else next[key] = q;
       return next;
     });
 
+  // Giá 1 dòng theo size đã chọn (fallback giá gốc).
+  const linePrice = (key: string) => {
+    const { menu_item_id, size_id } = parseKey(key);
+    const m = menu.find((x) => x.id === menu_item_id);
+    const size = size_id ? m?.sizes?.find((s) => s.id === size_id) : undefined;
+    return parseFloat(size?.price ?? m?.price ?? "0");
+  };
+
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const total = menu.reduce(
-    (acc, m) => acc + parseFloat(m.price) * (cart[m.id] || 0),
+  const total = Object.entries(cart).reduce(
+    (acc, [key, q]) => acc + linePrice(key) * q,
     0
   );
 
@@ -1198,11 +1211,15 @@ function AdminEditOrderModal({
     try {
       await api.admin.updateOrder(order.id, {
         note: note.trim() || undefined,
-        items: Object.entries(cart).map(([menu_item_id, quantity]) => ({
-          menu_item_id,
-          quantity,
-          note: itemNotes[menu_item_id]?.trim() || undefined,
-        })),
+        items: Object.entries(cart).map(([key, quantity]) => {
+          const { menu_item_id, size_id } = parseKey(key);
+          return {
+            menu_item_id,
+            size_id,
+            quantity,
+            note: itemNotes[key]?.trim() || undefined,
+          };
+        }),
       });
       onSaved();
     } catch (err: any) {
@@ -1217,42 +1234,54 @@ function AdminEditOrderModal({
       {error && <div className="alert error">{error}</div>}
       <form onSubmit={submit}>
         <div className="grid">
-          {menu.map((m) => (
-            <div key={m.id} className="row between">
-              <div>
-                {m.name} <span className="muted small">{formatVND(m.price)}</span>
-                {cart[m.id] > 0 && (
-                  <input
-                    style={{ display: "block", marginTop: 4, maxWidth: 240 }}
-                    value={itemNotes[m.id] ?? ""}
-                    onChange={(e) =>
-                      setItemNotes((n) => ({ ...n, [m.id]: e.target.value }))
-                    }
-                    placeholder="Ghi chú món (tuỳ chọn)"
-                  />
-                )}
+          {menu.map((m) => {
+            const sizes = m.sizes ?? [];
+            // Mỗi dòng chọn (món không size = 1 dòng; món có size = 1 dòng/size).
+            const rows =
+              sizes.length > 0
+                ? sizes.map((s) => ({
+                    key: lineKey(m.id, s.id),
+                    label: `${m.name} · ${s.name}`,
+                    price: s.price,
+                  }))
+                : [{ key: lineKey(m.id), label: m.name, price: m.price }];
+            return rows.map((row) => (
+              <div key={row.key} className="row between">
+                <div>
+                  {row.label} <span className="muted small">{formatVND(row.price)}</span>
+                  {cart[row.key] > 0 && (
+                    <input
+                      style={{ display: "block", marginTop: 4, maxWidth: 240 }}
+                      value={itemNotes[row.key] ?? ""}
+                      onChange={(e) =>
+                        setItemNotes((n) => ({ ...n, [row.key]: e.target.value }))
+                      }
+                      placeholder="Ghi chú món (tuỳ chọn)"
+                    />
+                  )}
+                </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setQty(row.key, (cart[row.key] || 0) - 1)}
+                  >
+                    −
+                  </button>
+                  <span style={{ minWidth: 20, textAlign: "center" }}>
+                    {cart[row.key] || 0}
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setQty(row.key, (cart[row.key] || 0) + 1)}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-              <div className="row" style={{ gap: 6 }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setQty(m.id, (cart[m.id] || 0) - 1)}
-                >
-                  −
-                </button>
-                <span style={{ minWidth: 20, textAlign: "center" }}>
-                  {cart[m.id] || 0}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setQty(m.id, (cart[m.id] || 0) + 1)}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          ))}
+            ));
+          })}
           {menu.length === 0 && (
             <p className="small muted">Danh mục này chưa có món khả dụng.</p>
           )}
@@ -1731,7 +1760,11 @@ function MenuTab() {
                 <td>
                   <span className="badge user">{catName(m.category_id)}</span>
                 </td>
-                <td style={{ textAlign: "right" }}>{formatVND(m.price)}</td>
+                <td style={{ textAlign: "right" }}>
+                  {m.sizes && m.sizes.length > 0
+                    ? `từ ${formatVND(Math.min(...m.sizes.map((s) => parseFloat(s.price))))}`
+                    : formatVND(m.price)}
+                </td>
                 <td>
                   {m.available ? (
                     <span className="badge confirmed">Còn bán</span>
@@ -1832,15 +1865,28 @@ function MenuModal({
     image_url: item?.image_url || "",
     category_id: item?.category_id || categories[0]?.id || "",
   });
+  // Sizes của món; giữ `id` cho size cũ để cast_assoc update đúng dòng.
+  const [sizes, setSizes] = useState<{ id?: string; name: string; price: string }[]>(
+    () => (item?.sizes ?? []).map((s) => ({ id: s.id, name: s.name, price: s.price }))
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const addSize = () => setSizes((s) => [...s, { name: "", price: "" }]);
+  const removeSize = (i: number) => setSizes((s) => s.filter((_, idx) => idx !== i));
+  const updateSize = (i: number, patch: Partial<{ name: string; price: string }>) =>
+    setSizes((s) => s.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    // Chỉ gửi size có đủ tên + giá; sort_order theo thứ tự hiển thị.
+    const cleanSizes = sizes
+      .map((s, i) => ({ ...s, name: s.name.trim(), price: String(s.price), sort_order: i }))
+      .filter((s) => s.name !== "" && s.price !== "");
     setBusy(true);
     try {
-      const payload = { ...form, price: String(form.price) };
+      const payload = { ...form, price: String(form.price), sizes: cleanSizes };
       if (item) await api.admin.updateMenu(item.id, payload);
       else await api.admin.createMenu(payload);
       onSaved();
@@ -1907,7 +1953,7 @@ function MenuModal({
             </select>
           </div>
           <div className="field">
-            <label>Giá (đ)</label>
+            <label>Giá mặc định (đ)</label>
             <input
               type="number"
               min={0}
@@ -1917,6 +1963,46 @@ function MenuModal({
             />
           </div>
         </div>
+
+        <div className="field">
+          <label>Size (tuỳ chọn)</label>
+          <div className="small muted mb">
+            Để trống nếu món 1 giá. Nếu có size, khách sẽ chọn size khi đặt và giá tính
+            theo size (giá mặc định ở trên chỉ dùng khi món không có size).
+          </div>
+          <div className="grid" style={{ gap: 8 }}>
+            {sizes.map((s, i) => (
+              <div key={i} className="row" style={{ gap: 8 }}>
+                <input
+                  value={s.name}
+                  onChange={(e) => updateSize(i, { name: e.target.value })}
+                  placeholder="Tên size (vd: Nhỏ)"
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={s.price}
+                  onChange={(e) => updateSize(i, { price: e.target.value })}
+                  placeholder="Giá (đ)"
+                  style={{ width: 120 }}
+                />
+                <button type="button" className="secondary" onClick={() => removeSize(i)}>
+                  Xóa
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="secondary mt"
+            onClick={addSize}
+            style={{ alignSelf: "flex-start" }}
+          >
+            + Thêm size
+          </button>
+        </div>
+
         <div className="field">
           <label>Trạng thái</label>
           <select

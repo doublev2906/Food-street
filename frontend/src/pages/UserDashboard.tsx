@@ -14,7 +14,15 @@ import {
 import { useAuth } from "../auth";
 import { Header, Money, Spinner, StatusBadge } from "../components";
 import { useTabParam } from "../hooks";
-import { categoryIcon, FoodThumb, GROUP_ORDER, menuGroup, type MenuGroup } from "../menu";
+import {
+  categoryIcon,
+  FoodThumb,
+  GROUP_ORDER,
+  lineKey,
+  menuGroup,
+  parseKey,
+  type MenuGroup,
+} from "../menu";
 
 type Tab = "order" | "orders" | "fund";
 
@@ -219,6 +227,7 @@ function OrderForm({
   onPlaced: () => void;
 }) {
   const [detail, setDetail] = useState<GroupOrderDetail | null>(null);
+  // key = lineKey(menu_item_id, size_id?) → số lượng.
   const [cart, setCart] = useState<Record<string, number>>({});
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -236,8 +245,9 @@ function OrderForm({
         const c: Record<string, number> = {};
         const n: Record<string, string> = {};
         r.data.my_order.items.forEach((it) => {
-          c[it.menu_item_id] = it.quantity;
-          if (it.note) n[it.menu_item_id] = it.note;
+          const key = lineKey(it.menu_item_id, it.menu_item_size_id);
+          c[key] = it.quantity;
+          if (it.note) n[key] = it.note;
         });
         setCart(c);
         setItemNotes(n);
@@ -256,6 +266,18 @@ function OrderForm({
     });
 
   const items = detail?.menu_items ?? [];
+
+  // Món + size (nếu có) tương ứng 1 dòng giỏ.
+  const resolveLine = (key: string) => {
+    const { menu_item_id, size_id } = parseKey(key);
+    const m = items.find((x) => x.id === menu_item_id);
+    const size = size_id ? m?.sizes?.find((s) => s.id === size_id) : undefined;
+    return { m, size };
+  };
+  const linePrice = (key: string) => {
+    const { m, size } = resolveLine(key);
+    return parseFloat(size?.price ?? m?.price ?? "0");
+  };
 
   // Các nhóm có món (§6.2 hướng A: nhóm suy ra client-side trong 1 danh mục)
   const groupsPresent = useMemo(() => {
@@ -278,7 +300,9 @@ function OrderForm({
   const pageItems = filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   const total = useMemo(
-    () => items.reduce((sum, m) => sum + (cart[m.id] || 0) * parseFloat(m.price), 0),
+    () =>
+      Object.entries(cart).reduce((sum, [key, qty]) => sum + qty * linePrice(key), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [cart, items]
   );
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
@@ -294,11 +318,15 @@ function OrderForm({
 
   const submit = async () => {
     setMsg(null);
-    const payloadItems = Object.entries(cart).map(([menu_item_id, quantity]) => ({
-      menu_item_id,
-      quantity,
-      note: itemNotes[menu_item_id]?.trim() || undefined,
-    }));
+    const payloadItems = Object.entries(cart).map(([key, quantity]) => {
+      const { menu_item_id, size_id } = parseKey(key);
+      return {
+        menu_item_id,
+        size_id,
+        quantity,
+        note: itemNotes[key]?.trim() || undefined,
+      };
+    });
     if (payloadItems.length === 0) {
       setMsg({ type: "error", text: "Hãy chọn ít nhất 1 món" });
       return;
@@ -371,23 +399,63 @@ function OrderForm({
           ) : (
             <div className="menu-grid">
               {pageItems.map((m) => {
-                const qty = cart[m.id] || 0;
+                const sizes = m.sizes ?? [];
+                const hasSizes = sizes.length > 0;
+                const cardQty = hasSizes
+                  ? sizes.reduce((s, sz) => s + (cart[lineKey(m.id, sz.id)] || 0), 0)
+                  : cart[m.id] || 0;
+                const minPrice = hasSizes
+                  ? Math.min(...sizes.map((s) => parseFloat(s.price)))
+                  : parseFloat(m.price);
                 return (
-                  <div key={m.id} className={`food-card ${qty > 0 ? "selected" : ""}`}>
+                  <div key={m.id} className={`food-card ${cardQty > 0 ? "selected" : ""}`}>
                     <FoodThumb item={m} size={124} radius={10} />
                     <div className="food-name" title={m.name}>
                       {m.name}
                     </div>
-                    <div className="food-price">{formatVND(m.price)}</div>
-                    <div className="qty">
-                      <button onClick={() => setQty(m.id, -1)} disabled={qty === 0 || closed}>
-                        −
-                      </button>
-                      <span>{qty}</span>
-                      <button onClick={() => setQty(m.id, 1)} disabled={closed}>
-                        +
-                      </button>
-                    </div>
+                    {hasSizes ? (
+                      <>
+                        <div className="food-price">từ {formatVND(minPrice)}</div>
+                        <div className="grid" style={{ gap: 6, width: "100%" }}>
+                          {sizes.map((sz) => {
+                            const k = lineKey(m.id, sz.id);
+                            const q = cart[k] || 0;
+                            return (
+                              <div key={sz.id} className="row between" style={{ gap: 6 }}>
+                                <span className="small">
+                                  {sz.name} · {formatVND(sz.price)}
+                                </span>
+                                <div className="qty">
+                                  <button onClick={() => setQty(k, -1)} disabled={q === 0 || closed}>
+                                    −
+                                  </button>
+                                  <span>{q}</span>
+                                  <button onClick={() => setQty(k, 1)} disabled={closed}>
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="food-price">{formatVND(m.price)}</div>
+                        <div className="qty">
+                          <button
+                            onClick={() => setQty(m.id, -1)}
+                            disabled={cardQty === 0 || closed}
+                          >
+                            −
+                          </button>
+                          <span>{cardQty}</span>
+                          <button onClick={() => setQty(m.id, 1)} disabled={closed}>
+                            +
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -441,28 +509,31 @@ function OrderForm({
             </div>
           ) : (
             <div className="grid" style={{ gap: 10 }}>
-              {items
-                .filter((m) => cart[m.id])
-                .map((m) => (
-                  <div key={m.id} className="cart-line">
+              {Object.entries(cart).map(([key, qty]) => {
+                const { m, size } = resolveLine(key);
+                if (!m) return null;
+                return (
+                  <div key={key} className="cart-line">
                     <div className="row between">
                       <span>
-                        <strong>{m.name}</strong>{" "}
-                        <span className="muted small">×{cart[m.id]}</span>
+                        <strong>{m.name}</strong>
+                        {size && <span className="muted small"> · {size.name}</span>}{" "}
+                        <span className="muted small">×{qty}</span>
                       </span>
-                      <span>{formatVND(parseFloat(m.price) * cart[m.id])}</span>
+                      <span>{formatVND(linePrice(key) * qty)}</span>
                     </div>
                     <textarea
                       className="mt"
                       rows={2}
                       style={{ fontSize: 13, padding: "6px 10px" }}
-                      value={itemNotes[m.id] || ""}
-                      onChange={(e) => setItemNotes((n) => ({ ...n, [m.id]: e.target.value }))}
+                      value={itemNotes[key] || ""}
+                      onChange={(e) => setItemNotes((n) => ({ ...n, [key]: e.target.value }))}
                       placeholder="Ghi chú món này (vd: ít cay, không hành…)"
                       disabled={closed}
                     />
                   </div>
-                ))}
+                );
+              })}
             </div>
           )}
 
