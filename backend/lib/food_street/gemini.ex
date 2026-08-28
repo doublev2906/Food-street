@@ -39,6 +39,9 @@ defmodule FoodStreet.Gemini do
   Nếu là OUT_OF_STOCK, điền vào "items" TÊN CÁC MÓN bị hết. Chỉ dùng tên món có
   trong danh sách món đã đặt được cung cấp (khớp chính xác chuỗi trong danh sách
   đó); không có món nào khớp thì để "items" rỗng. Các ý định khác luôn để "items" rỗng.
+
+  Người bán có thể tách một ý thành nhiều tin liên tiếp. Khi nhận một cụm tin, hãy
+  đọc chúng theo thứ tự như một ngữ cảnh duy nhất rồi phân loại ý định chung.
   """
 
   @doc """
@@ -102,6 +105,7 @@ defmodule FoodStreet.Gemini do
   defp prompt(text, ctx) do
     category = Map.get(ctx, :category_name) || "?"
     item_names = Map.get(ctx, :item_names, [])
+    messages = context_messages(text, ctx)
 
     items_block =
       case item_names do
@@ -114,9 +118,38 @@ defmodule FoodStreet.Gemini do
     Các món đã đặt trong đợt hiện tại:
     #{items_block}
 
-    Tin nhắn của người bán:
-    "#{text}"
+    #{messages_block(messages)}
     """
+  end
+
+  defp context_messages(text, ctx) do
+    case Map.get(ctx, :messages) do
+      messages when is_list(messages) ->
+        messages
+        |> Enum.filter(&is_binary/1)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> case do
+          [] -> [text]
+          normalized -> normalized
+        end
+
+      _ ->
+        [text]
+    end
+  end
+
+  defp messages_block([message]) do
+    "Tin nhắn của người bán:\n\"#{message}\""
+  end
+
+  defp messages_block(messages) do
+    numbered =
+      messages
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {message, index} -> "#{index}. #{message}" end)
+
+    "Các tin nhắn liên tiếp của người bán (theo thứ tự):\n#{numbered}"
   end
 
   # candidates[0].content.parts[0].text là CHUỖI JSON (do responseMimeType) -> decode.

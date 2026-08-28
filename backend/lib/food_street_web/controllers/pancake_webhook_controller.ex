@@ -5,8 +5,8 @@ defmodule FoodStreetWeb.PancakeWebhookController do
 
       POST /api/webhooks/pancake/<secret>
 
-  Trả 200 ngay rồi relay tin nhà bán về Panchat nội bộ **async** (best-practice: phản
-  hồi < 5s để Pancake không treo webhook). Xem `FoodStreet.PancakeInbound`.
+  Đưa tin nhà bán vào bộ debounce rồi trả 200 ngay (best-practice: phản hồi < 5s để
+  Pancake không treo webhook). Xem `FoodStreet.PancakeInbound`.
   """
   use FoodStreetWeb, :controller
 
@@ -18,13 +18,7 @@ defmodule FoodStreetWeb.PancakeWebhookController do
     if secret_ok?(secret) do
       payload = Map.delete(params, "secret")
 
-      Task.Supervisor.start_child(FoodStreet.TaskSupervisor, fn ->
-        try do
-          PancakeInbound.handle_messaging(payload)
-        rescue
-          e -> Logger.error("[PancakeWebhook] xử lý lỗi: #{Exception.message(e)}")
-        end
-      end)
+      PancakeInbound.enqueue_messaging(payload)
 
       send_resp(conn, 200, "")
     else

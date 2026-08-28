@@ -13,8 +13,9 @@ defmodule FoodStreet.Application do
         FoodStreet.Repo,
         {DNSCluster, query: Application.get_env(:food_street, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: FoodStreet.PubSub},
-        # Xử lý webhook Pancake async (relay tin nhà bán về Panchat) để trả 200 nhanh.
-        {Task.Supervisor, name: FoodStreet.TaskSupervisor}
+        # Xử lý từng batch Pancake độc lập để một conversation chậm không chặn batch khác.
+        {Task.Supervisor, name: FoodStreet.TaskSupervisor},
+        FoodStreet.PancakeMessageDebouncer
       ] ++
         scheduler_children() ++
         [

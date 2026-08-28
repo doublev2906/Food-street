@@ -65,13 +65,40 @@ defmodule FoodStreet.GeminiTest do
       assert path =~ ":generateContent"
 
       schema = body["generationConfig"]["responseSchema"]
-      assert schema["properties"]["intent"]["enum"] == ~w(OUT_OF_STOCK READY_FOR_PICKUP PAYMENT OTHER)
+
+      assert schema["properties"]["intent"]["enum"] ==
+               ~w(OUT_OF_STOCK READY_FOR_PICKUP PAYMENT OTHER)
+
       assert body["generationConfig"]["responseMimeType"] == "application/json"
 
       # Tên món được nhồi vào prompt để model trả tên canonical.
       prompt = get_in(body, ["contents", Access.at(0), "parts", Access.at(0), "text"])
       assert prompt =~ "Xôi"
       assert prompt =~ "Bánh mì"
+    end
+
+    test "đưa cả batch tin nhắn liên tiếp vào context theo đúng thứ tự" do
+      test_pid = self()
+
+      stub_gemini!(fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:gemini_req, Jason.decode!(raw)})
+        Req.Test.json(conn, gemini_json(%{"intent" => "OUT_OF_STOCK", "items" => ["Xôi"]}))
+      end)
+
+      assert {:ok, %{intent: "OUT_OF_STOCK"}} =
+               Gemini.classify("xôi nhé", %{
+                 category_name: "Ăn sáng",
+                 item_names: ["Xôi"],
+                 messages: ["hết", "xôi nhé"]
+               })
+
+      assert_received {:gemini_req, body}
+      prompt = get_in(body, ["contents", Access.at(0), "parts", Access.at(0), "text"])
+
+      assert prompt =~ "Các tin nhắn liên tiếp của người bán"
+      assert prompt =~ "1. hết"
+      assert prompt =~ "2. xôi nhé"
     end
   end
 
