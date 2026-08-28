@@ -13,12 +13,13 @@ defmodule FoodStreet.PancakeInbound do
   env `PANCHAT_BOT_TOKEN`). Chưa cấu hình `GEMINI_API_KEY` thì bỏ qua phân loại, relay
   thẳng như trước (không coi là lỗi).
 
-  Được gọi async từ `PancakeWebhookController` (đã trả 200 cho Pancake trước đó).
+  `PancakeWebhookController` chỉ kiểm tra payload và đưa tin vào bộ debounce; batch
+  được xử lý sau khoảng im lặng đã cấu hình.
   """
 
   require Logger
 
-  alias FoodStreet.{Catalog, Panchat, Repo, Ordering, Gemini}
+  alias FoodStreet.{Catalog, Panchat, Repo, Ordering, Gemini, PancakeMessageDebouncer}
   alias FoodStreet.PancakeWebhookEvent
 
   @doc """
@@ -27,40 +28,90 @@ defmodule FoodStreet.PancakeInbound do
   `{:error, reason}` khi lỗi thật (không có token admin, gửi Panchat lỗi).
   """
   def handle_messaging(payload) when is_map(payload) do
-    with :ok <- ensure_messaging(payload),
-         {:ok, ctx} <- extract(payload),
-         :ok <- ensure_seller_reply(ctx),
-         %Catalog.Category{} = category <-
-           Catalog.get_category_by_conversation_id(ctx.conversation_id) || {:skip, :no_category},
-         :ok <- ensure_not_processed(ctx.message_id),
-         token when is_binary(token) <-
-           Panchat.bot_token() || {:error, :no_bot_token} do
-      # Chỉ đánh dấu đã xử lý SAU KHI gửi thành công — gửi lỗi (Panchat tạm chết)
-      # thì để nguyên cho Pancake gửi lại (at-least-once: thà trùng còn hơn mất tin).
-      case dispatch(category, ctx, token) do
-        {:ok, :relayed} ->
-          mark_processed(ctx.message_id)
-          {:ok, :relayed}
-
-        other ->
-          other
-      end
-    else
-      {:skip, _} = skip ->
-        skip
-
-      {:error, :no_bot_token} = err ->
-        Logger.warning("[PancakeInbound] chưa cấu hình PANCHAT_BOT_TOKEN — bỏ xử lý")
-        err
-
-      {:error, _} = err ->
-        err
+    with {:ok, ctx} <- prepare_message(payload) do
+      handle_messages([ctx])
     end
   end
 
   def handle_messaging(_), do: {:skip, :invalid_payload}
 
+  @doc "Kiểm tra webhook nhà bán rồi đưa vào bộ debounce theo conversation."
+  def enqueue_messaging(payload, debouncer \\ PancakeMessageDebouncer)
+
+  def enqueue_messaging(payload, debouncer) when is_map(payload) do
+    with {:ok, ctx} <- prepare_message(payload) do
+      case PancakeMessageDebouncer.enqueue(debouncer, ctx) do
+        :ok -> {:ok, :queued}
+        :duplicate -> {:skip, :duplicate_queued}
+      end
+    end
+  end
+
+  def enqueue_messaging(_, _), do: {:skip, :invalid_payload}
+
+  @doc "Xử lý một batch context đã được debounce theo cùng conversation."
+  def handle_messages(messages) when is_list(messages) and messages != [] do
+    messages =
+      messages
+      |> Enum.uniq_by(& &1.message_id)
+      |> Enum.filter(&(ensure_not_processed(&1.message_id) == :ok))
+
+    case messages do
+      [] ->
+        {:skip, :duplicate}
+
+      [first | _] ->
+        with %Catalog.Category{} = category <-
+               Catalog.get_category_by_conversation_id(first.conversation_id) ||
+                 {:skip, :no_category},
+             token when is_binary(token) <-
+               Panchat.bot_token() || {:error, :no_bot_token} do
+          ctx = stack_messages(messages)
+
+          # Chỉ đánh dấu từng message_id SAU KHI gửi thành công. Batch gửi lỗi vẫn
+          # không bị coi là đã xử lý nếu nguồn webhook gửi lại.
+          case dispatch(category, ctx, token) do
+            {:ok, :relayed} ->
+              Enum.each(messages, &mark_processed(&1.message_id))
+              {:ok, :relayed}
+
+            other ->
+              other
+          end
+        else
+          {:skip, _} = skip ->
+            skip
+
+          {:error, :no_bot_token} = err ->
+            Logger.warning("[PancakeInbound] chưa cấu hình PANCHAT_BOT_TOKEN — bỏ xử lý")
+            err
+
+          {:error, _} = err ->
+            err
+        end
+    end
+  end
+
+  def handle_messages(_), do: {:skip, :empty_batch}
+
   # ---- các bước ----
+
+  defp prepare_message(payload) do
+    with :ok <- ensure_messaging(payload),
+         {:ok, ctx} <- extract(payload),
+         :ok <- ensure_seller_reply(ctx) do
+      {:ok, ctx}
+    end
+  end
+
+  defp stack_messages(messages) do
+    texts = Enum.map(messages, & &1.text)
+
+    Map.merge(hd(messages), %{
+      text: Enum.join(texts, "\n"),
+      messages: texts
+    })
+  end
 
   defp ensure_messaging(%{"event_type" => "messaging"}), do: :ok
   defp ensure_messaging(_), do: {:skip, :not_messaging}
@@ -155,7 +206,8 @@ defmodule FoodStreet.PancakeInbound do
     if Gemini.enabled?() do
       Gemini.classify(ctx.text, %{
         category_name: category.name,
-        item_names: Ordering.item_names_in_group(go)
+        item_names: Ordering.item_names_in_group(go),
+        messages: Map.get(ctx, :messages, [ctx.text])
       })
     else
       {:ok, %{intent: "OTHER", items: []}}

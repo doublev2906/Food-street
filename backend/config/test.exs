@@ -23,6 +23,9 @@ config :food_street, FoodStreetWeb.Endpoint,
 # Không chạy ticker lịch hẹn trong test (gọi Scheduling.run_tick/1 trực tiếp thay vì).
 config :food_street, FoodStreet.OrderScheduler, enabled: false
 
+# Giữ debounce đủ ngắn để test webhook quan sát được hành vi mà không chờ 10 giây.
+config :food_street, FoodStreet.PancakeMessageDebouncer, debounce_ms: 80
+
 # Pin lãi suất test = 99% (config prod là 200%) để test công thức lãi (interest_test)
 # deterministic, không phụ thuộc suất thật ngoài prod.
 config :food_street, FoodStreet.Interest,

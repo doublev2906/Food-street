@@ -3,7 +3,15 @@ defmodule FoodStreet.PancakeInboundTest do
   # tạm xoá env đó (toàn cục) nên module chạy tuần tự để tránh đua.
   use FoodStreet.DataCase, async: false
 
-  alias FoodStreet.{PancakeInbound, Catalog, Accounts, Settings, Ordering}
+  alias FoodStreet.{
+    PancakeInbound,
+    PancakeMessageDebouncer,
+    PancakeWebhookEvent,
+    Catalog,
+    Accounts,
+    Settings,
+    Ordering
+  }
 
   # ---- helpers ----
 
@@ -354,6 +362,89 @@ defmodule FoodStreet.PancakeInboundTest do
       assert_received {:panchat, _auth, body}
       assert inspect(body) =~ "phản hồi"
       refute inspect(body) =~ "Gemini phân loại lỗi"
+    end
+  end
+
+  describe "enqueue_messaging/2 — debounce context" do
+    test "gom các tin liên tiếp rồi chỉ gọi Gemini và cảnh báo hết món một lần" do
+      Req.Test.set_req_test_to_shared()
+      cat = make_category()
+      admin = make_admin_with_token("admina", "tok")
+      {go, mi} = open_group_with_item(cat, admin, "Xôi")
+      eater = make_user("annie", %{panchat_user_id: "33333333-3333-3333-3333-333333333333"})
+      order_item(eater, go, mi)
+      stub_panchat!()
+
+      test_pid = self()
+
+      Req.Test.stub(FoodStreet.Gemini, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:gemini_req, Jason.decode!(raw)})
+
+        Req.Test.json(conn, %{
+          "candidates" => [
+            %{
+              "content" => %{
+                "parts" => [
+                  %{"text" => Jason.encode!(%{"intent" => "OUT_OF_STOCK", "items" => ["Xôi"]})}
+                ]
+              }
+            }
+          ]
+        })
+      end)
+
+      task_supervisor = start_supervised!(Task.Supervisor)
+
+      debouncer =
+        start_supervised!(
+          {PancakeMessageDebouncer,
+           name: nil,
+           debounce_ms: 20,
+           task_supervisor: task_supervisor,
+           handler: {PancakeInbound, :handle_messages, []}}
+        )
+
+      first =
+        inbox_payload(%{
+          message: %{"id" => "msg-1", "message" => "hết", "original_message" => "hết"}
+        })
+
+      second =
+        inbox_payload(%{
+          message: %{
+            "id" => "msg-2",
+            "message" => "xôi nhé",
+            "original_message" => "xôi nhé"
+          }
+        })
+
+      assert {:ok, :queued} = PancakeInbound.enqueue_messaging(first, debouncer)
+      assert {:ok, :queued} = PancakeInbound.enqueue_messaging(second, debouncer)
+
+      assert_receive {:gemini_req, body}, 200
+      prompt = get_in(body, ["contents", Access.at(0), "parts", Access.at(0), "text"])
+      assert prompt =~ "1. hết"
+      assert prompt =~ "2. xôi nhé"
+
+      assert_receive {:panchat, _auth, panchat_body}, 200
+      assert inspect(panchat_body) =~ "hết Xôi rồi"
+      refute_receive {:gemini_req, _}, 30
+      refute_receive {:panchat, _auth, _body}, 30
+      assert_processed(["msg-1", "msg-2"])
+    end
+  end
+
+  defp assert_processed(message_ids, attempts \\ 20)
+
+  defp assert_processed(_message_ids, 0), do: flunk("webhook batch did not finish")
+
+  defp assert_processed(message_ids, attempts) do
+    if Enum.all?(message_ids, &Repo.get_by(PancakeWebhookEvent, message_id: &1)) do
+      :ok
+    else
+      Process.sleep(10)
+      assert_processed(message_ids, attempts - 1)
     end
   end
 end
