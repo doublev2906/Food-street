@@ -3,7 +3,6 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
 
   alias FoodStreet.Ordering
   alias FoodStreet.Guardian
-  alias FoodStreet.Settings
   alias FoodStreet.Panchat
   alias FoodStreet.PancakePage
 
@@ -34,7 +33,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     admin = Guardian.Plug.current_resource(conn)
 
     with {:ok, go} <- Ordering.create_group_order(params, admin) do
-      panchat = send_invite(go, admin_token(admin))
+      panchat = send_invite(go, admin.name)
 
       conn
       |> put_status(:created)
@@ -42,14 +41,10 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  # Token gửi Panchat cho thao tác của admin: ưu tiên token riêng của admin; admin
-  # chưa cấu hình thì fallback token bot (env `PANCHAT_BOT_TOKEN`) để tin vẫn gửi được.
-  defp admin_token(admin), do: Settings.panchat_token(admin.id) || Panchat.bot_token()
-
   # Gửi lời mời vào Panchat (best-effort): lỗi mạng không rollback đợt đã tạo,
-  # chỉ báo lại trạng thái để admin biết.
-  defp send_invite(go, token) do
-    case Panchat.send_breakfast_invite(go, token) do
+  # chỉ báo lại trạng thái để admin biết. Tin gửi bằng token bot, ký tên admin ở cuối.
+  defp send_invite(go, admin_name) do
+    case Panchat.send_breakfast_invite(go, admin_name) do
       {:ok, _message} ->
         %{sent: true}
 
@@ -59,7 +54,7 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  defp format_error(:panchat_token_missing), do: "Chưa cấu hình Panchat token."
+  defp format_error(:panchat_token_missing), do: "Chưa cấu hình token bot Panchat."
   defp format_error(:pancake_not_configured), do: "Danh mục chưa cấu hình Pancake."
   defp format_error({:panchat, msg}) when is_binary(msg), do: msg
   defp format_error({:pancake, msg}) when is_binary(msg), do: msg
@@ -109,9 +104,9 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  # Báo Panchat khi xoá đợt (best-effort, token admin thực hiện).
+  # Báo Panchat khi xoá đợt (best-effort, ký tên admin thực hiện).
   defp notify_deleted(go, admin) do
-    case Panchat.send_group_deleted(go, admin_token(admin)) do
+    case Panchat.send_group_deleted(go, admin.name) do
       {:ok, _} ->
         :ok
 
@@ -186,9 +181,9 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  # Báo Panchat khi hoàn quỹ (mở lại / huỷ đợt) — best-effort, token admin thực hiện.
+  # Báo Panchat khi hoàn quỹ (mở lại / huỷ đợt) — best-effort, ký tên admin thực hiện.
   defp notify_refunded(group, count, total, mode, admin) do
-    case Panchat.send_group_refunded(group, count, total, mode, admin_token(admin)) do
+    case Panchat.send_group_refunded(group, count, total, mode, admin.name) do
       {:ok, _} ->
         %{sent: true}
 
@@ -248,14 +243,14 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  # Gửi tin tổng kết vào Panchat khi chốt đợt (best-effort, token admin bấm chốt).
+  # Gửi tin tổng kết vào Panchat khi chốt đợt (best-effort, ký tên admin bấm chốt).
   defp notify_closed(group, count, admin) do
     total =
       Enum.reduce(group.orders || [], Decimal.new(0), fn o, acc ->
         if o.status == "cancelled", do: acc, else: Decimal.add(acc, o.total_amount)
       end)
 
-    case Panchat.send_group_closed_summary(group, count, total, admin_token(admin)) do
+    case Panchat.send_group_closed_summary(group, count, total, admin.name) do
       {:ok, _} ->
         %{sent: true}
 
@@ -265,12 +260,12 @@ defmodule FoodStreetWeb.Admin.GroupOrderController do
     end
   end
 
-  # Gửi tin báo người đi lấy đồ vào Panchat (best-effort, token admin thực hiện).
+  # Gửi tin báo người đi lấy đồ vào Panchat (best-effort, ký tên admin thực hiện).
   # Không ai được bốc (runner_count = 0 hoặc chưa ai đặt) thì bỏ qua, không gửi tin.
   defp notify_runners(_go, [], _admin), do: %{skipped: true}
 
   defp notify_runners(go, runners, admin) do
-    case Panchat.send_runners_picked(go, runners, admin_token(admin)) do
+    case Panchat.send_runners_picked(go, runners, admin.name) do
       {:ok, _} ->
         %{sent: true}
 

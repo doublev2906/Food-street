@@ -2679,10 +2679,11 @@ function SettingsTab() {
       <div className="card">
         <h2>Panchat</h2>
         <p className="small muted">
-          Token Panchat <strong>của riêng bạn</strong> để gửi lời mời ăn sáng vào
-          channel (workspace 4 / channel 11813). Mỗi admin dùng token riêng — đợt
-          do bạn tạo sẽ gửi bằng token này.{" "}
-          <strong>Bắt buộc phải có token</strong> thì bạn mới tạo được đợt đặt nhóm.
+          Mọi thông báo giờ đều gửi bằng <strong>tài khoản bot</strong> (biến môi
+          trường <code>PANCHAT_BOT_TOKEN</code>) vào channel (workspace 4 / channel
+          11813); tin do admin bấm chỉ ký tên admin ở cuối. Token riêng của bạn{" "}
+          <strong>không còn được dùng để gửi tin</strong> — không cần nhập vẫn tạo
+          được đợt đặt nhóm.
         </p>
 
         {settings && (

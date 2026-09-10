@@ -130,7 +130,7 @@ defmodule FoodStreet.Scheduling do
   end
 
   defp send_invite(go) do
-    case Panchat.send_breakfast_invite(go, Panchat.bot_token()) do
+    case Panchat.send_breakfast_invite(go) do
       {:ok, _} ->
         :ok
 

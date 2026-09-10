@@ -4,7 +4,6 @@ defmodule FoodStreetWeb.Admin.ExternalPurchaseController do
 
   alias FoodStreet.Fund
   alias FoodStreet.Guardian
-  alias FoodStreet.Settings
   alias FoodStreet.Panchat
 
   require Logger
@@ -38,12 +37,10 @@ defmodule FoodStreetWeb.Admin.ExternalPurchaseController do
     end
   end
 
-  # Báo Panchat khi chia tiền (best-effort, tag @all). Ưu tiên token admin; chưa
-  # cấu hình thì fallback token bot (env `PANCHAT_BOT_TOKEN`) để tin vẫn gửi được.
+  # Báo Panchat khi chia tiền (best-effort, tag @all). Gửi bằng token bot
+  # (env `PANCHAT_BOT_TOKEN`), ký tên admin thực hiện ở cuối tin.
   defp notify_split(purchase, admin) do
-    token = Settings.panchat_token(admin.id) || Panchat.bot_token()
-
-    case Panchat.send_external_purchase(purchase, token) do
+    case Panchat.send_external_purchase(purchase, admin.name) do
       {:ok, _} ->
         %{sent: true}
 

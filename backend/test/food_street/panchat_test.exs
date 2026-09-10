@@ -32,14 +32,36 @@ defmodule FoodStreet.PanchatTest do
 
       refute without_note =~ "📝"
     end
+
+    test "ký tên admin ở cuối khi có admin mở đợt" do
+      go = %GroupOrder{title: "X", order_date: ~D[2026-07-01], note: "Chốt 8h"}
+
+      assert Panchat.invite_text(go, "Vân") =~ "\n— Vân"
+      refute Panchat.invite_text(go) =~ "Vân"
+    end
   end
 
   describe "send_breakfast_invite/2" do
-    test "returns error when token is missing (nil or blank) without calling network" do
-      go = %GroupOrder{title: "X", order_date: ~D[2026-07-01], note: nil}
+    test "gửi bằng token bot, ký tên admin ở cuối tin" do
+      test_pid = self()
 
-      assert Panchat.send_breakfast_invite(go, nil) == {:error, :panchat_token_missing}
-      assert Panchat.send_breakfast_invite(go, "   ") == {:error, :panchat_token_missing}
+      Req.Test.stub(FoodStreet.Panchat, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+
+        send(
+          test_pid,
+          {:req, Plug.Conn.get_req_header(conn, "authorization"), Jason.decode!(raw)}
+        )
+
+        Req.Test.json(conn, %{"id" => "m1"})
+      end)
+
+      go = %GroupOrder{title: "X", order_date: ~D[2026-07-01], note: nil}
+      assert {:ok, _} = Panchat.send_breakfast_invite(go, "Vân")
+
+      assert_received {:req, auth, body}
+      assert auth == ["Bearer #{Application.get_env(:food_street, :panchat_bot_token)}"]
+      assert List.last(body["text"])["content"] == "— Vân"
     end
   end
 
@@ -54,14 +76,12 @@ defmodule FoodStreet.PanchatTest do
       assert text =~ "90.000đ"
     end
 
-    test "send_group_closed_summary lỗi khi thiếu token, không gọi mạng" do
-      go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
+    test "close_text ký tên admin ở cuối, bỏ qua khi không có admin" do
+      go = %GroupOrder{id: "abc", title: "Sáng T2", order_date: ~D[2026-07-02]}
 
-      assert Panchat.send_group_closed_summary(go, 1, Decimal.new("1000"), nil) ==
-               {:error, :panchat_token_missing}
-
-      assert Panchat.send_group_closed_summary(go, 1, Decimal.new("1000"), "  ") ==
-               {:error, :panchat_token_missing}
+      assert Panchat.close_text(go, 3, Decimal.new("90000"), "Vân") =~ "\n— Vân"
+      refute Panchat.close_text(go, 3, Decimal.new("90000"), "  ") =~ "Vân"
+      refute Panchat.close_text(go, 3, Decimal.new("90000")) =~ "Vân"
     end
   end
 
@@ -87,14 +107,12 @@ defmodule FoodStreet.PanchatTest do
       refute text =~ "chốt lại"
     end
 
-    test "send_group_refunded lỗi khi thiếu token, không gọi mạng" do
+    test "refund_text ký tên admin ở cuối (cả :reopen lẫn :cancel)" do
       go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
 
-      assert Panchat.send_group_refunded(go, 1, Decimal.new("1000"), :reopen, nil) ==
-               {:error, :panchat_token_missing}
-
-      assert Panchat.send_group_refunded(go, 1, Decimal.new("1000"), :cancel, "  ") ==
-               {:error, :panchat_token_missing}
+      assert Panchat.refund_text(go, 1, Decimal.new("1000"), :reopen, "Vân") =~ "\n— Vân"
+      assert Panchat.refund_text(go, 1, Decimal.new("1000"), :cancel, "Vân") =~ "\n— Vân"
+      refute Panchat.refund_text(go, 1, Decimal.new("1000"), :cancel) =~ "Vân"
     end
   end
 
@@ -107,11 +125,11 @@ defmodule FoodStreet.PanchatTest do
       assert text =~ "2026-07-02"
     end
 
-    test "send_group_deleted lỗi khi thiếu token, không gọi mạng" do
+    test "deleted_text ký tên admin ở cuối" do
       go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
 
-      assert Panchat.send_group_deleted(go, nil) == {:error, :panchat_token_missing}
-      assert Panchat.send_group_deleted(go, "  ") == {:error, :panchat_token_missing}
+      assert Panchat.deleted_text(go, "Vân") =~ "\n— Vân"
+      refute Panchat.deleted_text(go) =~ "Vân"
     end
   end
 
@@ -153,12 +171,15 @@ defmodule FoodStreet.PanchatTest do
       assert span["to"] == 6
     end
 
-    test "send_runners_picked lỗi khi thiếu token, không gọi mạng" do
+    test "thêm 1 paragraph ký tên admin ở cuối khi có admin" do
       go = %GroupOrder{id: "abc", title: "X", order_date: ~D[2026-07-02]}
       users = [%User{name: "An", panchat_user_id: @uuid}]
 
-      assert Panchat.send_runners_picked(go, users, nil) == {:error, :panchat_token_missing}
-      assert Panchat.send_runners_picked(go, users, "  ") == {:error, :panchat_token_missing}
+      body = Panchat.runners_body(go, users, "Vân")
+      assert %{"type" => "paragraph", "content" => "— Vân"} = List.last(body["text"])
+
+      # Tin tự động (không admin) giữ đúng 3 paragraph như cũ.
+      assert length(Panchat.runners_body(go, users)["text"]) == 3
     end
   end
 
@@ -192,9 +213,9 @@ defmodule FoodStreet.PanchatTest do
                body["text"]
     end
 
-    test "send_external_purchase lỗi khi thiếu token, không gọi mạng" do
-      assert Panchat.send_external_purchase(purchase(), nil) == {:error, :panchat_token_missing}
-      assert Panchat.send_external_purchase(purchase(), " ") == {:error, :panchat_token_missing}
+    test "external_purchase_text ký tên admin ở cuối" do
+      assert Panchat.external_purchase_text(purchase(), "Vân") =~ "\n— Vân"
+      refute Panchat.external_purchase_text(purchase()) =~ "Vân"
     end
   end
 

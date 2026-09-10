@@ -6,12 +6,10 @@ defmodule FoodStreet.Panchat do
   prod = kênh THẬT "Pancake Food Street" (workspace 4 / channel 11813), dev/test = kênh
   thử (workspace 5979 / channel 15515) để khỏi làm phiền kênh chung.
 
-  Hai nguồn token:
-
-    * **Token admin** — tin do admin bấm (mở/chốt/hoàn/huỷ đợt, bốc người, mua ngoài);
-      mỗi admin một token riêng (`FoodStreet.Settings.panchat_token/1`).
-    * **Token bot** (`bot_token/0`, env `PANCHAT_BOT_TOKEN`) — tin TỰ ĐỘNG không do admin
-      bấm: relay webhook nhà bán, báo số dư quỹ, mở đợt theo lịch.
+  MỌI tin đều gửi bằng **token bot** (`bot_token/0`, env `PANCHAT_BOT_TOKEN`) — cả tin
+  tự động (relay webhook nhà bán, báo số dư quỹ, mở đợt theo lịch) lẫn tin do admin bấm
+  (mở/chốt/hoàn/huỷ đợt, bốc người, mua ngoài). Tin do admin bấm chỉ **ký tên admin ở
+  cuối** (`— <tên>`) để mọi người biết ai thao tác; không còn token riêng từng admin.
 
   Token gửi qua header Bearer. Endpoint/payload theo Pancake Work API v2 (`sendChannelMessage`):
 
@@ -54,29 +52,40 @@ defmodule FoodStreet.Panchat do
 
   defp channel_id, do: Application.get_env(:food_street, :panchat_channel_id, @default_channel_id)
 
-  @doc """
-  Gửi lời mời ăn sáng cho 1 đợt đặt nhóm vào channel Panchat bằng `token` của
-  admin tạo đợt.
-
-  Trả `{:ok, message}` khi gửi thành công, `{:error, reason}` nếu thiếu token
-  hoặc Panchat trả lỗi.
-  """
-  def send_breakfast_invite(%GroupOrder{} = group_order, token) do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          send_channel_message(token, invite_text(group_order))
-        end
+  # Mọi tin gửi bằng token bot. Chưa cấu hình `PANCHAT_BOT_TOKEN` thì trả
+  # `{:error, :panchat_token_missing}` — caller tự xử (best-effort, không rollback).
+  defp with_bot_token(fun) do
+    case bot_token() do
+      nil -> {:error, :panchat_token_missing}
+      token -> fun.(token)
     end
   end
 
+  # Ký tên admin bấm nút ở cuối tin. Tin tự động (không có admin) giữ nguyên nội dung.
+  defp sign(text, admin_name), do: String.trim_trailing(text) <> by_line(admin_name)
+
+  defp by_line(name) when is_binary(name) do
+    case String.trim(name) do
+      "" -> ""
+      name -> "\n— #{name}"
+    end
+  end
+
+  defp by_line(_), do: ""
+
+  @doc """
+  Gửi lời mời ăn sáng cho 1 đợt đặt nhóm vào channel Panchat bằng token bot.
+
+  `admin_name` là tên admin mở đợt (ký ở cuối tin); đợt mở theo lịch thì bỏ trống.
+  Trả `{:ok, message}` khi gửi thành công, `{:error, reason}` nếu thiếu token bot
+  hoặc Panchat trả lỗi.
+  """
+  def send_breakfast_invite(%GroupOrder{} = group_order, admin_name \\ nil) do
+    with_bot_token(&send_channel_message(&1, invite_text(group_order, admin_name)))
+  end
+
   @doc "Nội dung tin mời ăn sáng (thuần, không gọi mạng — tách ra để dễ test)."
-  def invite_text(%GroupOrder{} = go) do
+  def invite_text(%GroupOrder{} = go, admin_name \\ nil) do
     # Deep-link: mở thẳng đợt này để user chọn món ngay.
     link = "#{frontend_url()}/app?group=#{go.id}"
 
@@ -91,79 +100,39 @@ defmodule FoodStreet.Panchat do
     🍜 Đã mở đợt đặt đồ ăn: "#{go.title}" (📅 #{go.order_date})
     Mọi người vào đặt món nhé 👉 #{link}#{note_line}
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
   @doc """
-  Gửi tin tổng kết (gọn) khi admin chốt cả đợt, bằng `token` của admin bấm chốt.
+  Gửi tin tổng kết (gọn) khi admin chốt cả đợt; ký tên `admin_name` ở cuối tin.
   """
-  def send_group_closed_summary(%GroupOrder{} = go, count, total, token) do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          send_channel_message(token, close_text(go, count, total))
-        end
-    end
+  def send_group_closed_summary(%GroupOrder{} = go, count, total, admin_name \\ nil) do
+    with_bot_token(&send_channel_message(&1, close_text(go, count, total, admin_name)))
   end
 
   @doc """
-  Gửi tin báo hoàn quỹ khi mở lại (`:reopen`) hoặc huỷ (`:cancel`) đợt đã chốt,
-  bằng `token` của admin thực hiện.
+  Gửi tin báo hoàn quỹ khi mở lại (`:reopen`) hoặc huỷ (`:cancel`) đợt đã chốt;
+  ký tên `admin_name` (admin thực hiện) ở cuối tin.
   """
-  def send_group_refunded(%GroupOrder{} = go, count, total, mode, token)
+  def send_group_refunded(%GroupOrder{} = go, count, total, mode, admin_name \\ nil)
       when mode in [:reopen, :cancel] do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          send_channel_message(token, refund_text(go, count, total, mode))
-        end
-    end
+    with_bot_token(&send_channel_message(&1, refund_text(go, count, total, mode, admin_name)))
   end
 
-  @doc "Gửi tin báo huỷ/xoá đợt, bằng `token` của admin thực hiện."
-  def send_group_deleted(%GroupOrder{} = go, token) do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          send_channel_message(token, deleted_text(go))
-        end
-    end
+  @doc "Gửi tin báo huỷ/xoá đợt; ký tên `admin_name` (admin thực hiện) ở cuối tin."
+  def send_group_deleted(%GroupOrder{} = go, admin_name \\ nil) do
+    with_bot_token(&send_channel_message(&1, deleted_text(go, admin_name)))
   end
 
   @doc """
-  Gửi tin báo những người được bốc đi lấy đồ cho 1 đợt, bằng `token` của admin
-  thực hiện. `users` là danh sách `%User{}` (có `name`, `panchat_user_id`).
+  Gửi tin báo những người được bốc đi lấy đồ cho 1 đợt; ký tên `admin_name` (admin
+  thực hiện) ở cuối tin. `users` là danh sách `%User{}` (có `name`, `panchat_user_id`).
 
   Chỉ mention thật (ping) người có `panchat_user_id`; người chưa có UUID vẫn hiển
   thị `@Tên` dạng text thường. Trả `{:ok, message}` hoặc `{:error, reason}`.
   """
-  def send_runners_picked(%GroupOrder{} = go, users, token) do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          post_message(token, runners_body(go, users))
-        end
-    end
+  def send_runners_picked(%GroupOrder{} = go, users, admin_name \\ nil) do
+    with_bot_token(&post_message(&1, runners_body(go, users, admin_name)))
   end
 
   @doc """
@@ -173,32 +142,30 @@ defmodule FoodStreet.Panchat do
   ⚠️ Gửi thật vào kênh Panchat đang cấu hình (prod: workspace #{@default_workspace_id} /
   channel #{@default_channel_id}), nên tiêu đề đánh dấu "[TEST]" cho mọi người biết.
 
-  Cần token Panchat của 1 admin (mỗi admin 1 token — xem `FoodStreet.Settings`).
-  Chạy trong IEx trên server:
+  Gửi bằng token bot (env `PANCHAT_BOT_TOKEN`). Chạy trong IEx trên server:
 
-      iex> token = FoodStreet.Settings.panchat_token("<admin_id>")
-      iex> FoodStreet.Panchat.test_notify_panchat_users(token)
+      iex> FoodStreet.Panchat.test_notify_panchat_users()
 
   Trả `{:ok, message}` khi Panchat nhận; `{:error, :panchat_token_missing}` nếu
-  thiếu token; `{:error, :no_panchat_users}` nếu chưa user nào có `panchat_user_id`.
+  thiếu token bot; `{:error, :no_panchat_users}` nếu chưa user nào có `panchat_user_id`.
   """
-  def test_notify_panchat_users(token) do
+  def test_notify_panchat_users(admin_name \\ nil) do
     case Accounts.list_users_with_panchat_id() do
       [] ->
         {:error, :no_panchat_users}
 
       users ->
         go = %GroupOrder{title: "[TEST] báo Panchat", order_date: Date.utc_today()}
-        send_runners_picked(go, users, token)
+        send_runners_picked(go, users, admin_name)
     end
   end
 
   @doc """
   Body tin báo người đi lấy đồ: 1 paragraph tiêu đề, 1 paragraph liệt kê người
-  được chọn (mention thật ai có `panchat_user_id`) và 1 paragraph nhắc nhở.
-  Tách ra để test thuần payload, không gọi mạng.
+  được chọn (mention thật ai có `panchat_user_id`), 1 paragraph nhắc nhở và
+  (nếu có) 1 paragraph ký tên admin. Tách ra để test thuần payload, không gọi mạng.
   """
-  def runners_body(%GroupOrder{} = go, users) do
+  def runners_body(%GroupOrder{} = go, users, admin_name \\ nil) do
     header = %{
       "type" => "paragraph",
       "content" => "🎲 Người đi lấy đồ đợt \"#{go.title}\" (📅 #{go.order_date})"
@@ -206,7 +173,15 @@ defmodule FoodStreet.Panchat do
 
     footer = %{"type" => "paragraph", "content" => "Nhớ đi lấy hàng giúp cả nhà nhé 🙏"}
 
-    %{"text" => [header, runners_paragraph(users), footer]}
+    %{"text" => [header, runners_paragraph(users), footer] ++ by_paragraph(admin_name)}
+  end
+
+  # Paragraph ký tên admin ở cuối body (rỗng khi là tin tự động).
+  defp by_paragraph(admin_name) do
+    case by_line(admin_name) do
+      "" -> []
+      "\n" <> line -> [%{"type" => "paragraph", "content" => line}]
+    end
   end
 
   # Paragraph "👉 @A @B @C" với mention span (offset UTF-16) cho người có UUID Panchat.
@@ -314,21 +289,11 @@ defmodule FoodStreet.Panchat do
   defp valid_panchat_id?(pid), do: is_binary(pid) and pid != ""
 
   @doc """
-  Gửi tin chia tiền mua ngoài (tag @all qua `build_body/1`), bằng `token` của
-  admin thực hiện. `purchase` cần preload `transactions: :user`.
+  Gửi tin chia tiền mua ngoài (tag @all qua `build_body/1`); ký tên `admin_name`
+  (admin thực hiện) ở cuối tin. `purchase` cần preload `transactions: :user`.
   """
-  def send_external_purchase(%ExternalPurchase{} = purchase, token) do
-    case token do
-      nil ->
-        {:error, :panchat_token_missing}
-
-      token ->
-        if String.trim(token) == "" do
-          {:error, :panchat_token_missing}
-        else
-          send_channel_message(token, external_purchase_text(purchase))
-        end
-    end
+  def send_external_purchase(%ExternalPurchase{} = purchase, admin_name \\ nil) do
+    with_bot_token(&send_channel_message(&1, external_purchase_text(purchase, admin_name)))
   end
 
   @doc """
@@ -418,7 +383,7 @@ defmodule FoodStreet.Panchat do
   end
 
   @doc "Nội dung tin chia tiền mua ngoài (thuần, không gọi mạng)."
-  def external_purchase_text(%ExternalPurchase{} = p) do
+  def external_purchase_text(%ExternalPurchase{} = p, admin_name \\ nil) do
     lines =
       (p.transactions || [])
       |> Enum.map_join("\n", fn tx ->
@@ -431,43 +396,45 @@ defmodule FoodStreet.Panchat do
     Tổng #{format_vnd(p.total_amount)} — mỗi người:
     #{lines}
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
   @doc "Nội dung tin báo xoá đợt (thuần, không gọi mạng)."
-  def deleted_text(%GroupOrder{} = go) do
+  def deleted_text(%GroupOrder{} = go, admin_name \\ nil) do
     """
     ❌ Đã huỷ đợt đặt: "#{go.title}" (📅 #{go.order_date})
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
   @doc "Nội dung tin tổng kết khi chốt đợt (thuần, không gọi mạng)."
-  def close_text(%GroupOrder{} = go, count, total) do
+  def close_text(%GroupOrder{} = go, count, total, admin_name \\ nil) do
     link = "#{frontend_url()}/app?group=#{go.id}"
 
     """
     ✅ Đã chốt đợt: "#{go.title}" (📅 #{go.order_date})
     #{count} đơn · tổng #{format_vnd(total)} 👉 #{link}
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
   @doc "Nội dung tin báo hoàn quỹ khi mở lại / huỷ đợt đã chốt (thuần, không gọi mạng)."
-  def refund_text(%GroupOrder{} = go, count, total, :reopen) do
+  def refund_text(group_order, count, total, mode, admin_name \\ nil)
+
+  def refund_text(%GroupOrder{} = go, count, total, :reopen, admin_name) do
     """
     ↩️ Đã mở lại đợt: "#{go.title}" (📅 #{go.order_date})
     Hoàn quỹ #{count} đơn · #{format_vnd(total)} — sửa xong sẽ chốt lại.
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
-  def refund_text(%GroupOrder{} = go, count, total, :cancel) do
+  def refund_text(%GroupOrder{} = go, count, total, :cancel, admin_name) do
     """
     🚫 Đã huỷ đợt: "#{go.title}" (📅 #{go.order_date})
     Hoàn quỹ #{count} đơn · #{format_vnd(total)}.
     """
-    |> String.trim_trailing()
+    |> sign(admin_name)
   end
 
   # Định dạng tiền kiểu VN (vd 90000 -> "90.000đ"), nhận Decimal/số/nil.
@@ -501,8 +468,8 @@ defmodule FoodStreet.Panchat do
       POST #{@base_url}/api/v2/channels/{channel_id}/messages?workspace_id={ws}
       Authorization: Bearer <token>
 
-  `token` là JWT của admin (xem `FoodStreet.Settings.panchat_token/1`), gửi qua
-  header Bearer. Thành công khi HTTP 2xx (200 trả về message vừa tạo, 204 khi là
+  `token` là JWT của tài khoản bot (xem `bot_token/0`), gửi qua header Bearer.
+  Thành công khi HTTP 2xx (200 trả về message vừa tạo, 204 khi là
   lệnh không tạo tin). Tách `build_body/2` ra để test thuần payload không gọi mạng.
 
   Truyền `mention_all: false` trong `opts` để KHÔNG tag `@all` (vd tin relay phản
