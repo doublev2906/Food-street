@@ -298,7 +298,7 @@ defmodule FoodStreet.Panchat do
 
   @doc """
   Gửi tin báo số dư từng người (tag @all qua `build_body/1`), bằng `token` truyền vào.
-  `users` là danh sách `%User{}` (có `name`, `balance`, `panchat_user_id`).
+  `users` là danh sách `%User{}` (có `name`, `balance`, `interest_debt`, `panchat_user_id`).
 
   Ai nợ quá 50k (balance < -50.000) và đã có `panchat_user_id` sẽ được mention thật
   (@Tên, ping) kèm lời nhắc — xem `balance_report_body/2`.
@@ -367,12 +367,19 @@ defmodule FoodStreet.Panchat do
     }
   end
 
-  @doc "Nội dung tin báo số dư quỹ (thuần, không gọi mạng)."
+  @doc "Nội dung tin báo số dư quỹ, kèm nợ lãi trong ngoặc khi số dư âm (thuần, không gọi mạng)."
   def balance_report_text(users, date) do
     lines =
       users
       |> Enum.sort_by(& &1.name)
-      |> Enum.map_join("\n", fn u -> "• #{u.name}: #{format_vnd(u.balance)}" end)
+      |> Enum.map_join("\n", fn u ->
+        interest_note =
+          if Decimal.compare(u.balance || 0, 0) == :lt,
+            do: " (lãi: #{format_vnd(u.interest_debt)})",
+            else: ""
+
+        "• #{u.name}: #{format_vnd(u.balance)}#{interest_note}"
+      end)
 
     """
     💰 Số dư quỹ ăn sáng (📅 #{date}):

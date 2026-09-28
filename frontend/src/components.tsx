@@ -20,7 +20,7 @@ const CURSORS = [
   { key: "jinwoo", icon: "🌑", label: "Dark Flames Jin-Woo" },
   { key: "sukuna", icon: "👹", label: "Sukuna Flame Arrow" },
   { key: "mbappe", icon: "🫡", label: "Dictator Mbappe" },
-  { key: "comet", icon: "☄️", label: "Sao chổi" },
+  { key: "fluid", icon: "🌊", label: "Fluid" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
 

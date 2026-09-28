@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { createCometCursor } from "./comet-cursor";
+import { createFluidCursor } from "./fluid-cursor";
 
 const ANIMATIONS: Record<string, { total: number; ms: number }> = {
   saber: { total: 2, ms: 150 },
@@ -92,7 +92,7 @@ export function CursorEffects() {
       const key = root.dataset.cursor || "cat";
       const effect: CursorEffect | null = ANIMATIONS[key]
         ? createAnimatedCursor(key)
-        : key === "comet" ? createCometCursor() : null;
+        : key === "fluid" ? createFluidCursor() : null;
       if (!effect) return;
 
       const onPointer = (event: PointerEvent) => {

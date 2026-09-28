@@ -2280,9 +2280,9 @@ button:active:not(:disabled) {
     --cursor-normal: url("/cursors/mbappe.png") 2 2, auto;
     --cursor-click: url("/cursors/mbappe-pointer.png") 22 5, pointer;
   }
-  [data-cursor="comet"] {
-    --cursor-normal: url("/cursors/comet.svg") 14 14, crosshair;
-    --cursor-click: var(--cursor-normal);
+  [data-cursor="fluid"] {
+    --cursor-normal: auto;
+    --cursor-click: pointer;
   }
   [data-cursor="cat"]:active {
     --cursor-normal: url("/cursor-open.png") 14 6, auto;
@@ -2333,22 +2333,18 @@ button:active:not(:disabled) {
     cursor: not-allowed !important;
   }
 }
-.cursor-comet-layer {
+.cursor-fluid {
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  display: block;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   contain: strict;
   z-index: 1000;
 }
-.cursor-comet {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 480px;
-  height: 480px;
-  pointer-events: none;
-}
-.cursor-comet:not([hidden]) {
-  will-change: transform;
+/* Mực màu trên nền sáng, ánh sáng màu trên các theme tối. */
+[data-theme="light"] .cursor-fluid {
+  filter: invert(1);
+  mix-blend-mode: multiply;
 }

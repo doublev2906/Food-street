@@ -23,7 +23,11 @@
         // Set con trỏ sớm để khỏi chớp lúc tải trang.
         var c = localStorage.getItem("cursor") || "cat";
         if (c === "sakura" || c === "katana") c = "jinwoo"; // các bộ cũ đã gỡ -> thay bằng Jin-Woo
-        if (["cat", "saber", "jinwoo", "sukuna", "mbappe", "comet", "default"].indexOf(c) === -1) c = "cat";
+        if (c === "comet") {
+          c = "fluid";
+          localStorage.setItem("cursor", c);
+        }
+        if (["cat", "saber", "jinwoo", "sukuna", "mbappe", "fluid", "default"].indexOf(c) === -1) c = "cat";
         document.documentElement.dataset.cursor = c;
       })();
     </script>
