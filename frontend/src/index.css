@@ -2280,7 +2280,8 @@ button:active:not(:disabled) {
     --cursor-normal: url("/cursors/mbappe.png") 2 2, auto;
     --cursor-click: url("/cursors/mbappe-pointer.png") 22 5, pointer;
   }
-  [data-cursor="fluid"] {
+  [data-cursor="fluid"],
+  [data-cursor="dragon"] {
     --cursor-normal: auto;
     --cursor-click: pointer;
   }
@@ -2347,4 +2348,43 @@ button:active:not(:disabled) {
 [data-theme="light"] .cursor-fluid {
   filter: invert(1);
   mix-blend-mode: multiply;
+}
+.cursor-dragon-layer {
+  --dragon-silver: #effcff;
+  --dragon-cyan: #6cdef2;
+  --dragon-violet: #a793ef;
+  --dragon-eye: #ffe9a1;
+  --dragon-glow: #67dbef66;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  contain: strict;
+  pointer-events: none;
+  z-index: 1000;
+}
+.cursor-dragon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 520px;
+  height: 520px;
+  pointer-events: none;
+}
+.cursor-dragon-layer:not([hidden]) .cursor-dragon {
+  will-change: transform;
+}
+.cursor-dragon-body {
+  filter: drop-shadow(0 0 3px var(--dragon-glow));
+}
+[data-theme="light"] .cursor-dragon-layer {
+  --dragon-silver: #345475;
+  --dragon-cyan: #087b96;
+  --dragon-violet: #6552a7;
+  --dragon-eye: #d49c2f;
+  --dragon-glow: #167e9b30;
+}
+.cursor-dragon-layer[data-flare] {
+  --dragon-eye: #fff2c1;
+  --dragon-glow: #ffb45eaa;
 }

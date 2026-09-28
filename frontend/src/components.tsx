@@ -21,6 +21,7 @@ const CURSORS = [
   { key: "sukuna", icon: "👹", label: "Sukuna Flame Arrow" },
   { key: "mbappe", icon: "🫡", label: "Dictator Mbappe" },
   { key: "fluid", icon: "🌊", label: "Fluid" },
+  { key: "dragon", icon: "🐉", label: "Rồng" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
 
