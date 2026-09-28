@@ -15,6 +15,11 @@
 		}
 	}
 
+	# Ảnh nền theme anime nặng vài trăm KB, không có hash trong tên -> cho browser
+	# cache 7 ngày (đổi ảnh thì tối đa 7 ngày user mới thấy, hoặc đổi tên file).
+	@anime path /anime/*
+	header @anime Cache-Control "public, max-age=604800"
+
 	# SPA fallback cho React Router
 	handle {
 		try_files {path} /index.html

@@ -31,6 +31,16 @@ const CURSOR_FRAMES: Record<string, { total: number; ms: number; url: (f: number
   jinwoo: { total: 11, ms: 200, url: (f) => `/cursors/jinwoo-${f}.png` },
 };
 
+// Theme có nền cảnh riêng + palette riêng (đè accent)
+const IMAGE_THEMES = ["anime", "neon"];
+
+// Buổi hiện tại cho nền anime — cùng công thức với script inline trong index.html
+// (script đó chạy trước React nên không import được hàm này, phải lặp lại).
+const animeTimeNow = () => {
+  const h = new Date().getHours();
+  return h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
+};
+
 export function Header({ subtitle }: { subtitle?: string }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -91,24 +101,43 @@ export function Header({ subtitle }: { subtitle?: string }) {
   const isAdmin = user?.role === "admin";
   const onAdminPage = location.pathname.startsWith("/admin");
 
-  // 3 giao diện xoay vòng: sáng -> tối -> anime -> sáng
-  const THEME_CYCLE: Record<string, string> = { light: "dark", dark: "anime", anime: "light" };
-  const THEME_ICON: Record<string, string> = { light: "☀️", dark: "🌙", anime: "🌸" };
+  // Nền anime đổi theo buổi thật. index.html chỉ set 1 lần lúc load, tab để mở
+  // qua giờ chuyển buổi thì nền đứng yên -> check lại mỗi phút (rẻ: chỉ so 1 attr).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const t = animeTimeNow();
+      if (document.documentElement.dataset.animeTime !== t) document.documentElement.dataset.animeTime = t;
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Tab bị ẩn (chuyển tab / thu nhỏ) thì dừng hiệu ứng nền (hoa rơi, mưa) cho đỡ
+  // tốn pin. CSS đọc cờ data-paused để pause animation.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) document.documentElement.dataset.paused = "";
+      else delete document.documentElement.dataset.paused;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  // 4 giao diện xoay vòng: sáng -> tối -> anime -> neon -> sáng
+  const THEME_CYCLE: Record<string, string> = { light: "dark", dark: "anime", anime: "neon", neon: "light" };
+  const THEME_ICON: Record<string, string> = { light: "☀️", dark: "🌙", anime: "🌸", neon: "🌃" };
   const toggleTheme = () => {
     const next = THEME_CYCLE[theme] ?? "light";
     document.documentElement.dataset.theme = next;
-    // Cập nhật lại buổi cho nền anime (index.html chỉ set lúc load trang)
-    const h = new Date().getHours();
-    document.documentElement.dataset.animeTime = h >= 18 || h < 6 ? "night" : h >= 14 ? "sunset" : "day";
+    document.documentElement.dataset.animeTime = animeTimeNow();
     localStorage.setItem("theme", next);
     setTheme(next);
-    // Sang anime thì đóng menu màu đang mở (picker màu bị disable ở theme này)
-    if (next === "anime") setAccentOpen(false);
+    // Sang theme ảnh thì đóng menu màu đang mở (picker màu bị disable ở các theme này)
+    if (IMAGE_THEMES.includes(next)) setAccentOpen(false);
   };
 
-  // Theme anime dùng palette sakura riêng, CSS anime đè mọi accent -> chọn màu
-  // không có tác dụng, disable picker cho đỡ gây hiểu nhầm.
-  const accentDisabled = theme === "anime";
+  // Theme ảnh (anime/neon) có palette riêng, CSS của chúng đè mọi accent -> chọn
+  // màu không có tác dụng, disable picker cho đỡ gây hiểu nhầm.
+  const accentDisabled = IMAGE_THEMES.includes(theme);
 
   const pickAccent = (key: string) => {
     if (key === "orange") {
@@ -150,12 +179,12 @@ export function Header({ subtitle }: { subtitle?: string }) {
         {isAdmin && (
           <>
             {onAdminPage ? (
-              <button className="secondary small" onClick={() => navigate("/app")}>
-                ← Trang đặt món
+              <button className="secondary small" onClick={() => navigate("/app")} title="Trang đặt món">
+                ← <span className="hide-mobile">Trang đặt món</span>
               </button>
             ) : (
-              <button className="secondary small" onClick={() => navigate("/admin")}>
-                🛠️ Trang quản trị
+              <button className="secondary small" onClick={() => navigate("/admin")} title="Trang quản trị">
+                🛠️ <span className="hide-mobile">Trang quản trị</span>
               </button>
             )}
             <span className="header-sep" />
@@ -182,7 +211,7 @@ export function Header({ subtitle }: { subtitle?: string }) {
             disabled={accentDisabled}
             title={
               accentDisabled
-                ? "Theme anime dùng bảng màu sakura riêng — về giao diện sáng/tối để chọn màu"
+                ? "Theme anime/neon dùng bảng màu riêng — về giao diện sáng/tối để chọn màu"
                 : "Chọn màu giao diện"
             }
           >
@@ -232,12 +261,13 @@ export function Header({ subtitle }: { subtitle?: string }) {
         <button
           className="ghost icon-btn"
           onClick={toggleTheme}
-          title="Đổi giao diện (sáng / tối / anime)"
+          title="Đổi giao diện (sáng / tối / anime / neon)"
         >
           {THEME_ICON[theme] ?? "☀️"}
         </button>
         <button className="ghost logout-btn" onClick={logout} title="Đăng xuất">
-          Đăng xuất
+          <span className="show-mobile">🚪</span>
+          <span className="hide-mobile">Đăng xuất</span>
         </button>
       </div>
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}

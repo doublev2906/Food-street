@@ -168,12 +168,12 @@
 
 /* ===== Theme thứ 3: ANIME (🌸 - đêm phố anime, card kính mờ) =====
    Đặt SAU các block accent để palette anime đè được accent đang chọn.
-   Surface để rgba + backdrop-blur: chất "kính mờ" nổi trên ảnh nền tối,
+   Surface rgba gần đục (0.88) nổi trên ảnh nền tối (không blur từng card, xem dưới),
    nên bảng màu đi theo hướng tím than + hồng sakura cho khớp ảnh. */
 [data-theme="anime"] {
   color-scheme: dark;
   --bg: #1b2033;
-  --surface: rgba(28, 32, 54, 0.78);
+  --surface: rgba(28, 32, 54, 0.88);
   --border: rgba(130, 140, 190, 0.35);
   --text: #eef0fb;
   --muted: #a7aecf;
@@ -204,23 +204,38 @@
 }
 /* Ảnh nền anime: CÙNG 1 căn nhà (bộ background gốc của VN Love, Money, Rock'n'Roll,
    artist ArseniXC) ở 3 thời điểm — đổi theo giờ thật qua data-anime-time do JS set
-   (index.html lúc load + lúc bấm nút theme). Mặc định đêm nếu JS chưa set.
-   Ảnh để trong public/anime/ (hotlink wallhaven/danbooru bị chặn ORB/CORP). */
+   (index.html lúc load + Header check lại mỗi phút). Mặc định đêm nếu JS chưa set.
+   Ảnh để trong public/anime/ (hotlink wallhaven/danbooru bị chặn ORB/CORP).
+   Bản webp đã cắt bỏ dải credit ở đáy ảnh gốc, nhẹ hơn jpg ~3-4 lần. */
 [data-theme="anime"] {
-  --anime-bg: url("/anime/night.jpg");
+  --anime-bg: url("/anime/night.webp");
   /* Lớp phủ tối đè lên ảnh cho chữ nổi — ảnh ngày sáng sẵn nên phủ nhạt hơn */
   --anime-veil-1: rgba(16, 18, 36, 0.45);
   --anime-veil-2: rgba(16, 18, 36, 0.6);
 }
 [data-anime-time="day"][data-theme="anime"] {
-  --anime-bg: url("/anime/day.jpg");
+  --anime-bg: url("/anime/day.webp");
   --anime-veil-1: rgba(16, 18, 36, 0.25);
   --anime-veil-2: rgba(16, 18, 36, 0.4);
 }
 [data-anime-time="sunset"][data-theme="anime"] {
-  --anime-bg: url("/anime/sunset.jpg");
+  --anime-bg: url("/anime/sunset.webp");
   --anime-veil-1: rgba(16, 18, 36, 0.35);
   --anime-veil-2: rgba(16, 18, 36, 0.5);
+}
+/* Màn ngang ≤1280px: bản 1280 là đủ nét (nhẹ bằng nửa). Chỉ áp cho màn NGANG —
+   điện thoại dọc thì background cover phóng ảnh theo CHIỀU CAO, bản 1280 (cao 700)
+   bị kéo giãn quá tay nên vẫn giữ bản 1920. */
+@media (max-width: 1280px) and (orientation: landscape) {
+  [data-theme="anime"] {
+    --anime-bg: url("/anime/night-1280.webp");
+  }
+  [data-anime-time="day"][data-theme="anime"] {
+    --anime-bg: url("/anime/day-1280.webp");
+  }
+  [data-anime-time="sunset"][data-theme="anime"] {
+    --anime-bg: url("/anime/sunset-1280.webp");
+  }
 }
 [data-theme="anime"] body::before {
   content: "";
@@ -232,26 +247,26 @@
     linear-gradient(var(--anime-veil-1), var(--anime-veil-2)),
     var(--anime-bg) center / cover no-repeat;
 }
-[data-theme="anime"] .card,
-[data-theme="anime"] .side-nav {
+/* Kính mờ CHỈ cho side-nav (header đã có sẵn blur). Không blur .card: mỗi card
+   blur là 1 lần GPU phải đọc lại + làm nhoè phần nền phía sau nó, trang có vài
+   chục card (lưới món, đơn) + cánh hoa chạy liên tục -> tốn khung hình. Card dùng
+   surface đục hơn (0.88) nên không blur vẫn đọc rõ chữ. */
+:is([data-theme="anime"], [data-theme="neon"]) .side-nav {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
 /* ---- Làm nền anime "sống" (ảnh gốc vẫn là ảnh tĩnh) ----
-   1. Ảnh nền zoom qua lại rất chậm (Ken Burns) — scale > 1 nên không hở mép.
-   2. Cánh hoa đào rơi: 2 lớp SVG data-URI tile trên body::after (TRÊN ảnh nền, DƯỚI
-      nội dung). Animate bằng transform: translateY, KHÔNG dùng background-position —
-      background-position bắt trình duyệt repaint cả màn mỗi frame (không GPU), đè thêm
-      backdrop-filter của card thì NHÁY/giật. transform thì GPU compose nên mượt.
+   Cánh hoa đào rơi: 3 lớp SVG data-URI tile trên body::after (TRÊN ảnh nền, DƯỚI
+   nội dung). Animate bằng transform: translate3d, KHÔNG dùng background-position —
+   background-position bắt trình duyệt repaint cả màn mỗi frame (không GPU).
+   transform thì GPU compose nên mượt.
    Để loop liền mạch không hở mép: element cao hơn viewport 640px (top: -640) rồi trượt
-   xuống ĐÚNG 640px = chiều cao tile của CẢ 2 lớp (đã hạ lớp 2 về 640) — hết chu kỳ ảnh
-   trùng khít lại như cũ. will-change: transform giữ layer trên GPU cho ổn định. */
+   xuống ĐÚNG 640px = chiều cao tile của CẢ 3 lớp — hết chu kỳ ảnh trùng khít lại.
+   3 lớp bề ngang khác nhau (480/720/560) nên chỗ lặp lệch nhau, mắt khó bắt ra hoạ tiết.
+   Đã bỏ hiệu ứng zoom ảnh nền (Ken Burns): scale một layer full màn liên tục làm GPU
+   rasterize lại ảnh lớn, lợi thị giác không đáng. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-theme="anime"] body::before {
-    animation: anime-bg-breathe 45s ease-in-out infinite alternate;
-    will-change: transform;
-  }
   [data-theme="anime"] body::after {
     content: "";
     position: fixed;
@@ -262,20 +277,13 @@
     z-index: -1;
     pointer-events: none;
     background-image:
-      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='480' height='640'><g fill='%23ffb3d1'><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(70 90) rotate(35)' opacity='.95'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(330 260) rotate(-28) scale(1.25)' opacity='.8'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(170 500) rotate(64) scale(1.1)' opacity='.9'/></g></svg>"),
-      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='720' height='880'><g fill='%23ffd2e3'><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(140 120) rotate(48) scale(.7)' opacity='.65'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(520 380) rotate(-40) scale(.6)' opacity='.55'/><path d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z' transform='translate(300 720) rotate(20) scale(.75)' opacity='.6'/></g></svg>");
-    background-size: 480px 640px, 720px 640px;
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='480' height='640'><defs><path id='p' d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z'/></defs><g fill='%23ffb3d1'><use href='%23p' transform='translate(70 90) rotate(35)' opacity='.95'/><use href='%23p' transform='translate(330 260) rotate(-28) scale(1.25)' opacity='.8'/><use href='%23p' transform='translate(170 500) rotate(64) scale(1.1)' opacity='.9'/><use href='%23p' transform='translate(410 70) rotate(-60) scale(.8)' opacity='.7'/><use href='%23p' transform='translate(250 150) rotate(10) scale(.65)' opacity='.6'/><use href='%23p' transform='translate(40 330) rotate(-15) scale(.9)' opacity='.85'/><use href='%23p' transform='translate(440 450) rotate(80)' opacity='.75'/><use href='%23p' transform='translate(300 590) rotate(-45) scale(.7)' opacity='.65'/></g></svg>"),
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='720' height='640'><defs><path id='p' d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z'/></defs><g fill='%23ffd2e3'><use href='%23p' transform='translate(140 120) rotate(48) scale(.7)' opacity='.65'/><use href='%23p' transform='translate(520 380) rotate(-40) scale(.6)' opacity='.55'/><use href='%23p' transform='translate(300 560) rotate(20) scale(.75)' opacity='.6'/><use href='%23p' transform='translate(620 90) rotate(70) scale(.55)' opacity='.5'/><use href='%23p' transform='translate(60 420) rotate(-70) scale(.6)' opacity='.55'/><use href='%23p' transform='translate(420 250) rotate(30) scale(.5)' opacity='.45'/></g></svg>"),
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='560' height='640'><defs><path id='p' d='M0 -11 C6 -5 6.5 4 0 11 C-6.5 4 -6 -5 0 -11 Z'/></defs><g fill='%23ffe4ef'><use href='%23p' transform='translate(100 200) rotate(-20) scale(.45)' opacity='.5'/><use href='%23p' transform='translate(380 40) rotate(55) scale(.5)' opacity='.45'/><use href='%23p' transform='translate(250 470) rotate(-35) scale(.4)' opacity='.5'/><use href='%23p' transform='translate(500 560) rotate(15) scale(.45)' opacity='.4'/></g></svg>");
+    background-size: 480px 640px, 720px 640px, 560px 640px;
     background-repeat: repeat;
     animation: sakura-fall 16s linear infinite;
     will-change: transform;
-  }
-  @keyframes anime-bg-breathe {
-    from {
-      transform: scale(1);
-    }
-    to {
-      transform: scale(1.06);
-    }
   }
   @keyframes sakura-fall {
     from {
@@ -285,6 +293,105 @@
       transform: translate3d(0, 640px, 0);
     }
   }
+}
+
+/* ===== Theme thứ 4: NEON (🌃 - phố đêm cyberpunk mưa, card kính) =====
+   Cùng "họ" với anime (nền có cảnh + surface trong suốt + hiệu ứng nền chạy) nhưng
+   không dùng ảnh: nền là gradient trời đêm + 2 lớp skyline SVG vẽ tay (xa/gần, cửa
+   sổ sáng xanh/hồng/vàng), hiệu ứng là mưa rơi. Palette cyan + magenta.
+   Nút dùng magenta làm nền (chữ trắng đọc được), chữ accent dùng cyan cho ra cặp
+   màu "đèn neon". Đặt SAU các block accent để đè accent đang chọn. */
+[data-theme="neon"] {
+  color-scheme: dark;
+  --bg: #0b0f1f;
+  --surface: rgba(14, 18, 40, 0.88);
+  --border: rgba(34, 211, 238, 0.26);
+  --text: #e6f6ff;
+  --muted: #93a6cc;
+  --primary: #c026d3;
+  --primary-dark: #d946ef;
+  --primary-soft: rgba(217, 70, 239, 0.16);
+  --primary-text: #67e8f9;
+  --success: #3cc77b;
+  --success-soft: #16301f;
+  --danger: #f05d5a;
+  --danger-soft: #3a191c;
+  --warn: #e0ab1c;
+  --warn-soft: #332a14;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --header-bg: rgba(8, 11, 26, 0.78);
+  --accent-border: rgba(34, 211, 238, 0.35);
+  --accent-grad-hi: #22d3ee;
+  --accent-shadow: rgba(217, 70, 239, 0.3);
+  --welcome-grad-1: rgba(16, 24, 54, 0.88);
+  --welcome-grad-2: rgba(44, 18, 62, 0.88);
+  --login-grad-1: rgba(10, 14, 34, 0.55);
+  --login-grad-2: rgba(30, 12, 48, 0.55);
+  --badge-user-bg: rgba(34, 211, 238, 0.12);
+  --surface-hover: rgba(22, 28, 58, 0.92);
+  --steam: #5b6b9a;
+  --hover: rgba(34, 211, 238, 0.1);
+  --modal-bg: #151a33;
+}
+/* Nền tĩnh (không animate) nên chỉ paint 1 lần. Thứ tự lớp: skyline gần (đen) trên
+   cùng -> skyline xa (xanh tím) -> 2 quầng sáng neon ở chân trời -> trời đêm. */
+[data-theme="neon"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='260'><g fill='%2305070f'><rect x='0' y='120' width='70' height='140'/><rect x='70' y='70' width='55' height='190'/><rect x='125' y='150' width='80' height='110'/><rect x='205' y='40' width='50' height='220'/><rect x='228' y='8' width='4' height='32'/><rect x='255' y='130' width='90' height='130'/><rect x='345' y='90' width='60' height='170'/><rect x='405' y='170' width='70' height='90'/><rect x='475' y='60' width='65' height='200'/><rect x='540' y='140' width='60' height='120'/></g><g fill='%2322d3ee' opacity='.6'><rect x='82' y='90' width='5' height='7'/><rect x='96' y='90' width='5' height='7'/><rect x='82' y='112' width='5' height='7'/><rect x='110' y='134' width='5' height='7'/><rect x='218' y='60' width='5' height='7'/><rect x='236' y='60' width='5' height='7'/><rect x='218' y='96' width='5' height='7'/><rect x='236' y='132' width='5' height='7'/><rect x='360' y='110' width='5' height='7'/><rect x='376' y='110' width='5' height='7'/><rect x='360' y='150' width='5' height='7'/><rect x='490' y='80' width='5' height='7'/><rect x='506' y='80' width='5' height='7'/><rect x='490' y='120' width='5' height='7'/><rect x='522' y='160' width='5' height='7'/></g><g fill='%23e879f9' opacity='.55'><rect x='14' y='140' width='5' height='7'/><rect x='30' y='160' width='5' height='7'/><rect x='140' y='170' width='5' height='7'/><rect x='170' y='170' width='5' height='7'/><rect x='270' y='150' width='5' height='7'/><rect x='300' y='150' width='5' height='7'/><rect x='318' y='190' width='5' height='7'/><rect x='420' y='190' width='5' height='7'/><rect x='446' y='210' width='5' height='7'/><rect x='555' y='160' width='5' height='7'/><rect x='575' y='190' width='5' height='7'/></g><g fill='%23fbbf24' opacity='.45'><rect x='46' y='140' width='5' height='7'/><rect x='110' y='200' width='5' height='7'/><rect x='236' y='170' width='5' height='7'/><rect x='390' y='200' width='5' height='7'/><rect x='522' y='120' width='5' height='7'/></g><rect x='262' y='136' width='40' height='10' rx='2' fill='none' stroke='%23f0abfc' stroke-width='1.5' opacity='.8'/><rect x='229' y='5' width='2' height='3' fill='%23f43f5e'/></svg>")
+      repeat-x left bottom / 600px 260px,
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='340'><g fill='%23121840'><rect x='0' y='150' width='60' height='190'/><rect x='60' y='90' width='45' height='250'/><rect x='105' y='200' width='70' height='140'/><rect x='175' y='60' width='40' height='280'/><rect x='215' y='170' width='80' height='170'/><rect x='295' y='110' width='55' height='230'/><rect x='350' y='30' width='35' height='310'/><rect x='385' y='150' width='75' height='190'/><rect x='460' y='100' width='60' height='240'/></g><g fill='%233b4a8a' opacity='.7'><rect x='20' y='170' width='4' height='6'/><rect x='75' y='110' width='4' height='6'/><rect x='88' y='130' width='4' height='6'/><rect x='185' y='80' width='4' height='6'/><rect x='195' y='120' width='4' height='6'/><rect x='310' y='130' width='4' height='6'/><rect x='360' y='50' width='4' height='6'/><rect x='360' y='90' width='4' height='6'/><rect x='472' y='120' width='4' height='6'/><rect x='495' y='150' width='4' height='6'/></g></svg>")
+      repeat-x 120px bottom / 520px 340px,
+    radial-gradient(ellipse 80% 45% at 50% 100%, rgba(217, 70, 239, 0.32), transparent 70%),
+    radial-gradient(ellipse 60% 35% at 15% 95%, rgba(34, 211, 238, 0.2), transparent 70%),
+    linear-gradient(#060814, #0d1030 55%, #231040);
+}
+/* Chút "đèn neon": chữ accent ở logo phát sáng, mục đang chọn toả quầng magenta */
+[data-theme="neon"] .brand-accent {
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+}
+[data-theme="neon"] :is(.side-nav-item.active, .tab.active, .chip.active) {
+  box-shadow: 0 0 14px rgba(217, 70, 239, 0.45);
+}
+/* Mưa rơi: cùng kỹ thuật với cánh hoa anime (tile SVG + translate3d, loop đúng 400px
+   = chiều cao tile của cả 2 lớp). Hạt mưa thẳng đứng vì element chỉ trượt dọc —
+   vẽ nghiêng thì hạt sẽ trôi xéo lệch hướng rơi, nhìn sai. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="neon"] body::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: -400px;
+    height: calc(100vh + 400px);
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'><g stroke='%23a5f3fc' stroke-width='1' stroke-linecap='round'><line x1='20' y1='30' x2='20' y2='52' opacity='.35'/><line x1='75' y1='210' x2='75' y2='226' opacity='.25'/><line x1='130' y1='90' x2='130' y2='116' opacity='.4'/><line x1='185' y1='300' x2='185' y2='318' opacity='.3'/><line x1='240' y1='40' x2='240' y2='60' opacity='.3'/><line x1='270' y1='250' x2='270' y2='274' opacity='.35'/><line x1='50' y1='340' x2='50' y2='354' opacity='.25'/><line x1='160' y1='190' x2='160' y2='202' opacity='.2'/><line x1='215' y1='370' x2='215' y2='390' opacity='.3'/><line x1='100' y1='5' x2='100' y2='23' opacity='.25'/></g></svg>"),
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='460' height='400'><g stroke='%23f5d0fe' stroke-width='1' stroke-linecap='round'><line x1='40' y1='120' x2='40' y2='150' opacity='.22'/><line x1='150' y1='20' x2='150' y2='44' opacity='.2'/><line x1='230' y1='280' x2='230' y2='308' opacity='.25'/><line x1='330' y1='160' x2='330' y2='182' opacity='.2'/><line x1='410' y1='340' x2='410' y2='366' opacity='.22'/><line x1='95' y1='330' x2='95' y2='350' opacity='.18'/><line x1='300' y1='60' x2='300' y2='78' opacity='.18'/></g></svg>");
+    background-size: 300px 400px, 460px 400px;
+    background-repeat: repeat;
+    animation: neon-rain 1.1s linear infinite;
+    will-change: transform;
+  }
+  @keyframes neon-rain {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 400px, 0);
+    }
+  }
+}
+/* Tab bị ẩn (Header set data-paused khi visibilitychange) -> dừng hoa rơi / mưa.
+   Phải đặt SAU block anime + neon: shorthand `animation` trong 2 block đó cùng
+   specificity sẽ reset play-state về running nếu đứng sau rule này. */
+[data-paused] body::after {
+  animation-play-state: paused;
 }
 * {
   box-sizing: border-box;
@@ -472,6 +579,8 @@ label {
   font-weight: 600;
   font-size: 12.5px;
   margin-left: 4px;
+  /* Không cho flex bóp chữ xuống 2-3 dòng; hết chỗ thì block Header thu gọn ẩn đi */
+  white-space: nowrap;
 }
 .header-user {
   display: flex;
@@ -480,7 +589,8 @@ label {
   font-size: 14px;
   color: var(--text);
 }
-.header-user button {
+.header-user button,
+.header-user > .badge {
   white-space: nowrap;
 }
 /* ---- Dropdown chọn màu chủ đạo ---- */
@@ -530,6 +640,10 @@ label {
   font-size: 12px;
 }
 
+/* Cặp nhãn đổi theo màn: .show-mobile chỉ hiện ở ≤1000px (xem block Header thu gọn) */
+.show-mobile {
+  display: none;
+}
 /* Vạch chia nhóm nút trong header cho đỡ dính chùm */
 .header-sep {
   width: 1px;
@@ -827,13 +941,13 @@ tbody tr:hover td {
   padding: 20px;
   z-index: 50;
 }
-/* Dark: overlay tối + blur để modal tách hẳn khỏi nền cùng tông */
-[data-theme="dark"] .modal-overlay {
+/* Theme nền tối (dark + 2 theme ảnh anime/neon): overlay tối + blur để modal tách hẳn khỏi nền */
+:is([data-theme="dark"], [data-theme="anime"], [data-theme="neon"]) .modal-overlay {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
-[data-theme="dark"] .modal {
+:is([data-theme="dark"], [data-theme="anime"], [data-theme="neon"]) .modal {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
 }
 .modal {
@@ -1224,8 +1338,8 @@ tbody tr:hover td {
   box-shadow: 0 8px 20px var(--accent-shadow);
   border-color: var(--accent-border);
 }
-/* Dark: bóng cam không ăn trên nền tối -> nhấc card bằng nền sáng hơn + bóng đen */
-[data-theme="dark"] .batch-card:hover {
+/* Theme nền tối: bóng cam không ăn trên nền tối -> nhấc card bằng nền sáng hơn + bóng đen */
+:is([data-theme="dark"], [data-theme="anime"], [data-theme="neon"]) .batch-card:hover {
   background: var(--surface-hover);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
   border-color: var(--accent-border);
@@ -1634,20 +1748,11 @@ tbody tr:hover td {
   }
 }
 
-/* ================= Mobile ( điện thoại ) ================= */
-@media (max-width: 640px) {
-  body {
-    font-size: 14px;
-  }
-
-  /* --- Header gọn lại --- */
-  .app-header {
-    padding: 0 14px;
-    height: 54px;
-  }
-  .brand-name {
-    font-size: 17px;
-  }
+/* ================= Header thu gọn (tablet + điện thoại) =================
+   Header 1 hàng không wrap: bản đầy đủ (tên khu vực, chữ nút, tên user, badge role)
+   của admin cần ~980px, hẹp hơn là bị bóp chữ / tràn ngang cả trang. Nên từ 1000px
+   trở xuống chuyển sang bản gọn (nút chỉ còn icon, ẩn tên + badge + khu vực). */
+@media (max-width: 1000px) {
   /* Ẩn "📍 Khu vực…" để nhường chỗ cho các nút */
   .brand-sub {
     display: none;
@@ -1667,18 +1772,50 @@ tbody tr:hover td {
   .icon-btn {
     padding: 5px 6px;
   }
-  /* Tên tài khoản dài không được đẩy vỡ header */
-  .user-chip-name {
-    max-width: 20vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  /* Mobile chật: ẩn badge role, avatar + tên là đủ nhận diện */
+  /* Header chật: ẩn badge role, avatar là đủ nhận diện */
   .header-user > .badge {
     display: none;
   }
+  /* Nút chuyển trang admin chỉ còn icon (🛠️ / ←), chữ dài làm header tràn 2 dòng */
+  .hide-mobile {
+    display: none;
+  }
+  .show-mobile {
+    display: inline;
+  }
+  /* Header chật không đủ chỗ cho cả tên: avatar là đủ nhận diện (bấm vào vẫn mở
+     modal Tài khoản có tên đầy đủ). Chip co lại thành hình tròn quanh avatar. */
+  .user-chip-name {
+    display: none;
+  }
+  .user-chip {
+    padding: 4px;
+  }
+  .header-user button.logout-btn {
+    padding: 6px 8px;
+  }
+}
+/* Điện thoại rất hẹp (≤400px): bỏ luôn chữ "Food Street", logo 🍜 là đủ */
+@media (max-width: 400px) {
+  .brand-name {
+    display: none;
+  }
+}
 
+/* ================= Mobile ( điện thoại ) ================= */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* --- Header gọn lại --- */
+  .app-header {
+    padding: 0 14px;
+    height: 54px;
+  }
+  .brand-name {
+    font-size: 17px;
+  }
   /* --- Khoảng cách trang --- */
   .container {
     padding: 16px 12px;
@@ -1926,7 +2063,7 @@ button:active:not(:disabled) {
     pointer-events: none;
     z-index: 0;
   }
-  [data-theme="dark"] .welcome-bar::before {
+  :is([data-theme="dark"], [data-theme="anime"], [data-theme="neon"]) .welcome-bar::before {
     background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.08), transparent);
   }
   /* 🍜 trang trí góc phải bồng bềnh */
