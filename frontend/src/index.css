@@ -359,7 +359,9 @@
 }
 /* Mưa rơi: cùng kỹ thuật với cánh hoa anime (tile SVG + translate3d, loop đúng 400px
    = chiều cao tile của cả 2 lớp). Hạt mưa thẳng đứng vì element chỉ trượt dọc —
-   vẽ nghiêng thì hạt sẽ trôi xéo lệch hướng rơi, nhìn sai. */
+   vẽ nghiêng thì hạt sẽ trôi xéo lệch hướng rơi, nhìn sai.
+   Tốc độ ~140px/s (400px / 2.8s) + hạt mờ: mưa nền là để "có không khí", nhanh hơn
+   (bản đầu 1.1s ≈ 360px/s) thì cả màn nhấp nháy liên tục ở rìa mắt, đọc chữ bị mỏi. */
 @media (prefers-reduced-motion: no-preference) {
   [data-theme="neon"] body::after {
     content: "";
@@ -371,11 +373,11 @@
     z-index: -1;
     pointer-events: none;
     background-image:
-      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'><g stroke='%23a5f3fc' stroke-width='1' stroke-linecap='round'><line x1='20' y1='30' x2='20' y2='52' opacity='.35'/><line x1='75' y1='210' x2='75' y2='226' opacity='.25'/><line x1='130' y1='90' x2='130' y2='116' opacity='.4'/><line x1='185' y1='300' x2='185' y2='318' opacity='.3'/><line x1='240' y1='40' x2='240' y2='60' opacity='.3'/><line x1='270' y1='250' x2='270' y2='274' opacity='.35'/><line x1='50' y1='340' x2='50' y2='354' opacity='.25'/><line x1='160' y1='190' x2='160' y2='202' opacity='.2'/><line x1='215' y1='370' x2='215' y2='390' opacity='.3'/><line x1='100' y1='5' x2='100' y2='23' opacity='.25'/></g></svg>"),
-      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='460' height='400'><g stroke='%23f5d0fe' stroke-width='1' stroke-linecap='round'><line x1='40' y1='120' x2='40' y2='150' opacity='.22'/><line x1='150' y1='20' x2='150' y2='44' opacity='.2'/><line x1='230' y1='280' x2='230' y2='308' opacity='.25'/><line x1='330' y1='160' x2='330' y2='182' opacity='.2'/><line x1='410' y1='340' x2='410' y2='366' opacity='.22'/><line x1='95' y1='330' x2='95' y2='350' opacity='.18'/><line x1='300' y1='60' x2='300' y2='78' opacity='.18'/></g></svg>");
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='400'><g stroke='%23a5f3fc' stroke-width='1' stroke-linecap='round'><line x1='20' y1='30' x2='20' y2='52' opacity='.24'/><line x1='75' y1='210' x2='75' y2='226' opacity='.17'/><line x1='130' y1='90' x2='130' y2='116' opacity='.28'/><line x1='185' y1='300' x2='185' y2='318' opacity='.21'/><line x1='240' y1='40' x2='240' y2='60' opacity='.21'/><line x1='270' y1='250' x2='270' y2='274' opacity='.24'/><line x1='50' y1='340' x2='50' y2='354' opacity='.17'/><line x1='160' y1='190' x2='160' y2='202' opacity='.14'/><line x1='215' y1='370' x2='215' y2='390' opacity='.21'/><line x1='100' y1='5' x2='100' y2='23' opacity='.17'/></g></svg>"),
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='460' height='400'><g stroke='%23f5d0fe' stroke-width='1' stroke-linecap='round'><line x1='40' y1='120' x2='40' y2='150' opacity='.15'/><line x1='150' y1='20' x2='150' y2='44' opacity='.14'/><line x1='230' y1='280' x2='230' y2='308' opacity='.17'/><line x1='330' y1='160' x2='330' y2='182' opacity='.14'/><line x1='410' y1='340' x2='410' y2='366' opacity='.15'/><line x1='95' y1='330' x2='95' y2='350' opacity='.13'/><line x1='300' y1='60' x2='300' y2='78' opacity='.13'/></g></svg>");
     background-size: 300px 400px, 460px 400px;
     background-repeat: repeat;
-    animation: neon-rain 1.1s linear infinite;
+    animation: neon-rain 2.8s linear infinite;
     will-change: transform;
   }
   @keyframes neon-rain {
@@ -1102,8 +1104,11 @@ tbody tr:hover td {
 }
 /* Mobile/tablet hẹp: sidebar nằm ngang trên đầu, cuộn ngang được */
 @media (max-width: 860px) {
+  /* stretch: khi xếp dọc mà vẫn flex-start thì dash-content rộng theo nội dung
+     (bảng nowrap kéo nó ra ~840px) -> tràn/cắt ngang màn điện thoại */
   .dash-layout {
     flex-direction: column;
+    align-items: stretch;
   }
   .side-nav {
     position: static;
@@ -1840,8 +1845,23 @@ tbody tr:hover td {
     padding: 10px 12px;
   }
 
+  /* Stat 2 cột (~160px): bớt padding + chữ để "12.345.678 ₫" nằm gọn 1 dòng,
+     không thì overflow-wrap đẩy chữ ₫ rớt xuống dòng riêng */
+  .stat {
+    padding: 12px 14px;
+  }
+  .stat .value {
+    font-size: 17px;
+  }
+
   /* Cho item trong grid co lại để bảng tự cuộn, tránh kéo giãn tràn ngang trang */
   .grid > * {
+    min-width: 0;
+  }
+  /* 2 layout màn user cũng là grid nhưng không mang class .grid -> thiếu dòng này
+     thì bảng lịch sử giao dịch (nowrap) kéo cả màn "Quỹ của tôi" rộng ~840px */
+  .fund-layout > *,
+  .orders-list > * {
     min-width: 0;
   }
 

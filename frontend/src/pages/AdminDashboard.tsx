@@ -123,10 +123,7 @@ function StatsTab() {
         <Stat label="Tổng quỹ" value={formatVND(stats.fund_total)} accent />
         <Stat label="Doanh thu (đã chốt)" value={formatVND(stats.revenue_today)} accent />
       </div>
-      <div
-        className="grid"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}
-      >
+      <div className="grid grid-4">
         <Stat label="Nạp trong ngày" value={formatVND(stats.fund_deposited)} />
         <Stat label="Chi trong ngày" value={formatVND(stats.fund_spent)} />
         <Stat label="Điều chỉnh trong ngày" value={formatVND(stats.fund_adjusted)} />
@@ -567,10 +564,7 @@ function ReportTab() {
             </div>
           )}
 
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}
-          >
+          <div className="grid grid-4">
             <Stat label="Tổng quỹ cuối kỳ" value={formatVND(data.fund_total)} accent />
             <Stat label="Nạp trong kỳ" value={formatVND(data.fund_deposited)} />
             <Stat label="Chi trong kỳ" value={formatVND(data.fund_spent)} />
@@ -2366,10 +2360,7 @@ function FundTab() {
         </div>
         {fund ? (
           <>
-            <div
-              className="grid mt"
-              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}
-            >
+            <div className="grid grid-4 mt">
               <Stat label="Quỹ lãi (cộng dồn)" value={formatVND(fund.fund_total)} accent />
               <Stat label="Đã thu thực" value={formatVND(fund.collected_total)} />
               <Stat
