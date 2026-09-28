@@ -2235,114 +2235,100 @@ button:active:not(:disabled) {
 }
 
 /* ================= Con trỏ chuột tuỳ chọn (data-cursor) ================= */
-/* Người dùng chọn ở Header; giá trị lưu vào <html data-cursor="…">. Mặc định "cat".
-   "default" -> không có rule -> con trỏ hệ thống. */
-
-/* 🐱 Mèo popcat: ngậm mồm, há mồm khi bấm (:active). Phủ mọi phần tử (đè cả
-   pointer/text) nên cần !important. Ảnh 48×48, hotspot ~tai trái để bấm còn chuẩn. */
-/* Gồm cả chính <html> (element mang data-cursor) để phủ luôn nền viewport ngoài
-   nội dung + vùng scrollbar — không thì mấy chỗ đó rớt về con trỏ mặc định. */
-[data-cursor="cat"],
-[data-cursor="cat"] *,
-[data-cursor="cat"] *::before,
-[data-cursor="cat"] *::after {
-  cursor: url("/cursor-closed.png") 14 6, auto !important;
+/* Con trỏ native giữ đúng điểm bấm; CursorEffects chỉ đổi frame khi đang dùng chuột. */
+@media (any-hover: hover) and (any-pointer: fine) {
+  html[data-cursor] {
+    cursor: var(--cursor-normal, auto);
+  }
+  [data-cursor="cat"] {
+    --cursor-normal: url("/cursor-closed.png") 14 6, auto;
+    --cursor-click: var(--cursor-normal);
+  }
+  [data-cursor="saber"] {
+    --cursor-normal: url("/cursors/saber-1.png") 6 3, auto;
+    --cursor-click: url("/cursors/saber-pointer.png") 6 3, pointer;
+  }
+  [data-cursor="jinwoo"] {
+    --cursor-normal: url("/cursors/jinwoo-1.png") 1 1, auto;
+    --cursor-click: url("/cursors/jinwoo-pointer.png") 11 1, pointer;
+  }
+  [data-cursor="sukuna"] {
+    --cursor-normal: url("/cursors/sukuna.png") 3 1, auto;
+    --cursor-click: url("/cursors/sukuna-pointer.png") 3 2, pointer;
+  }
+  [data-cursor="mbappe"] {
+    --cursor-normal: url("/cursors/mbappe.png") 2 2, auto;
+    --cursor-click: url("/cursors/mbappe-pointer.png") 22 5, pointer;
+  }
+  [data-cursor="comet"] {
+    --cursor-normal: url("/cursors/comet.svg") 14 14, crosshair;
+    --cursor-click: var(--cursor-normal);
+  }
+  [data-cursor="cat"]:active {
+    --cursor-normal: url("/cursor-open.png") 14 6, auto;
+  }
+  [data-cursor="saber"][data-cursor-frame="2"] {
+    --cursor-normal: url("/cursors/saber-2.png") 6 3, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="2"] {
+    --cursor-normal: url("/cursors/jinwoo-2.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="3"] {
+    --cursor-normal: url("/cursors/jinwoo-3.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="4"] {
+    --cursor-normal: url("/cursors/jinwoo-4.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="5"] {
+    --cursor-normal: url("/cursors/jinwoo-5.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="6"] {
+    --cursor-normal: url("/cursors/jinwoo-6.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="7"] {
+    --cursor-normal: url("/cursors/jinwoo-7.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="8"] {
+    --cursor-normal: url("/cursors/jinwoo-8.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="9"] {
+    --cursor-normal: url("/cursors/jinwoo-9.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="10"] {
+    --cursor-normal: url("/cursors/jinwoo-10.png") 1 1, auto;
+  }
+  [data-cursor="jinwoo"][data-cursor-frame="11"] {
+    --cursor-normal: url("/cursors/jinwoo-11.png") 1 1, auto;
+  }
+  /* Đè cả cursor inline của các nút/label, nhưng giữ caret và trạng thái disabled bên dưới. */
+  html[data-cursor] :is(button, a[href], select, label, [role="button"], .brand, .chip, .food-card,
+    input:is([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"])) {
+    cursor: var(--cursor-click, var(--cursor-normal, pointer)) !important;
+  }
+  html[data-cursor] :is(textarea, input:not(:is([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"])),
+    [contenteditable]:not([contenteditable="false"])) {
+    cursor: text !important;
+  }
+  html[data-cursor] :is(button, input, select, textarea, [role="button"]):is(:disabled, [aria-disabled="true"]) {
+    cursor: not-allowed !important;
+  }
 }
-[data-cursor="cat"]:active,
-[data-cursor="cat"] *:active,
-[data-cursor="cat"] *:active::before,
-[data-cursor="cat"] *:active::after {
-  cursor: url("/cursor-open.png") 14 6, auto !important;
+.cursor-comet-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  z-index: 1000;
 }
-
-/* 4 bộ dưới đây lấy từ sweezy-cursors.com (fan-art — dùng nội bộ), resize 36px
-   (riêng mbappe 48px cho rõ mặt ngài).
-   Bộ có animation: CSS cursor: url() không tự animate được -> JS (Header) xoay
-   data-cursor-frame trên <html>, CSS đổi ảnh theo frame.
-   cursor kế thừa từ <html> (mang data-cursor) nên chỉ cần set gốc + đè nhóm
-   phần tử tương tác (không thì tụi nó rớt về con trỏ pointer/hand mặc định). */
-
-/* ⚔️ Lightsaber Obi-Wan (Star Wars) — 2 frame lưỡi gươm lóe sáng.
-   Bộ gốc pointer cũng là thanh gươm -> hover chỗ bấm được vẫn là gươm. Hotspot = mũi gươm. */
-[data-cursor="saber"] {
-  cursor: url("/cursors/saber-1.png") 6 3, auto;
+.cursor-comet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 480px;
+  height: 480px;
+  pointer-events: none;
 }
-[data-cursor="saber"][data-cursor-frame="2"] {
-  cursor: url("/cursors/saber-2.png") 6 3, auto;
-}
-[data-cursor="saber"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/cursors/saber-pointer.png") 6 3, pointer;
-}
-[data-cursor="saber"] button:disabled {
-  cursor: url("/cursors/saber-1.png") 6 3, not-allowed;
-}
-
-/* 🌑 Dark Flames Sung Jin-Woo (Solo Leveling) — mũi tên đen bọc lửa tím, 11 frame
-   lửa cháy. Hover chỗ bấm được -> bóng Shadow Monarch mắt tím. Hotspot = mũi tên. */
-[data-cursor="jinwoo"] {
-  cursor: url("/cursors/jinwoo-1.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="2"] {
-  cursor: url("/cursors/jinwoo-2.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="3"] {
-  cursor: url("/cursors/jinwoo-3.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="4"] {
-  cursor: url("/cursors/jinwoo-4.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="5"] {
-  cursor: url("/cursors/jinwoo-5.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="6"] {
-  cursor: url("/cursors/jinwoo-6.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="7"] {
-  cursor: url("/cursors/jinwoo-7.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="8"] {
-  cursor: url("/cursors/jinwoo-8.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="9"] {
-  cursor: url("/cursors/jinwoo-9.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="10"] {
-  cursor: url("/cursors/jinwoo-10.png") 1 1, auto;
-}
-[data-cursor="jinwoo"][data-cursor-frame="11"] {
-  cursor: url("/cursors/jinwoo-11.png") 1 1, auto;
-}
-[data-cursor="jinwoo"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/cursors/jinwoo-pointer.png") 11 1, pointer;
-}
-[data-cursor="jinwoo"] button:disabled {
-  cursor: url("/cursors/jinwoo-1.png") 1 1, not-allowed;
-}
-
-/* 👹 Sukuna Flame Arrow (Jujutsu Kaisen) — mũi tên lửa đỏ khắc chú ấn (tĩnh).
-   Hover chỗ bấm được -> bàn tay Sukuna ngón trỏ bốc lửa. Hotspot = mũi tên / đầu ngón. */
-[data-cursor="sukuna"] {
-  cursor: url("/cursors/sukuna.png") 3 1, auto;
-}
-[data-cursor="sukuna"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/cursors/sukuna-pointer.png") 3 2, pointer;
-}
-[data-cursor="sukuna"] button:disabled {
-  cursor: url("/cursors/sukuna.png") 3 1, not-allowed;
-}
-
-/* 🫡 Dictator Mbappe (meme) — tướng quân chỉ tay (tĩnh). Hover chỗ bấm được ->
-   mặt Mbappe đội mũ. Hotspot = đầu ngón tay chỉ / đỉnh mũ. */
-[data-cursor="mbappe"] {
-  cursor: url("/cursors/mbappe.png") 2 2, auto;
-}
-[data-cursor="mbappe"]
-  :is(button, a, select, label, .brand, .side-nav-item, .chip, .food-card, input[type="checkbox"], input[type="radio"]) {
-  cursor: url("/cursors/mbappe-pointer.png") 22 5, pointer;
-}
-[data-cursor="mbappe"] button:disabled {
-  cursor: url("/cursors/mbappe.png") 2 2, not-allowed;
+.cursor-comet:not([hidden]) {
+  will-change: transform;
 }

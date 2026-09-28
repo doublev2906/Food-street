@@ -20,9 +20,10 @@
         var a = localStorage.getItem("accent");
         if (a === "green" || a === "blue" || a === "lychee" || a === "namdinh")
           document.documentElement.dataset.accent = a;
-        // Con trỏ chuột (mèo mặc định / saber / jinwoo / sukuna / mbappe / hệ thống) — set sớm để khỏi chớp
+        // Set con trỏ sớm để khỏi chớp lúc tải trang.
         var c = localStorage.getItem("cursor") || "cat";
         if (c === "sakura" || c === "katana") c = "jinwoo"; // các bộ cũ đã gỡ -> thay bằng Jin-Woo
+        if (["cat", "saber", "jinwoo", "sukuna", "mbappe", "comet", "default"].indexOf(c) === -1) c = "cat";
         document.documentElement.dataset.cursor = c;
       })();
     </script>

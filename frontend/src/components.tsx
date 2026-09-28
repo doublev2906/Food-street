@@ -20,16 +20,9 @@ const CURSORS = [
   { key: "jinwoo", icon: "🌑", label: "Dark Flames Jin-Woo" },
   { key: "sukuna", icon: "👹", label: "Sukuna Flame Arrow" },
   { key: "mbappe", icon: "🫡", label: "Dictator Mbappe" },
+  { key: "comet", icon: "☄️", label: "Sao chổi" },
   { key: "default", icon: "🖱️", label: "Mặc định" },
 ] as const;
-
-// Bộ cursor động: CSS cursor url() không tự animate -> JS xoay data-cursor-frame
-// trên <html>, CSS đổi ảnh theo frame. ms = nhịp mỗi frame, quy từ tổng chu kỳ
-// animationSpeed của bản gốc Sweezy (saber 300/2, jinwoo 2200/11).
-const CURSOR_FRAMES: Record<string, { total: number; ms: number; url: (f: number) => string }> = {
-  saber: { total: 2, ms: 150, url: (f) => `/cursors/saber-${f}.png` },
-  jinwoo: { total: 11, ms: 200, url: (f) => `/cursors/jinwoo-${f}.png` },
-};
 
 // Theme có nền cảnh riêng + palette riêng (đè accent)
 const IMAGE_THEMES = ["anime", "neon"];
@@ -79,24 +72,6 @@ export function Header({ subtitle }: { subtitle?: string }) {
     },
     []
   );
-
-  // Cursor động: xoay data-cursor-frame để CSS đổi ảnh. Preload các frame trước,
-  // không thì lần xoay đầu ảnh chưa tải kịp -> con trỏ chớp về mặc định.
-  // Tôn trọng prefers-reduced-motion (cùng convention với nền anime): đứng yên frame 1.
-  useEffect(() => {
-    const anim = CURSOR_FRAMES[cursor];
-    if (!anim || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    for (let f = 2; f <= anim.total; f++) new Image().src = anim.url(f);
-    let frame = 1;
-    const id = window.setInterval(() => {
-      frame = (frame % anim.total) + 1;
-      document.documentElement.dataset.cursorFrame = String(frame);
-    }, anim.ms);
-    return () => {
-      window.clearInterval(id);
-      delete document.documentElement.dataset.cursorFrame;
-    };
-  }, [cursor]);
 
   const isAdmin = user?.role === "admin";
   const onAdminPage = location.pathname.startsWith("/admin");
