@@ -2753,6 +2753,7 @@ function ExternalPurchaseTab() {
   useEffect(load, []);
 
   const selectedIds = users.filter((u) => checked[u.id]).map((u) => u.id);
+  const allSelected = users.length > 0 && selectedIds.length === users.length;
   const totalNum = Math.round(Number(total) || 0);
   const sumShares = selectedIds.reduce(
     (acc, id) => acc + (Number(amounts[id]) || 0),
@@ -2852,7 +2853,25 @@ function ExternalPurchaseTab() {
           <div className="field">
             {/* marginBottom tách nút Chia đều khỏi danh sách người ăn bên dưới */}
             <div className="row between" style={{ marginBottom: 8 }}>
-              <label style={{ marginBottom: 0 }}>Người ăn ({selectedIds.length})</label>
+              <label
+                className="row"
+                style={{ gap: 8, marginBottom: 0, cursor: "pointer" }}
+                title={allSelected ? "Bỏ chọn tất cả người ăn" : "Chọn tất cả người ăn"}
+              >
+                <input
+                  type="checkbox"
+                  aria-label="Chọn tất cả người ăn"
+                  checked={allSelected}
+                  disabled={users.length === 0}
+                  ref={(input) => {
+                    if (input) input.indeterminate = selectedIds.length > 0 && !allSelected;
+                  }}
+                  onChange={(e) =>
+                    setChecked(Object.fromEntries(users.map((u) => [u.id, e.target.checked])))
+                  }
+                />
+                Người ăn ({selectedIds.length})
+              </label>
               <button
                 type="button"
                 className="secondary small"
