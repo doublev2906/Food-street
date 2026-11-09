@@ -53,24 +53,34 @@ docker compose -f docker-compose.prod.yml down             # dừng
 
 ### Chia sẻ trang HTML (`/share`)
 
-Folder `share/` ở root repo được mount vào cả `web` (Caddy serve ở
-`https://<host>/share/<file>`, trang `/share/` liệt kê mọi file) lẫn `backend` (ghi file
-khi admin upload). Nội dung folder bị gitignore vì repo public — **đừng commit**.
+Folder `share/` ở root repo (có thể chia thư mục con) được mount vào `backend`; Caddy
+proxy `/share/*` sang backend (`ShareController`) serve ở `https://<host>/share/<đường dẫn>`,
+thư mục không có `index.html` thì hiện trang danh sách. Nội dung folder bị gitignore vì
+repo public — **đừng commit**.
 
 **Phải đăng nhập mới xem được** (user thường cũng xem được). Đăng nhập / mở app
 (`/api/login`, `/api/me`) gắn thêm cookie `fs_share` (HttpOnly, `Path=/share`, 30 ngày);
-Caddy `forward_auth` gọi `/api/share_auth` kiểm tra cookie trước khi trả file, chưa đăng
-nhập thì redirect `/login?next=/share/...` rồi quay lại đúng trang. Đăng xuất xoá cookie.
+chưa đăng nhập thì redirect `/login?next=/share/...` rồi quay lại đúng trang. Đăng xuất
+xoá cookie.
 
-- **Qua UI:** Admin → tab "🔗 Chia sẻ HTML" → chọn/kéo thả file `.html` → Upload.
-  Tên file được chuẩn hoá (bỏ dấu, chữ thường); trùng tên thì ghi đè.
-- **Qua rsync (máy dev):** bỏ file vào `share/` rồi `make share`, hoặc
-  `make share FILE="duong/dan/a.html"`. Không xoá file trên server. Đặt
-  `SHARE_BASE_URL="https://dev.pancake.vn:3200"` trong `deploy.config` để in đúng link.
+**Tự lưu dữ liệu nhập trên trang.** Mỗi trang `.html` được chèn `priv/share/inject.js`:
+giá trị người xem nhập (input, select, textarea, checkbox, radio, `contenteditable`) và
+`localStorage` của trang được lưu lên server (bảng `shared_page_states`, **dùng chung cho
+mọi người**, ô nào lưu sau thì thắng), mở lại / người khác F5 là thấy. Ghi đè file vẫn giữ
+dữ liệu (ô nào còn cùng id/name thì khớp lại); xoá file / thư mục thì xoá luôn dữ liệu.
+
+- **Qua UI:** Admin → tab "🔗 Chia sẻ HTML" → vào/tạo thư mục → chọn/kéo thả file
+  `.html` → Upload. Tên file/thư mục được chuẩn hoá (bỏ dấu, chữ thường). Trùng tên:
+  mặc định báo lỗi, tick **"Ghi đè file trùng tên"** mới thay bản cũ.
+- **Qua rsync (máy dev):** bỏ file vào `share/` rồi `make share` (giữ cây thư mục), hoặc
+  `make share FILE="a.html b.html" DIR=bao-cao` (thư mục đích tự tạo). Trùng tên mặc định
+  **bỏ qua** file đã có trên server, thêm `OVERWRITE=1` để đè. Không xoá file trên server.
+  Đặt `SHARE_BASE_URL="https://dev.pancake.vn:3200"` trong `deploy.config` để in đúng link.
 
 Trang được serve với `Content-Security-Policy: sandbox …` → JS trong trang vẫn chạy nhưng
-**không đọc được token đăng nhập** (localStorage) của app cùng domain. Trang nào cần
-`localStorage`/cookie sẽ báo lỗi `SecurityError` — chấp nhận đánh đổi này.
+**không đọc được token đăng nhập** (localStorage) của app cùng domain; `localStorage`,
+`sessionStorage`, `document.cookie` của trang là bản giả do `inject.js` cung cấp.
+(`indexedDB` không có — trang nào dùng sẽ lỗi.)
 
 > Upload qua UI > 1 MB mà bị lỗi 413: tăng `client_max_body_size` (vd `25m`) ở nginx
 > ngoài (nơi terminate TLS) cho domain này.

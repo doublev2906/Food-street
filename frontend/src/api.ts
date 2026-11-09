@@ -247,14 +247,23 @@ export interface PanchatSettings {
   panchat_token_preview: string;
 }
 
-/** Trang HTML chia sẻ, serve (phải đăng nhập) ở `url` (/share/<name>). */
+/** File / thư mục trong /share (phải đăng nhập mới xem được `url`). */
 export interface SharedPage {
   name: string;
+  /** Đường dẫn tương đối trong share/, vd "bao-cao/q4.html" */
+  path: string;
+  type: "file" | "folder";
   size: number;
   updated_at: string;
   url: string;
   /** Chỉ có khi vừa upload: true nếu ghi đè file cùng tên. */
   replaced?: boolean;
+}
+
+export interface SharedListing {
+  dir: string;
+  folders: SharedPage[];
+  files: SharedPage[];
 }
 
 export interface OrderSchedule {
@@ -584,17 +593,29 @@ export const api = {
       }),
 
     // Trang HTML chia sẻ (/share)
-    sharedPages: () => request<{ data: SharedPage[] }>("/admin/shared_pages"),
-    uploadSharedPages: (files: File[]) => {
+    // dir: thư mục tương đối trong share/ ("" = gốc)
+    sharedPages: (dir = "") =>
+      request<{ data: SharedListing }>(
+        `/admin/shared_pages?${new URLSearchParams({ dir })}`
+      ),
+    uploadSharedPages: (files: File[], dir: string, overwrite: boolean) => {
       const form = new FormData();
       files.forEach((f) => form.append("files[]", f));
+      form.append("dir", dir);
+      form.append("overwrite", String(overwrite));
       return request<{
         data: SharedPage[];
         errors: { name: string; error: string }[];
       }>("/admin/shared_pages", { method: "POST", body: form });
     },
-    deleteSharedPage: (name: string) =>
-      request<void>(`/admin/shared_pages/${encodeURIComponent(name)}`, {
+    createSharedFolder: (dir: string, name: string) =>
+      request<{ data: SharedPage }>("/admin/shared_pages/folders", {
+        method: "POST",
+        body: JSON.stringify({ dir, name }),
+      }),
+    // path: file hoặc thư mục (xoá cả bên trong)
+    deleteSharedEntry: (path: string) =>
+      request<void>(`/admin/shared_pages?${new URLSearchParams({ path })}`, {
         method: "DELETE",
       }),
 

@@ -41,11 +41,10 @@ services:
       # Token tài khoản BOT Panchat — dùng cho tin tự động (relay webhook nhà bán, báo
       # số dư, mở đợt theo lịch). Để trống thì các luồng tự động bỏ qua gửi tin.
       PANCHAT_BOT_TOKEN: ${PANCHAT_BOT_TOKEN:-}
-      # Folder trang HTML chia sẻ (admin upload qua UI ghi vào đây).
+      # Folder trang HTML chia sẻ: backend serve /share/* và ghi file khi admin upload.
       SHARE_DIR: /data/share
     volumes:
-      # share/ của repo trên host — dùng chung với `web` (Caddy serve /share/*)
-      # và với `make share` (rsync thẳng vào folder này).
+      # share/ của repo trên host — `make share` rsync thẳng vào folder này.
       - ./share:/data/share
     depends_on:
       db:
@@ -59,9 +58,6 @@ services:
       WEB_PORT: ${WEB_PORT:-3200} # Caddy serve HTTP thuần cổng này (TLS do nginx ngoài lo)
     ports:
       - "${WEB_PORT:-3200}:${WEB_PORT:-3200}"
-    volumes:
-      # Trang HTML chia sẻ — Caddy chỉ đọc, serve ở /share/*.
-      - ./share:/data/share:ro
     depends_on:
       - backend
 

@@ -26,10 +26,16 @@ defmodule FoodStreetWeb.Router do
     post "/webhooks/pancake/:secret", PancakeWebhookController, :messaging
   end
 
-  # Caddy forward_auth hỏi trước khi trả file /share/* — trình duyệt mở link trực tiếp
+  # Trang HTML chia sẻ (Caddy proxy /share/* sang đây). Trình duyệt mở link trực tiếp
   # (Accept: text/html) nên không qua pipeline :api; xác thực bằng cookie fs_share.
+  scope "/", FoodStreetWeb do
+    get "/share/*path", ShareController, :show
+  end
+
+  # Lưu dữ liệu người xem nhập trên trang /share — gọi từ trang sandbox (origin null),
+  # body text/plain, xác thực bằng token nhúng trong trang.
   scope "/api", FoodStreetWeb do
-    get "/share_auth", ShareAuthController, :check
+    post "/share_state", ShareStateController, :save
   end
 
   # Yêu cầu đăng nhập (user hoặc admin)
@@ -118,8 +124,11 @@ defmodule FoodStreetWeb.Router do
     put "/order_schedule", OrderScheduleController, :update
 
     # Trang HTML chia sẻ (serve công khai ở /share/<tên file> qua Caddy)
+    # ?dir=a/b — đường dẫn thư mục tương đối trong share/ (trống = gốc)
     get "/shared_pages", SharedPageController, :index
     post "/shared_pages", SharedPageController, :create
-    delete "/shared_pages/:name", SharedPageController, :delete
+    post "/shared_pages/folders", SharedPageController, :create_folder
+    # ?path=a/b/c.html — xoá file hoặc cả thư mục
+    delete "/shared_pages", SharedPageController, :delete
   end
 end

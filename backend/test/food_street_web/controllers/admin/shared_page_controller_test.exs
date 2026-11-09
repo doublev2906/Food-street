@@ -37,39 +37,77 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
       |> post(~p"/api/admin/shared_pages", %{"files" => [upload("a.html", "x")]})
 
     assert json_response(conn, 403)
-    assert SharedPages.list() == []
   end
 
-  test "admin upload nhiều file: file hợp lệ được lưu, file sai báo lỗi riêng", %{conn: conn} do
+  test "tạo thư mục, upload vào thư mục, list, xoá", %{conn: conn} do
     conn = login(conn, "admin")
+
+    assert %{"data" => %{"path" => "bao-cao", "type" => "folder"}} =
+             conn
+             |> post(~p"/api/admin/shared_pages/folders", %{"dir" => "", "name" => "Báo cáo"})
+             |> json_response(201)
+
+    assert %{"error" => "already_exists"} =
+             conn
+             |> post(~p"/api/admin/shared_pages/folders", %{"name" => "bao cao"})
+             |> json_response(422)
 
     resp =
       conn
       |> post(~p"/api/admin/shared_pages", %{
+        "dir" => "bao-cao",
         "files" => [upload("Kế hoạch.html", "<p>ok</p>"), upload("evil.js", "x")]
       })
       |> json_response(201)
 
-    assert [%{"name" => "ke-hoach.html", "url" => "/share/ke-hoach.html"}] = resp["data"]
+    assert [%{"path" => "bao-cao/ke-hoach.html", "url" => "/share/bao-cao/ke-hoach.html"}] =
+             resp["data"]
+
     assert [%{"name" => "evil.js", "error" => _}] = resp["errors"]
 
-    assert [%{"name" => "ke-hoach.html"}] =
+    assert %{"dir" => "bao-cao", "folders" => [], "files" => [%{"name" => "ke-hoach.html"}]} =
+             conn
+             |> get(~p"/api/admin/shared_pages?dir=bao-cao")
+             |> json_response(200)
+             |> Map.get("data")
+
+    assert %{"folders" => [%{"name" => "bao-cao"}]} =
              conn |> get(~p"/api/admin/shared_pages") |> json_response(200) |> Map.get("data")
 
-    assert conn |> delete(~p"/api/admin/shared_pages/ke-hoach.html") |> response(204)
-    assert SharedPages.list() == []
-    assert conn |> delete(~p"/api/admin/shared_pages/ke-hoach.html") |> json_response(404)
+    assert conn |> get(~p"/api/admin/shared_pages?dir=../etc") |> json_response(404)
+
+    assert conn |> delete(~p"/api/admin/shared_pages?path=bao-cao") |> response(204)
+    assert {:ok, %{folders: []}} = SharedPages.list()
+    assert conn |> delete(~p"/api/admin/shared_pages?path=bao-cao") |> json_response(404)
   end
 
-  test "tất cả file đều lỗi hoặc không gửi file → 422", %{conn: conn} do
+  test "trùng tên: mặc định báo lỗi, overwrite=true thì ghi đè", %{conn: conn} do
     conn = login(conn, "admin")
+    post(conn, ~p"/api/admin/shared_pages", %{"files" => [upload("a.html", "v1")]})
 
-    assert %{"error" => "upload_failed"} =
+    assert %{"error" => "upload_failed", "errors" => [%{"error" => msg}]} =
              conn
-             |> post(~p"/api/admin/shared_pages", %{"files" => [upload("a.txt", "x")]})
+             |> post(~p"/api/admin/shared_pages", %{"files" => [upload("a.html", "v2")]})
              |> json_response(422)
 
+    assert msg =~ "Ghi đè"
+
+    assert %{"data" => [%{"replaced" => true}]} =
+             conn
+             |> post(~p"/api/admin/shared_pages", %{
+               "files" => [upload("a.html", "v2")],
+               "overwrite" => "true"
+             })
+             |> json_response(201)
+
+    assert File.read!(Path.join(SharedPages.dir(), "a.html")) == "v2"
+  end
+
+  test "không gửi file → 422", %{conn: conn} do
     assert %{"error" => "no_files"} =
-             conn |> post(~p"/api/admin/shared_pages", %{}) |> json_response(422)
+             conn
+             |> login("admin")
+             |> post(~p"/api/admin/shared_pages", %{})
+             |> json_response(422)
   end
 end

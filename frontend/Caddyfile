@@ -15,34 +15,14 @@
 		}
 	}
 
-	# Trang HTML chia sẻ: folder share/ của repo (mount read-only vào /data/share).
+	# Trang HTML chia sẻ (folder share/ của repo): backend serve — kiểm tra đăng nhập,
+	# chèn script tự lưu dữ liệu nhập, CSP sandbox, trang danh sách thư mục.
 	# Đưa file lên bằng tab "Chia sẻ HTML" trong admin hoặc `make share` dưới máy dev.
 	redir /share /share/ 308
 	handle /share/* {
-		# Phải đăng nhập: hỏi backend (đọc cookie fs_share) trước khi trả file. Chưa
-		# đăng nhập -> backend trả 302 về /login?next=<trang đang mở>, Caddy chuyển nguyên.
-		forward_auth backend:4003 {
-			uri /api/share_auth
+		reverse_proxy backend:4003 {
 			# Như /api: báo Phoenix request gốc là HTTPS để force_ssl không redirect.
 			header_up X-Forwarded-Proto https
-		}
-		# Dùng handle (không strip prefix) để X-Forwarded-Uri giữ nguyên /share/...;
-		# /share/<file> -> /data/share/<file>.
-		root * /data
-		header {
-			# Sandbox: trang chạy ở origin riêng nên JS trong file upload KHÔNG đọc được
-			# localStorage (token đăng nhập) của app cùng domain. JS/form/popup vẫn chạy.
-			Content-Security-Policy "sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
-			X-Content-Type-Options nosniff
-			# Luôn hỏi lại server (qua cả bước kiểm tra đăng nhập) -> upload bản mới là
-			# thấy ngay, đăng xuất rồi thì không xem lại được từ cache. private: cấm proxy cache.
-			Cache-Control "private, no-cache"
-		}
-		file_server {
-			hide .*
-			browse {
-				sort time desc
-			}
 		}
 	}
 

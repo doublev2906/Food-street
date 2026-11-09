@@ -29,13 +29,25 @@ help: ## Hiện danh sách lệnh
 deploy: ## Deploy: push code + SSH server tự build lại (gọi ./deploy.sh)
 	./deploy.sh
 
-# Không --delete: giữ nguyên file admin đã upload qua UI trên server.
-share: ## Upload trang HTML lên /share: rsync folder share/ (hoặc FILE="a.html b.html")
+# Upload trang HTML lên /share (rsync qua SSH). Không --delete: giữ file upload qua UI.
+#   make share                           # cả folder share/ (giữ nguyên cây thư mục)
+#   make share DIR=bao-cao               # chỉ share/bao-cao/ -> server share/bao-cao/
+#   make share FILE="a.html b.html"      # vài file lẻ -> thư mục gốc
+#   make share FILE=a.html DIR=bao-cao   # file lẻ -> thư mục con (tự tạo nếu chưa có)
+#   ... OVERWRITE=1                      # ghi đè file trùng tên (mặc định BỎ QUA file đã có
+#                                        # trên server; dữ liệu người xem đã nhập vẫn giữ).
+#                                        # So theo nội dung (--checksum): file cùng size+mtime
+#                                        # nhưng khác nội dung vẫn được đè.
+share: ## Upload HTML lên /share (FILE=…, DIR=thư/mục, OVERWRITE=1 để đè file trùng tên)
+	$(if $(findstring ..,$(DIR)),$(error DIR không được chứa ".."))
 	@. ./deploy.config && \
-	  rsync -rtvz --exclude='.*' -e "ssh -p $${SSH_PORT:-22}" \
-	    $(if $(FILE),$(FILE),share/) \
-	    "$${SSH_USER}@$${SSH_HOST}:$${APP_DIR:-/opt/food_street}/share/" && \
-	  echo "==> Xem tại: $${SHARE_BASE_URL:-https://$${PHX_HOST:-$$SSH_HOST}}/share/"
+	  dest="$${APP_DIR:-/opt/food_street}/share/$(DIR)" && \
+	  $(if $(DIR),ssh -p "$${SSH_PORT:-22}" "$${SSH_USER}@$${SSH_HOST}" "mkdir -p '$$dest'" &&) \
+	  rsync -rtvz $(if $(OVERWRITE),--checksum,--ignore-existing) --exclude='.*' -e "ssh -p $${SSH_PORT:-22}" \
+	    $(if $(FILE),$(FILE),share/$(if $(DIR),$(DIR)/)) \
+	    "$${SSH_USER}@$${SSH_HOST}:$$dest/" && \
+	  echo "==> $(if $(OVERWRITE),Đã ghi đè file trùng tên.,File trùng tên đã có trên server được giữ nguyên (OVERWRITE=1 để đè).)" && \
+	  echo "==> Xem tại: $${SHARE_BASE_URL:-https://$${PHX_HOST:-$$SSH_HOST}}/share/$(if $(DIR),$(DIR)/)"
 
 migrate: ## Chạy migration trên production
 	@$(SSH) "$(RUN) $(COMPOSE) exec -T backend /app/bin/migrate"
