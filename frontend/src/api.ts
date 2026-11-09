@@ -247,7 +247,7 @@ export interface PanchatSettings {
   panchat_token_preview: string;
 }
 
-/** Trang HTML chia sẻ, serve công khai ở `url` (/share/<name>). */
+/** Trang HTML chia sẻ, serve (phải đăng nhập) ở `url` (/share/<name>). */
 export interface SharedPage {
   name: string;
   size: number;
@@ -361,7 +361,9 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  // /me và /login đồng thời gắn cookie HttpOnly để xem được trang /share/*.
   me: () => request<{ user: User }>("/me"),
+  logout: () => request<void>("/logout", { method: "POST" }),
 
   // Người dùng tự cập nhật hồ sơ
   updateProfile: (name: string) =>

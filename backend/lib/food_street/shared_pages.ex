@@ -1,7 +1,7 @@
 defmodule FoodStreet.SharedPages do
   @moduledoc """
   Trang HTML chia sẻ: file nằm trong folder `share/` (root repo) và được Caddy
-  serve công khai ở `/share/<tên file>` (kèm trang danh sách `/share/`).
+  serve (phải đăng nhập) ở `/share/<tên file>` (kèm trang danh sách `/share/`).
 
   Có 2 đường đưa file lên server:
     * Admin upload qua UI (module này ghi file vào `share_dir`).

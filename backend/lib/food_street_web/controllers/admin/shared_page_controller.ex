@@ -1,6 +1,6 @@
 defmodule FoodStreetWeb.Admin.SharedPageController do
   @moduledoc """
-  Admin upload / xoá trang HTML chia sẻ. File được Caddy serve công khai ở
+  Admin upload / xoá trang HTML chia sẻ. File được Caddy serve (phải đăng nhập) ở
   `/share/<tên file>` — xem `FoodStreet.SharedPages`.
   """
   use FoodStreetWeb, :controller

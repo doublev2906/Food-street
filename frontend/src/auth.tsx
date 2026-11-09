@@ -45,6 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Xoá cookie xem trang /share (HttpOnly nên chỉ backend xoá được); lỗi mạng thì bỏ qua.
+    api.logout().catch(() => {});
     tokenStore.clear();
     setUser(null);
   };

@@ -3,6 +3,7 @@ defmodule FoodStreetWeb.AuthController do
 
   alias FoodStreet.Accounts
   alias FoodStreet.Guardian
+  alias FoodStreetWeb.ShareAuth
 
   action_fallback FoodStreetWeb.FallbackController
 
@@ -21,7 +22,10 @@ defmodule FoodStreetWeb.AuthController do
     case Accounts.authenticate(identifier, password) do
       {:ok, user} ->
         token = Guardian.create_token(user)
-        json(conn, %{token: token, user: user})
+
+        conn
+        |> ShareAuth.put_cookie(user)
+        |> json(%{token: token, user: user})
 
       {:error, :inactive} ->
         conn
@@ -44,8 +48,18 @@ defmodule FoodStreetWeb.AuthController do
     |> json(%{error: "missing_params", message: "Cần username và password"})
   end
 
+  # Frontend gọi mỗi lần mở app -> làm mới luôn cookie xem trang /share.
   def me(conn, _params) do
     user = Guardian.Plug.current_resource(conn)
-    json(conn, %{user: user})
+
+    conn
+    |> ShareAuth.put_cookie(user)
+    |> json(%{user: user})
+  end
+
+  def logout(conn, _params) do
+    conn
+    |> ShareAuth.delete_cookie()
+    |> send_resp(:no_content, "")
   end
 end

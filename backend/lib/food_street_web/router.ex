@@ -18,10 +18,18 @@ defmodule FoodStreetWeb.Router do
     pipe_through :api
 
     post "/login", AuthController, :login
+    # Xoá cookie xem trang /share (token chính nằm ở localStorage, frontend tự xoá).
+    post "/logout", AuthController, :logout
     get "/health", HealthController, :index
 
     # Webhook Pancake Page (nhà bán trả lời) — bảo vệ bằng secret trong URL.
     post "/webhooks/pancake/:secret", PancakeWebhookController, :messaging
+  end
+
+  # Caddy forward_auth hỏi trước khi trả file /share/* — trình duyệt mở link trực tiếp
+  # (Accept: text/html) nên không qua pipeline :api; xác thực bằng cookie fs_share.
+  scope "/api", FoodStreetWeb do
+    get "/share_auth", ShareAuthController, :check
   end
 
   # Yêu cầu đăng nhập (user hoặc admin)

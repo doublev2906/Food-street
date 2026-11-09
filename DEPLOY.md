@@ -53,9 +53,14 @@ docker compose -f docker-compose.prod.yml down             # dừng
 
 ### Chia sẻ trang HTML (`/share`)
 
-Folder `share/` ở root repo được mount vào cả `web` (Caddy serve công khai ở
+Folder `share/` ở root repo được mount vào cả `web` (Caddy serve ở
 `https://<host>/share/<file>`, trang `/share/` liệt kê mọi file) lẫn `backend` (ghi file
 khi admin upload). Nội dung folder bị gitignore vì repo public — **đừng commit**.
+
+**Phải đăng nhập mới xem được** (user thường cũng xem được). Đăng nhập / mở app
+(`/api/login`, `/api/me`) gắn thêm cookie `fs_share` (HttpOnly, `Path=/share`, 30 ngày);
+Caddy `forward_auth` gọi `/api/share_auth` kiểm tra cookie trước khi trả file, chưa đăng
+nhập thì redirect `/login?next=/share/...` rồi quay lại đúng trang. Đăng xuất xoá cookie.
 
 - **Qua UI:** Admin → tab "🔗 Chia sẻ HTML" → chọn/kéo thả file `.html` → Upload.
   Tên file được chuẩn hoá (bỏ dấu, chữ thường); trùng tên thì ghi đè.

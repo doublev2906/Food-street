@@ -2640,7 +2640,7 @@ function FundModal({
 const formatBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-// Trang HTML chia sẻ: upload file .html, Caddy serve công khai ở /share/<tên file>.
+// Trang HTML chia sẻ: upload file .html, Caddy serve (phải đăng nhập) ở /share/<tên file>.
 function SharePagesTab() {
   const [pages, setPages] = useState<SharedPage[] | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -2732,9 +2732,9 @@ function SharePagesTab() {
         style={dragging ? { outline: "2px dashed var(--primary)", outlineOffset: -6 } : undefined}
       >
         <p className="small muted" style={{ marginTop: 0 }}>
-          Chọn hoặc kéo thả file <code>.html</code> vào đây (tối đa 20 MB/file). Ai có link đều
-          xem được tại <code>/share/&lt;tên-file&gt;.html</code> — đừng upload dữ liệu nhạy cảm.
-          Trùng tên sẽ ghi đè bản cũ.
+          Chọn hoặc kéo thả file <code>.html</code> vào đây (tối đa 20 MB/file). Xem tại{" "}
+          <code>/share/&lt;tên-file&gt;.html</code> — phải đăng nhập Food Street mới mở được
+          (user thường cũng xem được). Trùng tên sẽ ghi đè bản cũ.
         </p>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <input
