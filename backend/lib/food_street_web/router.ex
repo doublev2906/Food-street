@@ -108,5 +108,10 @@ defmodule FoodStreetWeb.Router do
     # Lịch hẹn tự động mở đợt đặt món hằng ngày (dùng chung)
     get "/order_schedule", OrderScheduleController, :show
     put "/order_schedule", OrderScheduleController, :update
+
+    # Trang HTML chia sẻ (serve công khai ở /share/<tên file> qua Caddy)
+    get "/shared_pages", SharedPageController, :index
+    post "/shared_pages", SharedPageController, :create
+    delete "/shared_pages/:name", SharedPageController, :delete
   end
 end

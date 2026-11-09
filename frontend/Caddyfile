@@ -15,6 +15,27 @@
 		}
 	}
 
+	# Trang HTML chia sẻ: folder share/ của repo (mount read-only vào /data/share).
+	# Đưa file lên bằng tab "Chia sẻ HTML" trong admin hoặc `make share` dưới máy dev.
+	redir /share /share/ 308
+	handle_path /share/* {
+		root * /data/share
+		header {
+			# Sandbox: trang chạy ở origin riêng nên JS trong file upload KHÔNG đọc được
+			# localStorage (token đăng nhập) của app cùng domain. JS/form/popup vẫn chạy.
+			Content-Security-Policy "sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+			X-Content-Type-Options nosniff
+			# Luôn hỏi lại server (ETag) -> upload bản mới là người xem thấy ngay.
+			Cache-Control "no-cache"
+		}
+		file_server {
+			hide .*
+			browse {
+				sort time desc
+			}
+		}
+	}
+
 	# Ảnh nền theme anime nặng vài trăm KB, không có hash trong tên -> cho browser
 	# cache 7 ngày (đổi ảnh thì tối đa 7 ngày user mới thấy, hoặc đổi tên file).
 	@anime path /anime/*

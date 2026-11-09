@@ -57,6 +57,11 @@ config :food_street, :gemini_api_key, "test_gemini_key"
 # Secret webhook Pancake cố định cho test.
 config :food_street, :pancake_webhook_secret, "test_webhook_secret"
 
+# Folder trang HTML chia sẻ riêng cho test (không đụng share/ thật của repo).
+config :food_street,
+       :share_dir,
+       Path.join(System.tmp_dir!(), "food_street_share_test")
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

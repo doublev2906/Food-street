@@ -37,8 +37,10 @@ defmodule FoodStreetWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # multipart nâng lên ~25 MB để upload trang HTML chia sẻ (mỗi file tối đa 20 MB,
+  # xem FoodStreet.SharedPages); mặc định của Plug chỉ 8 MB.
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    parsers: [:urlencoded, {:multipart, length: 25_000_000}, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 

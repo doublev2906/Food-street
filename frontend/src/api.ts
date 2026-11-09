@@ -247,6 +247,16 @@ export interface PanchatSettings {
   panchat_token_preview: string;
 }
 
+/** Trang HTML chia sẻ, serve công khai ở `url` (/share/<name>). */
+export interface SharedPage {
+  name: string;
+  size: number;
+  updated_at: string;
+  url: string;
+  /** Chỉ có khi vừa upload: true nếu ghi đè file cùng tên. */
+  replaced?: boolean;
+}
+
 export interface OrderSchedule {
   id: string | null;
   enabled: boolean;
@@ -317,8 +327,10 @@ export const tokenStore = {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
+  // FormData (upload file): để trình duyệt tự đặt Content-Type kèm boundary multipart.
+  const isForm = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isForm ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -327,7 +339,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (e) {
+    // Lỗi từ proxy phía trước (vd nginx 413/502) trả HTML chứ không phải JSON.
+    if (res.ok) throw e;
+    body = { error: `HTTP ${res.status}` };
+  }
   if (!res.ok) {
     if (res.status === 401) tokenStore.clear();
     throw new ApiError(res.status, body);
@@ -560,6 +579,21 @@ export const api = {
       request<{ data: PanchatSettings }>("/admin/settings/panchat", {
         method: "PUT",
         body: JSON.stringify({ panchat_token }),
+      }),
+
+    // Trang HTML chia sẻ (/share)
+    sharedPages: () => request<{ data: SharedPage[] }>("/admin/shared_pages"),
+    uploadSharedPages: (files: File[]) => {
+      const form = new FormData();
+      files.forEach((f) => form.append("files[]", f));
+      return request<{
+        data: SharedPage[];
+        errors: { name: string; error: string }[];
+      }>("/admin/shared_pages", { method: "POST", body: form });
+    },
+    deleteSharedPage: (name: string) =>
+      request<void>(`/admin/shared_pages/${encodeURIComponent(name)}`, {
+        method: "DELETE",
       }),
 
     // Lịch hẹn tự động mở đợt đặt món hằng ngày (dùng chung)

@@ -2,6 +2,7 @@
 # Makefile thao tác PRODUCTION (Docker). Chạy DƯỚI MÁY DEV.
 #
 #   make deploy     # push code + build lại stack trên server
+#   make share      # upload trang HTML trong share/ lên https://<host>/share/
 #   make migrate    # chạy migration trên production
 #   make attach     # mở IEx remote console vào backend đang chạy
 #
@@ -10,7 +11,7 @@
 # (Backend dev: dùng backend/Makefile.)
 # =============================================================================
 .DEFAULT_GOAL := help
-.PHONY: help deploy migrate seed attach console logs ps restart rebuild down shell psql
+.PHONY: help deploy share migrate seed attach console logs ps restart rebuild down shell psql
 
 COMPOSE := docker compose -f docker-compose.prod.yml
 
@@ -27,6 +28,14 @@ help: ## Hiện danh sách lệnh
 
 deploy: ## Deploy: push code + SSH server tự build lại (gọi ./deploy.sh)
 	./deploy.sh
+
+# Không --delete: giữ nguyên file admin đã upload qua UI trên server.
+share: ## Upload trang HTML lên /share: rsync folder share/ (hoặc FILE="a.html b.html")
+	@. ./deploy.config && \
+	  rsync -rtvz --exclude='.*' -e "ssh -p $${SSH_PORT:-22}" \
+	    $(if $(FILE),$(FILE),share/) \
+	    "$${SSH_USER}@$${SSH_HOST}:$${APP_DIR:-/opt/food_street}/share/" && \
+	  echo "==> Xem tại: $${SHARE_BASE_URL:-https://$${PHX_HOST:-$$SSH_HOST}}/share/"
 
 migrate: ## Chạy migration trên production
 	@$(SSH) "$(RUN) $(COMPOSE) exec -T backend /app/bin/migrate"

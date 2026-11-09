@@ -15,6 +15,7 @@ import {
   type OrderSchedule,
   type PanchatSettings,
   type PeriodStats,
+  type SharedPage,
   type Stats,
   type User,
 } from "../api";
@@ -43,6 +44,7 @@ type Tab =
   | "fund"
   | "external"
   | "schedule"
+  | "share"
   | "settings";
 
 const ADMIN_TABS: [Tab, string][] = [
@@ -55,6 +57,7 @@ const ADMIN_TABS: [Tab, string][] = [
   ["fund", "💰 Quỹ"],
   ["external", "🍜 Mua ngoài"],
   ["schedule", "📅 Lịch hẹn"],
+  ["share", "🔗 Chia sẻ HTML"],
   ["settings", "⚙️ Cài đặt"],
 ];
 const ADMIN_TAB_KEYS = ADMIN_TABS.map(([key]) => key);
@@ -91,6 +94,7 @@ export default function AdminDashboard() {
             {tab === "fund" && <FundTab />}
             {tab === "external" && <ExternalPurchaseTab />}
             {tab === "schedule" && <ScheduleTab />}
+            {tab === "share" && <SharePagesTab />}
             {tab === "settings" && <SettingsTab />}
           </main>
         </div>
@@ -2633,6 +2637,176 @@ function FundModal({
 }
 
 // ---------- Cài đặt ----------
+const formatBytes = (n: number) =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+
+// Trang HTML chia sẻ: upload file .html, Caddy serve công khai ở /share/<tên file>.
+function SharePagesTab() {
+  const [pages, setPages] = useState<SharedPage[] | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  // Đổi key để reset <input type="file"> sau khi upload xong.
+  const [inputKey, setInputKey] = useState(0);
+
+  const load = () =>
+    api.admin
+      .sharedPages()
+      .then((r) => setPages(r.data))
+      .catch((e) => setMsg({ type: "error", text: e.message || "Lỗi tải danh sách" }));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const pickFiles = (list: FileList | null) => {
+    if (!list) return;
+    setMsg(null);
+    setFiles(Array.from(list).filter((f) => /\.html?$/i.test(f.name)));
+  };
+
+  const upload = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.admin.uploadSharedPages(files);
+      const saved = r.data.map((p) => `${p.name}${p.replaced ? " (ghi đè)" : ""}`).join(", ");
+      const failed = r.errors.map((e) => `${e.name}: ${e.error}`).join("; ");
+      setMsg({
+        type: failed ? "error" : "ok",
+        text: `Đã upload: ${saved}.${failed ? ` Lỗi: ${failed}` : ""}`,
+      });
+      setFiles([]);
+      setInputKey((k) => k + 1);
+      load();
+    } catch (err: any) {
+      setMsg({
+        type: "error",
+        text:
+          err.status === 413
+            ? "File quá lớn, server từ chối (413)."
+            : err.message || "Upload thất bại",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (p: SharedPage) => {
+    if (!confirm(`Xoá "${p.name}"? Link chia sẻ sẽ không xem được nữa.`)) return;
+    await api.admin.deleteSharedPage(p.name);
+    load();
+  };
+
+  const fullUrl = (p: SharedPage) => `${window.location.origin}${p.url}`;
+  const copy = async (p: SharedPage) => {
+    try {
+      await navigator.clipboard.writeText(fullUrl(p));
+      setMsg({ type: "ok", text: `Đã copy link ${p.name}.` });
+    } catch {
+      prompt("Copy link:", fullUrl(p));
+    }
+  };
+
+  return (
+    <div className="grid">
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Chia sẻ HTML ({pages?.length ?? 0})</h2>
+        <a href="/share/" target="_blank" rel="noopener">
+          Mở trang danh sách ↗
+        </a>
+      </div>
+
+      <div
+        className="card"
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          pickFiles(e.dataTransfer.files);
+        }}
+        style={dragging ? { outline: "2px dashed var(--primary)", outlineOffset: -6 } : undefined}
+      >
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Chọn hoặc kéo thả file <code>.html</code> vào đây (tối đa 20 MB/file). Ai có link đều
+          xem được tại <code>/share/&lt;tên-file&gt;.html</code> — đừng upload dữ liệu nhạy cảm.
+          Trùng tên sẽ ghi đè bản cũ.
+        </p>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <input
+            key={inputKey}
+            type="file"
+            accept=".html,.htm,text/html"
+            multiple
+            onChange={(e) => pickFiles(e.target.files)}
+          />
+          <button onClick={upload} disabled={busy || files.length === 0}>
+            {busy ? "Đang upload…" : `Upload${files.length ? ` ${files.length} file` : ""}`}
+          </button>
+        </div>
+        {msg && (
+          <div className={`alert ${msg.type === "ok" ? "" : "error"}`} style={{ marginTop: 12 }}>
+            {msg.text}
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        {pages === null ? (
+          <Spinner />
+        ) : pages.length === 0 ? (
+          <p className="muted small" style={{ padding: 16 }}>
+            Chưa có trang nào.
+          </p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Dung lượng</th>
+                <th>Cập nhật</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pages.map((p) => (
+                <tr key={p.name}>
+                  <td>
+                    <a href={p.url} target="_blank" rel="noopener">
+                      <strong>{p.name}</strong>
+                    </a>
+                  </td>
+                  <td className="muted small">{formatBytes(p.size)}</td>
+                  <td className="muted small">
+                    {new Date(p.updated_at).toLocaleString("vi-VN")}
+                  </td>
+                  <td>
+                    <div className="row" style={{ justifyContent: "flex-end" }}>
+                      <button className="secondary small" onClick={() => copy(p)}>
+                        Copy link
+                      </button>
+                      <button
+                        className="secondary danger-outline small"
+                        onClick={() => remove(p)}
+                      >
+                        Xoá
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsTab() {
   const [settings, setSettings] = useState<PanchatSettings | null>(null);
   const [token, setToken] = useState("");

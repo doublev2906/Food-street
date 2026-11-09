@@ -10,6 +10,11 @@
 # Biến môi trường production (secret, DB pass) — không commit.
 /.env
 
+# Trang HTML chia sẻ (/share) — repo đang public nên KHÔNG commit nội dung,
+# upload qua UI admin hoặc `make share`. Giữ .gitkeep để git tạo sẵn folder.
+/share/*
+!/share/.gitkeep
+
 # Playwright MCP artifacts
 .playwright-mcp/
 /backend/config/dev.local.exs.example

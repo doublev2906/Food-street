@@ -14,6 +14,10 @@ config :food_street,
 # URL gốc của frontend, dùng để dựng link trong lời mời gửi vào Panchat.
 config :food_street, :frontend_url, "https://dev.pancake.vn:3200"
 
+# Folder chứa trang HTML chia sẻ (= folder share/ ở root repo khi chạy local).
+# Prod (Docker) override bằng env SHARE_DIR trong runtime.exs.
+config :food_street, :share_dir, Path.expand("../../share", __DIR__)
+
 # Kênh Panchat đích (mặc định = kênh THẬT "Pancake Food Street" cho prod). Dev/test
 # override sang kênh thử (xem dev.exs / test.exs) để khỏi làm phiền kênh chung.
 config :food_street, :panchat_workspace_id, 4

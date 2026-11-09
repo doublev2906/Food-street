@@ -51,6 +51,25 @@ docker compose -f docker-compose.prod.yml down             # dừng
 > File Docker: `docker-compose.prod.yml`, `backend/Dockerfile`, `frontend/Dockerfile`,
 > `frontend/Caddyfile`, `.env.prod.example`. Migration tự chạy khi container backend khởi động.
 
+### Chia sẻ trang HTML (`/share`)
+
+Folder `share/` ở root repo được mount vào cả `web` (Caddy serve công khai ở
+`https://<host>/share/<file>`, trang `/share/` liệt kê mọi file) lẫn `backend` (ghi file
+khi admin upload). Nội dung folder bị gitignore vì repo public — **đừng commit**.
+
+- **Qua UI:** Admin → tab "🔗 Chia sẻ HTML" → chọn/kéo thả file `.html` → Upload.
+  Tên file được chuẩn hoá (bỏ dấu, chữ thường); trùng tên thì ghi đè.
+- **Qua rsync (máy dev):** bỏ file vào `share/` rồi `make share`, hoặc
+  `make share FILE="duong/dan/a.html"`. Không xoá file trên server. Đặt
+  `SHARE_BASE_URL="https://dev.pancake.vn:3200"` trong `deploy.config` để in đúng link.
+
+Trang được serve với `Content-Security-Policy: sandbox …` → JS trong trang vẫn chạy nhưng
+**không đọc được token đăng nhập** (localStorage) của app cùng domain. Trang nào cần
+`localStorage`/cookie sẽ báo lỗi `SecurityError` — chấp nhận đánh đổi này.
+
+> Upload qua UI > 1 MB mà bị lỗi 413: tăng `client_max_body_size` (vd `25m`) ở nginx
+> ngoài (nơi terminate TLS) cho domain này.
+
 ---
 
 # 🖥️ Cách 2 — mix release trên host
