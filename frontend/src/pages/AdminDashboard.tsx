@@ -2709,8 +2709,8 @@ function SharePagesTab() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
-  // Modal nhập tên: { file } = đổi tên file đó, {} = tạo thư mục mới.
-  const [naming, setNaming] = useState<{ file?: SharedPage } | null>(null);
+  // Modal nhập tên: { entry } = đổi tên file/thư mục đó, {} = tạo thư mục mới.
+  const [naming, setNaming] = useState<{ entry?: SharedPage } | null>(null);
 
   // Tăng để tải lại danh sách thư mục hiện tại (sau upload / xoá).
   const [reloadKey, setReloadKey] = useState(0);
@@ -2779,16 +2779,17 @@ function SharePagesTab() {
   };
 
   const onNamed = (page: SharedPage) => {
-    const renamedFrom = naming?.file?.name;
+    const renamed = naming?.entry;
     setNaming(null);
-    if (page.type === "folder") {
+    if (!renamed) {
       // Vào luôn thư mục vừa tạo để upload.
       setDir(page.path);
       return;
     }
+    const oldLinks = renamed.type === "folder" ? "Link cũ của mọi trang bên trong" : "Link cũ";
     setMsg({
       type: "ok",
-      text: `Đã đổi tên "${renamedFrom}" thành "${page.name}". Link cũ không mở được nữa, nhớ gửi lại link mới.`,
+      text: `Đã đổi tên "${renamed.name}" thành "${page.name}". ${oldLinks} không mở được nữa, nhớ gửi lại link mới.`,
     });
     load();
   };
@@ -2847,22 +2848,25 @@ function SharePagesTab() {
         </div>
       </div>
 
-      <nav className="share-crumbs" aria-label="Thư mục đang mở">
-        <button className={`chip${segments.length === 0 ? " active" : ""}`} onClick={() => setDir("")}>
-          📁 share
-        </button>
-        {segments.map((seg, i) => (
-          <span key={i} className="share-crumb">
-            <span className="muted">/</span>
-            <button
-              className={`chip${i === segments.length - 1 ? " active" : ""}`}
-              onClick={() => setDir(segments.slice(0, i + 1).join("/"))}
-            >
-              {seg}
-            </button>
-          </span>
-        ))}
-      </nav>
+      {/* Ở gốc chỉ còn 1 chip "share" vô nghĩa -> chỉ hiện khi đã vào thư mục con. */}
+      {segments.length > 0 && (
+        <nav className="share-crumbs" aria-label="Thư mục đang mở">
+          <button className="chip" onClick={() => setDir("")}>
+            Tất cả
+          </button>
+          {segments.map((seg, i) => (
+            <span key={i} className="share-crumb">
+              <span className="muted">/</span>
+              <button
+                className={`chip${i === segments.length - 1 ? " active" : ""}`}
+                onClick={() => setDir(segments.slice(0, i + 1).join("/"))}
+              >
+                {seg}
+              </button>
+            </span>
+          ))}
+        </nav>
+      )}
 
       {msg && <div className={`alert share-alert ${msg.type === "ok" ? "success" : "error"}`}>{msg.text}</div>}
 
@@ -3036,12 +3040,12 @@ function SharePagesTab() {
                         >
                           <LinkSimple size={16} weight="bold" />
                         </button>
-                        {!folder && isHtmlName(p.name) && (
+                        {(folder || isHtmlName(p.name)) && (
                           <button
                             className="ghost small share-icon-btn"
                             title="Đổi tên"
                             aria-label={`Đổi tên ${p.name}`}
-                            onClick={() => setNaming({ file: p })}
+                            onClick={() => setNaming({ entry: p })}
                           >
                             <PencilSimple size={16} weight="bold" />
                           </button>
@@ -3077,7 +3081,7 @@ function SharePagesTab() {
       {naming && (
         <ShareNameModal
           dir={dir}
-          file={naming.file}
+          entry={naming.entry}
           onClose={() => setNaming(null)}
           onDone={onNamed}
         />
@@ -3088,24 +3092,28 @@ function SharePagesTab() {
 
 function ShareNameModal({
   dir,
-  file,
+  entry,
   onClose,
   onDone,
 }: {
   dir: string;
-  file?: SharedPage;
+  entry?: SharedPage;
   onClose: () => void;
   onDone: (page: SharedPage) => void;
 }) {
-  const [name, setName] = useState(() => (file ? file.name.replace(/\.html?$/i, "") : ""));
+  const isFile = entry?.type === "file";
+  const [name, setName] = useState(() =>
+    !entry ? "" : isFile ? entry.name.replace(/\.html?$/i, "") : entry.name
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const preview = file ? renamedFileName(name, file.name) : shareSlug(name);
-  const unchanged = !!file && preview === file.name;
-  // Đổi tên: lấy thư mục từ chính file — `dir` có thể đã đổi trong lúc bảng chưa tải lại.
-  const folder = file ? file.path.slice(0, file.path.length - file.name.length) : dir ? `${dir}/` : "";
-  const prefix = `/share/${folder}`;
+  const preview = entry && isFile ? renamedFileName(name, entry.name) : shareSlug(name);
+  const unchanged = !!entry && preview === entry.name;
+  // Đổi tên: lấy thư mục cha từ chính entry — `dir` có thể đã đổi lúc bảng chưa tải lại.
+  const parent = entry ? entry.path.slice(0, entry.path.length - entry.name.length) : dir ? `${dir}/` : "";
+  const prefix = `/share/${parent}`;
+  const slash = isFile ? "" : "/";
   // Đang gửi thì không cho đóng: request xong vẫn gọi onDone (nhảy thư mục / đóng modal khác).
   const close = () => !busy && onClose();
 
@@ -3115,40 +3123,43 @@ function ShareNameModal({
     setError("");
     setBusy(true);
     try {
-      const r = file
-        ? await api.admin.renameSharedPage(file.path, name.trim())
+      const r = entry
+        ? await api.admin.renameSharedPage(entry.path, name.trim())
         : await api.admin.createSharedFolder(dir, name.trim());
       onDone(r.data);
     } catch (err: any) {
-      setError(err.message || (file ? "Đổi tên thất bại" : "Tạo thư mục thất bại"));
+      setError(err.message || (entry ? "Đổi tên thất bại" : "Tạo thư mục thất bại"));
     } finally {
       setBusy(false);
     }
   };
 
+  const title = !entry ? "Thư mục mới" : isFile ? "Đổi tên file" : "Đổi tên thư mục";
+
   return (
-    <Modal title={file ? "Đổi tên file" : "Thư mục mới"} onClose={close}>
+    <Modal title={title} onClose={close}>
       {error && <div className="alert error">{error}</div>}
       <form onSubmit={submit}>
         <div className="field">
-          <label>{file ? "Tên mới" : `Tên thư mục trong ${prefix}`}</label>
+          <label>{entry ? "Tên mới" : `Tên thư mục trong ${prefix}`}</label>
           <input
             autoFocus
             onFocus={(e) => e.target.select()}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={file ? "VD: Báo cáo quý 4" : "VD: Báo cáo Q4"}
+            placeholder={isFile ? "VD: Báo cáo quý 4" : "VD: Báo cáo Q4"}
             maxLength={200}
           />
         </div>
         <div className="share-name-preview">
           <span className="small muted">Link sau khi lưu</span>
-          <code>{preview ? `${prefix}${preview}${file ? "" : "/"}` : "—"}</code>
+          <code>{preview ? `${prefix}${preview}${slash}` : "—"}</code>
         </div>
-        {file && (
+        {entry && (
           <p className="small muted">
-            Link cũ <code>{prefix + file.name}</code> sẽ không mở được nữa, nhớ gửi lại link mới.
-            Dữ liệu người xem đã nhập trên trang vẫn giữ nguyên.
+            Link cũ <code>{prefix + entry.name + slash}</code>
+            {isFile ? "" : " và link mọi trang bên trong"} sẽ không mở được nữa, nhớ gửi lại link
+            mới. Dữ liệu người xem đã nhập vẫn giữ nguyên.
           </p>
         )}
         <div className="row" style={{ justifyContent: "flex-end" }}>
@@ -3156,7 +3167,7 @@ function ShareNameModal({
             Hủy
           </button>
           <button type="submit" disabled={busy || !preview || unchanged}>
-            {busy ? "Đang lưu…" : file ? "Đổi tên" : "Tạo thư mục"}
+            {busy ? "Đang lưu…" : entry ? "Đổi tên" : "Tạo thư mục"}
           </button>
         </div>
       </form>

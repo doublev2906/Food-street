@@ -106,7 +106,7 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
     assert File.read!(Path.join(SharedPages.dir(), "a.html")) == "v2"
   end
 
-  test "đổi tên file: chuẩn hoá tên, trùng tên 422, không có file 404, user thường 403",
+  test "đổi tên file/thư mục: chuẩn hoá tên, trùng tên 422, không có 404, user thường 403",
        %{conn: conn} do
     admin = login(conn, "admin")
     post(admin, ~p"/api/admin/shared_pages", %{"files" => [upload("a.html", "a")]})
@@ -122,6 +122,11 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
     assert admin |> rename("a.html", "x") |> json_response(404)
     assert conn |> login("user") |> rename("b.html", "x") |> json_response(403)
     assert File.read!(Path.join(SharedPages.dir(), "b.html")) == "b"
+
+    post(admin, ~p"/api/admin/shared_pages/folders", %{"name" => "Thư mục"})
+
+    assert %{"data" => %{"path" => "bao-cao", "type" => "folder", "url" => "/share/bao-cao/"}} =
+             admin |> rename("thu-muc", "Báo cáo") |> json_response(200)
   end
 
   test "không gửi file → 422", %{conn: conn} do
