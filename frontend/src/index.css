@@ -1753,6 +1753,212 @@ tbody tr:hover td {
   }
 }
 
+/* ================= Admin: Chia sẻ HTML ================= */
+.share-title {
+  margin: 0 0 2px;
+}
+/* Nút có icon: icon + chữ thẳng hàng */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Link "Mở trang danh sách" trông như button.secondary.small */
+.share-link-btn {
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.share-link-btn:hover {
+  background: var(--hover);
+}
+.share-crumbs,
+.share-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.share-crumbs .chip {
+  padding: 5px 12px;
+}
+.share-alert {
+  margin-bottom: 0;
+}
+/* Ô kéo thả: cả ô là <label> bọc input file ẩn */
+label.share-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 26px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+label.share-drop:hover,
+label.share-drop.dragging,
+label.share-drop:focus-within {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+label.share-drop .icon-circle {
+  color: var(--primary-text);
+  margin-bottom: 4px;
+}
+/* Ẩn khỏi mắt nhưng vẫn focus được bằng Tab (không dùng display:none) */
+.share-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.share-picked {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.share-picked-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary-text);
+}
+.share-picked-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-upload-bar {
+  margin-top: 14px;
+}
+label.share-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.share-note {
+  margin: 12px 0 0;
+}
+.share-list {
+  padding: 0;
+  overflow: hidden;
+}
+/* Tên file/thư mục: icon vuông + tên, bấm được cả cụm */
+.share-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  word-break: break-word;
+}
+button.share-name:hover {
+  background: none;
+}
+.share-name:hover > span:last-child {
+  color: var(--primary-text);
+}
+.share-ic {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--hover);
+  color: var(--muted);
+}
+.share-ic.folder {
+  background: var(--primary-soft);
+  color: var(--primary-text);
+}
+.share-col-size,
+.share-col-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.share-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+/* Nút icon vuông trong bảng / danh sách file chờ upload. button.x để thắng
+   specificity của button.ghost / button.small (khai báo trước). */
+button.share-icon-btn,
+a.share-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  padding: 7px;
+  line-height: 1;
+}
+.share-icon-link {
+  border-radius: 8px;
+  color: var(--muted);
+}
+.share-icon-link:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+button.share-del:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.share-name-preview {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.share-name-preview code {
+  color: var(--primary-text);
+  font-size: 13px;
+  word-break: break-all;
+}
+@media (max-width: 640px) {
+  .share-col-size {
+    display: none;
+  }
+  label.share-drop {
+    padding: 20px 12px;
+  }
+}
+
 /* ================= Header thu gọn (tablet + điện thoại) =================
    Header 1 hàng không wrap: bản đầy đủ (tên khu vực, chữ nút, tên user, badge role)
    của admin cần ~980px, hẹp hơn là bị bóp chữ / tràn ngang cả trang. Nên từ 1000px
