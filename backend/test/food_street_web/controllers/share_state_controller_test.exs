@@ -1,10 +1,17 @@
 defmodule FoodStreetWeb.ShareStateControllerTest do
-  use FoodStreetWeb.ConnCase, async: true
+  # Chỉ lưu được cho trang còn file -> dùng chung folder tạm :share_dir nên không async.
+  use FoodStreetWeb.ConnCase, async: false
 
   alias FoodStreet.{Accounts, Repo, SharedPages}
   alias FoodStreetWeb.ShareController
 
   setup do
+    File.rm_rf!(SharedPages.dir())
+    on_exit(fn -> File.rm_rf!(SharedPages.dir()) end)
+    File.mkdir_p!(Path.join(SharedPages.dir(), "bao-cao"))
+    File.write!(Path.join(SharedPages.dir(), "bao-cao/q4.html"), "<p>q4</p>")
+    File.write!(Path.join(SharedPages.dir(), "a.html"), "<p>a</p>")
+
     {:ok, user} =
       Accounts.create_user(%{
         name: "Editor",
@@ -60,5 +67,18 @@ defmodule FoodStreetWeb.ShareStateControllerTest do
     t = token(user, "a.html")
     Repo.update!(Ecto.Changeset.change(user, active: false))
     assert save(%{"token" => t, "patch" => %{"a" => "b"}}) |> json_response(401)
+  end
+
+  test "trang đã đổi tên / xoá -> 410, không để lại dữ liệu ở đường dẫn cũ", %{user: user} do
+    t = token(user, "a.html")
+    {:ok, _} = SharedPages.rename("a.html", "b")
+
+    assert %{"error" => "page_gone"} =
+             save(%{"token" => t, "patch" => %{"k" => "v"}}) |> json_response(410)
+
+    assert SharedPages.get_state("a.html") == %{}
+
+    assert save(%{"token" => token(user, "khong-co.html"), "patch" => %{"k" => "v"}})
+           |> json_response(410)
   end
 end

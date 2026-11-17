@@ -196,6 +196,80 @@ defmodule FoodStreet.SharedPages do
     end
   end
 
+  @doc """
+  Đổi tên 1 file HTML, giữ nguyên thư mục. Tên mới chuẩn hoá như lúc upload; không gõ đuôi
+  `.html`/`.htm` thì giữ đuôi cũ. Trùng tên file/thư mục khác → `:already_exists` (không
+  ghi đè). Dữ liệu người xem đã nhập chuyển theo sang tên mới; link cũ thành 404.
+
+      rename("bao-cao/q4.html", "Báo cáo quý 4")
+      #=> {:ok, %{path: "bao-cao/bao-cao-quy-4.html", ...}}
+  """
+  @spec rename(String.t() | nil, String.t() | nil) :: {:ok, entry()} | {:error, atom()}
+  def rename(rel, new_name) when is_binary(rel) and is_binary(new_name) do
+    with {:ok, %{rel: rel, abs: abs}} when rel != "" <- resolve(rel),
+         {:ok, %File.Stat{type: :regular}} <- File.stat(abs),
+         {:ok, name} <- rename_target(abs, new_name) do
+      new_rel = rel |> String.split("/") |> Enum.drop(-1) |> Enum.join("/") |> join(name)
+      dest = Path.join(Path.dirname(abs), name)
+
+      cond do
+        new_rel == rel -> with :error <- entry(rel), do: {:error, :not_found}
+        # lstat: symlink (kể cả symlink hỏng) cũng tính là đã có tên đó.
+        match?({:ok, _}, File.lstat(dest)) -> {:error, :already_exists}
+        true -> move(abs, dest, rel, new_rel)
+      end
+    else
+      {:error, reason} when reason in [:invalid_name, :invalid_extension] -> {:error, reason}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def rename(rel, _new_name) when is_binary(rel), do: {:error, :invalid_name}
+  def rename(_rel, _new_name), do: {:error, :not_found}
+
+  # Chỉ đổi tên trang HTML; file kèm theo (ảnh, css… rsync lên) đổi tên là vỡ trang.
+  defp rename_target(abs, new_name) do
+    old_ext = abs |> Path.extname() |> String.downcase()
+    base = String.trim(new_name)
+    # Tự so đuôi thay vì Path.extname: Path.extname(".html") == "" (coi là file ẩn) nên
+    # gõ mỗi ".html" sẽ thành "html.html" thay vì báo tên rỗng.
+    typed_ext = Enum.find(@allowed_exts, &String.ends_with?(String.downcase(base), &1))
+
+    {stem, ext} =
+      if typed_ext,
+        do: {String.slice(base, 0, String.length(base) - String.length(typed_ext)), typed_ext},
+        else: {base, old_ext}
+
+    cond do
+      old_ext not in @allowed_exts -> {:error, :invalid_extension}
+      slugify(stem) == "" -> {:error, :invalid_name}
+      true -> {:ok, slugify(stem) <> ext}
+    end
+  end
+
+  # File.rename lỗi thì rollback: dữ liệu không trỏ sang đường dẫn không có file.
+  defp move(abs, dest, rel, new_rel) do
+    result =
+      Repo.transaction(fn ->
+        # Dữ liệu sót của trang cũ trùng tên mới (file bị xoá ngoài app, vd rsync) không
+        # được dính sang trang vừa đổi tên.
+        Repo.delete_all(from s in State, where: s.page_path == ^new_rel)
+        Repo.update_all(from(s in State, where: s.page_path == ^rel), set: [page_path: new_rel])
+
+        case File.rename(abs, dest) do
+          :ok -> :ok
+          {:error, _} -> Repo.rollback(:write_failed)
+        end
+      end)
+
+    with {:ok, :ok} <- result,
+         {:ok, e} <- entry(new_rel) do
+      {:ok, e}
+    else
+      _ -> {:error, :write_failed}
+    end
+  end
+
   @doc "Xoá 1 file hoặc cả thư mục (kèm toàn bộ bên trong) + dữ liệu đã nhập trên các trang đó."
   @spec delete(String.t()) :: :ok | {:error, :not_found}
   def delete(rel) when is_binary(rel) do
@@ -229,6 +303,17 @@ defmodule FoodStreet.SharedPages do
 
   @max_key_length 500
   @max_value_bytes 512 * 1024
+
+  @doc "Đường dẫn còn là 1 file trong folder chia sẻ không (false nếu đã bị đổi tên / xoá)."
+  @spec page?(String.t()) :: boolean()
+  def page?(rel) when is_binary(rel) do
+    case resolve(rel) do
+      {:ok, %{rel: rel, abs: abs}} when rel != "" -> File.regular?(abs)
+      _ -> false
+    end
+  end
+
+  def page?(_), do: false
 
   @doc "Dữ liệu đã lưu của 1 trang (map key -> giá trị), chưa có thì `%{}`."
   @spec get_state(String.t()) :: map()

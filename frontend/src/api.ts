@@ -613,6 +613,12 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ dir, name }),
       }),
+    // Đổi tên file .html (giữ thư mục). Server chuẩn hoá tên; link cũ thành 404.
+    renameSharedPage: (path: string, name: string) =>
+      request<{ data: SharedPage }>("/admin/shared_pages/rename", {
+        method: "PUT",
+        body: JSON.stringify({ path, name }),
+      }),
     // path: file hoặc thư mục (xoá cả bên trong)
     deleteSharedEntry: (path: string) =>
       request<void>(`/admin/shared_pages?${new URLSearchParams({ path })}`, {

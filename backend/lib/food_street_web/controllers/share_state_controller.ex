@@ -25,11 +25,17 @@ defmodule FoodStreetWeb.ShareStateController do
              max_age: ShareController.state_max_age()
            ),
          %{active: true} <- Accounts.get_user(user_id),
+         # Token gắn đường dẫn lúc mở trang: trang đã đổi tên / xoá thì không ghi tiếp, kẻo
+         # dữ liệu nằm ở đường dẫn cũ (mất, hoặc dính sang file sau này upload trùng tên).
+         :ok <- if(SharedPages.page?(page_path), do: :ok, else: {:error, :page_gone}),
          :ok <- SharedPages.merge_state(page_path, patch, user_id) do
       json(conn, %{ok: true})
     else
       {:error, :too_large} ->
         error(conn, 413, "payload_too_large")
+
+      {:error, :page_gone} ->
+        error(conn, 410, "page_gone")
 
       {:error, :invalid_patch} ->
         error(conn, 422, "invalid_patch")

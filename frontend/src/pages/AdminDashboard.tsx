@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowSquareOut,
+  ArrowUUpLeft,
+  FileHtml,
+  FolderSimple,
+  FolderSimplePlus,
+  LinkSimple,
+  PencilSimple,
+  Trash,
+  UploadSimple,
+  X,
+} from "@phosphor-icons/react";
+import {
   api,
   formatVND,
   today,
@@ -2637,12 +2649,46 @@ function FundModal({
   );
 }
 
-// ---------- Cài đặt ----------
+// ---------- Chia sẻ HTML ----------
 const formatBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-// Trang HTML chia sẻ: duyệt / tạo thư mục, upload .html vào thư mục đang mở. Backend serve
-// (phải đăng nhập) ở /share/<đường dẫn> và tự lưu dữ liệu người xem nhập trên trang.
+const SHARE_HTML_EXTS = [".html", ".htm"];
+const isHtmlName = (name: string) => /\.html?$/i.test(name);
+
+// Bản sao slugify của backend (SharedPages) — chỉ để xem trước tên sẽ lưu, server vẫn
+// là nơi chuẩn hoá thật.
+const shareSlug = (s: string) =>
+  s
+    .replace(/[đĐ]/g, "d")
+    .normalize("NFD")
+    .replace(/\p{Mn}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 100)
+    .replace(/^[.-]+|[.-]+$/g, "");
+
+// Phải khớp SharedPages.rename_target (backend).
+const renamedFileName = (input: string, oldName: string) => {
+  const base = input.trim();
+  const typed = SHARE_HTML_EXTS.find((e) => base.toLowerCase().endsWith(e));
+  const oldExt = SHARE_HTML_EXTS.find((e) => oldName.toLowerCase().endsWith(e)) ?? ".html";
+  const slug = shareSlug(typed ? base.slice(0, base.length - typed.length) : base);
+  return slug ? slug + (typed ?? oldExt) : "";
+};
+
+const formatShareTime = (iso: string) =>
+  new Date(iso).toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+// Trang HTML chia sẻ: duyệt / tạo thư mục, upload .html vào thư mục đang mở, đổi tên, xoá.
+// Backend serve (phải đăng nhập) ở /share/<đường dẫn> và tự lưu dữ liệu người xem nhập.
 function SharePagesTab() {
   // Thư mục đang xem lưu trong ?dir=… (F5 giữ nguyên).
   const [searchParams, setSearchParams] = useSearchParams();
@@ -2657,12 +2703,14 @@ function SharePagesTab() {
 
   const [listing, setListing] = useState<SharedListing | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  // Số file bị bỏ qua ở lần chọn gần nhất vì không phải .html/.htm.
+  const [skipped, setSkipped] = useState(0);
   const [overwrite, setOverwrite] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
-  // Đổi key để reset <input type="file"> sau khi upload xong.
-  const [inputKey, setInputKey] = useState(0);
+  // Modal nhập tên: { file } = đổi tên file đó, {} = tạo thư mục mới.
+  const [naming, setNaming] = useState<{ file?: SharedPage } | null>(null);
 
   // Tăng để tải lại danh sách thư mục hiện tại (sau upload / xoá).
   const [reloadKey, setReloadKey] = useState(0);
@@ -2687,22 +2735,35 @@ function SharePagesTab() {
   const pickFiles = (list: FileList | null) => {
     if (!list) return;
     setMsg(null);
-    setFiles(Array.from(list).filter((f) => /\.html?$/i.test(f.name)));
+    const all = Array.from(list);
+    const htmlAll = all.filter((f) => isHtmlName(f.name));
+    // Trùng tên (kể cả trong cùng 1 lần thả từ 2 thư mục) thì giữ bản chọn sau cùng.
+    const html = [...new Map(htmlAll.map((f) => [f.name, f])).values()];
+    setFiles((prev) => [...prev.filter((p) => !html.some((f) => f.name === p.name)), ...html]);
+    setSkipped(all.length - htmlAll.length);
+  };
+  const unpick = (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name));
+  const clearPicked = () => {
+    setFiles([]);
+    setSkipped(0);
   };
 
   const upload = async () => {
     setBusy(true);
     setMsg(null);
+    const sent = files;
     try {
-      const r = await api.admin.uploadSharedPages(files, dir, overwrite);
+      const r = await api.admin.uploadSharedPages(sent, dir, overwrite);
       const saved = r.data.map((p) => `${p.name}${p.replaced ? " (ghi đè)" : ""}`).join(", ");
       const failed = r.errors.map((e) => `${e.name}: ${e.error}`).join("; ");
       setMsg({
         type: failed ? "error" : "ok",
         text: `Đã upload: ${saved}.${failed ? ` Lỗi: ${failed}` : ""}`,
       });
-      setFiles([]);
-      setInputKey((k) => k + 1);
+      // Giữ file lỗi (vd trùng tên -> tick Ghi đè rồi bấm lại) và file thả thêm lúc đang gửi.
+      const failedNames = new Set(r.errors.map((e) => e.name));
+      setFiles((prev) => prev.filter((f) => !sent.includes(f) || failedNames.has(f.name)));
+      setSkipped(0);
       load();
     } catch (err: any) {
       setMsg({
@@ -2717,17 +2778,19 @@ function SharePagesTab() {
     }
   };
 
-  const createFolder = async () => {
-    const name = prompt(`Tên thư mục mới trong /share/${dir ? dir + "/" : ""}`);
-    if (!name?.trim()) return;
-    setMsg(null);
-    try {
-      const r = await api.admin.createSharedFolder(dir, name.trim());
+  const onNamed = (page: SharedPage) => {
+    const renamedFrom = naming?.file?.name;
+    setNaming(null);
+    if (page.type === "folder") {
       // Vào luôn thư mục vừa tạo để upload.
-      setDir(r.data.path);
-    } catch (err: any) {
-      setMsg({ type: "error", text: err.message || "Tạo thư mục thất bại" });
+      setDir(page.path);
+      return;
     }
+    setMsg({
+      type: "ok",
+      text: `Đã đổi tên "${renamedFrom}" thành "${page.name}". Link cũ không mở được nữa, nhớ gửi lại link mới.`,
+    });
+    load();
   };
 
   const remove = async (p: SharedPage) => {
@@ -2736,7 +2799,13 @@ function SharePagesTab() {
         ? `Xoá thư mục "${p.name}" và TOÀN BỘ file bên trong? Dữ liệu đã nhập trên các trang đó cũng mất.`
         : `Xoá "${p.name}"? Link chia sẻ và dữ liệu đã nhập trên trang sẽ mất.`;
     if (!confirm(question)) return;
-    await api.admin.deleteSharedEntry(p.path);
+    setMsg(null);
+    try {
+      await api.admin.deleteSharedEntry(p.path);
+      setMsg({ type: "ok", text: `Đã xoá ${p.name}.` });
+    } catch (err: any) {
+      setMsg({ type: "error", text: err.message || "Xoá thất bại" });
+    }
     load();
   };
 
@@ -2755,38 +2824,47 @@ function SharePagesTab() {
   const entries = listing ? [...listing.folders, ...listing.files] : [];
   const dirUrl = `/share/${segments.map(encodeURIComponent).join("/")}${dir ? "/" : ""}`;
 
+  const dirLabel = `/share/${dir ? `${dir}/` : ""}`;
+  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+
   return (
     <div className="grid">
-      <div className="row between" style={{ flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Chia sẻ HTML</h2>
-        <div className="row">
-          <button className="secondary" onClick={createFolder}>
-            + Thư mục mới
+      <div className="row between wrap">
+        <div>
+          <h2 className="share-title">Chia sẻ HTML</h2>
+          <div className="small muted">
+            Trang xem tại <code>/share/…</code>, phải đăng nhập Food Street mới mở được (user
+            thường cũng xem được).
+          </div>
+        </div>
+        <div className="row wrap">
+          <button className="secondary small share-btn" onClick={() => setNaming({})}>
+            <FolderSimplePlus size={16} weight="bold" /> Thư mục mới
           </button>
-          <a href={dirUrl} target="_blank" rel="noopener">
-            Mở trang danh sách ↗
+          <a className="share-btn share-link-btn" href={dirUrl} target="_blank" rel="noopener">
+            <ArrowSquareOut size={16} weight="bold" /> Mở trang danh sách
           </a>
         </div>
       </div>
 
-      {/* Breadcrumb thư mục đang mở */}
-      <div className="row small" style={{ flexWrap: "wrap", gap: 4 }}>
-        <span className="muted">Thư mục:</span>
-        <button className="ghost small" onClick={() => setDir("")}>
+      <nav className="share-crumbs" aria-label="Thư mục đang mở">
+        <button className={`chip${segments.length === 0 ? " active" : ""}`} onClick={() => setDir("")}>
           📁 share
         </button>
         {segments.map((seg, i) => (
-          <span key={i} className="row" style={{ gap: 4 }}>
+          <span key={i} className="share-crumb">
             <span className="muted">/</span>
             <button
-              className="ghost small"
+              className={`chip${i === segments.length - 1 ? " active" : ""}`}
               onClick={() => setDir(segments.slice(0, i + 1).join("/"))}
             >
               {seg}
             </button>
           </span>
         ))}
-      </div>
+      </nav>
+
+      {msg && <div className={`alert share-alert ${msg.type === "ok" ? "success" : "error"}`}>{msg.text}</div>}
 
       <div
         className="card"
@@ -2794,29 +2872,63 @@ function SharePagesTab() {
           e.preventDefault();
           setDragging(true);
         }}
-        onDragLeave={() => setDragging(false)}
+        onDragLeave={(e) => {
+          // Rê qua phần tử con cũng bắn dragleave -> chỉ tắt khi thật sự rời khỏi card.
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
           pickFiles(e.dataTransfer.files);
         }}
-        style={dragging ? { outline: "2px dashed var(--primary)", outlineOffset: -6 } : undefined}
       >
-        <p className="small muted" style={{ marginTop: 0 }}>
-          Chọn hoặc kéo thả file <code>.html</code> (tối đa 20 MB/file) để upload vào{" "}
-          <code>/share/{dir ? `${dir}/` : ""}</code>. Phải đăng nhập Food Street mới mở được
-          (user thường cũng xem được). Dữ liệu người xem nhập trên trang (ô nhập, chọn, tick…)
-          được tự lưu, dùng chung cho mọi người và giữ nguyên khi ghi đè file.
-        </p>
-        <div className="row" style={{ flexWrap: "wrap" }}>
+        <label className={`share-drop${dragging ? " dragging" : ""}`}>
           <input
-            key={inputKey}
+            className="share-file-input"
             type="file"
             accept=".html,.htm,text/html"
             multiple
-            onChange={(e) => pickFiles(e.target.files)}
+            onChange={(e) => {
+              pickFiles(e.target.files);
+              // Xoá giá trị (không remount input -> giữ focus bàn phím) để chọn lại đúng file đó vẫn ăn.
+              e.target.value = "";
+            }}
           />
-          <label className="row small" style={{ gap: 6, cursor: "pointer" }}>
+          <span className="icon-circle">
+            <UploadSimple size={26} weight="bold" />
+          </span>
+          <strong>{dragging ? "Thả file vào đây" : "Kéo thả file .html vào đây hoặc bấm để chọn"}</strong>
+          <span className="small muted">
+            Tối đa 20 MB/file · lưu vào <code>{dirLabel}</code>
+          </span>
+        </label>
+
+        {(files.length > 0 || skipped > 0) && (
+          <div className="share-picked">
+            {files.map((f) => (
+              <div key={f.name} className="share-picked-item">
+                <FileHtml size={18} weight="duotone" />
+                <span className="share-picked-name">{f.name}</span>
+                <span className="small muted">{formatBytes(f.size)}</span>
+                <button
+                  className="ghost small share-icon-btn"
+                  title="Bỏ file này"
+                  aria-label={`Bỏ ${f.name}`}
+                  onClick={() => unpick(f.name)}
+                  disabled={busy}
+                >
+                  <X size={14} weight="bold" />
+                </button>
+              </div>
+            ))}
+            {skipped > 0 && (
+              <div className="small muted">Bỏ qua {skipped} file không phải .html/.htm.</div>
+            )}
+          </div>
+        )}
+
+        <div className="row between wrap share-upload-bar">
+          <label className="share-check">
             <input
               type="checkbox"
               checked={overwrite}
@@ -2824,27 +2936,43 @@ function SharePagesTab() {
             />
             Ghi đè file trùng tên
           </label>
-          <button onClick={upload} disabled={busy || files.length === 0}>
-            {busy ? "Đang upload…" : `Upload${files.length ? ` ${files.length} file` : ""}`}
-          </button>
-        </div>
-        {msg && (
-          <div className={`alert ${msg.type === "ok" ? "" : "error"}`} style={{ marginTop: 12 }}>
-            {msg.text}
+          <div className="row">
+            {files.length > 0 && (
+              <button className="ghost small" onClick={clearPicked} disabled={busy}>
+                Bỏ chọn
+              </button>
+            )}
+            <button onClick={upload} disabled={busy || files.length === 0}>
+              {busy
+                ? "Đang upload…"
+                : files.length
+                  ? `Upload ${files.length} file (${formatBytes(totalSize)})`
+                  : "Upload"}
+            </button>
           </div>
-        )}
+        </div>
+        <p className="small muted share-note">
+          Dữ liệu người xem nhập trên trang (ô nhập, chọn, tick…) được tự lưu, dùng chung cho mọi
+          người và giữ nguyên khi ghi đè hoặc đổi tên file.
+        </p>
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="card share-list">
         {listing === null ? (
           <Spinner />
+        ) : entries.length === 0 && !dir ? (
+          <div className="empty-state">
+            <div className="empty-ic">📂</div>
+            <strong>Chưa có trang nào</strong>
+            <div className="small muted">Kéo thả file .html vào ô phía trên để upload trang đầu tiên.</div>
+          </div>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>Tên</th>
-                <th>Dung lượng</th>
-                <th>Cập nhật</th>
+                <th className="share-col-size">Dung lượng</th>
+                <th className="share-col-time">Cập nhật</th>
                 <th></th>
               </tr>
             </thead>
@@ -2852,8 +2980,11 @@ function SharePagesTab() {
               {dir && (
                 <tr>
                   <td colSpan={4}>
-                    <button className="ghost small" onClick={() => setDir(parent)}>
-                      ⬆️ Lên thư mục trên
+                    <button className="share-name" onClick={() => setDir(parent)}>
+                      <span className="share-ic">
+                        <ArrowUUpLeft size={18} weight="bold" />
+                      </span>
+                      <span className="muted">Lên thư mục trên</span>
                     </button>
                   </td>
                 </tr>
@@ -2861,50 +2992,179 @@ function SharePagesTab() {
               {entries.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted small">
-                    Thư mục trống.
+                    Thư mục trống — kéo thả file .html vào ô phía trên để upload.
                   </td>
                 </tr>
               )}
-              {entries.map((p) => (
-                <tr key={p.path}>
-                  <td>
-                    {p.type === "folder" ? (
-                      <button className="ghost small" onClick={() => setDir(p.path)}>
-                        📁 <strong>{p.name}</strong>
-                      </button>
+              {entries.map((p) => {
+                const folder = p.type === "folder";
+                const icon = (
+                  <span className={`share-ic${folder ? " folder" : ""}`}>
+                    {folder ? (
+                      <FolderSimple size={18} weight="fill" />
                     ) : (
-                      <a href={p.url} target="_blank" rel="noopener">
-                        📄 <strong>{p.name}</strong>
-                      </a>
+                      <FileHtml size={18} weight="duotone" />
                     )}
-                  </td>
-                  <td className="muted small">{p.type === "folder" ? "—" : formatBytes(p.size)}</td>
-                  <td className="muted small">
-                    {new Date(p.updated_at).toLocaleString("vi-VN")}
-                  </td>
-                  <td>
-                    <div className="row" style={{ justifyContent: "flex-end" }}>
-                      <button className="secondary small" onClick={() => copy(p)}>
-                        Copy link
-                      </button>
-                      <button
-                        className="secondary danger-outline small"
-                        onClick={() => remove(p)}
-                      >
-                        Xoá
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  </span>
+                );
+                return (
+                  <tr key={p.path}>
+                    <td>
+                      {folder ? (
+                        <button className="share-name" onClick={() => setDir(p.path)}>
+                          {icon}
+                          <span>{p.name}</span>
+                        </button>
+                      ) : (
+                        <a className="share-name" href={p.url} target="_blank" rel="noopener">
+                          {icon}
+                          <span>{p.name}</span>
+                        </a>
+                      )}
+                    </td>
+                    <td className="muted small share-col-size">
+                      {folder ? "—" : formatBytes(p.size)}
+                    </td>
+                    <td className="muted small share-col-time">{formatShareTime(p.updated_at)}</td>
+                    <td>
+                      <div className="share-actions">
+                        <button
+                          className="ghost small share-icon-btn"
+                          title="Copy link"
+                          aria-label={`Copy link ${p.name}`}
+                          onClick={() => copy(p)}
+                        >
+                          <LinkSimple size={16} weight="bold" />
+                        </button>
+                        {!folder && isHtmlName(p.name) && (
+                          <button
+                            className="ghost small share-icon-btn"
+                            title="Đổi tên"
+                            aria-label={`Đổi tên ${p.name}`}
+                            onClick={() => setNaming({ file: p })}
+                          >
+                            <PencilSimple size={16} weight="bold" />
+                          </button>
+                        )}
+                        <a
+                          className="share-icon-btn share-icon-link"
+                          href={p.url}
+                          target="_blank"
+                          rel="noopener"
+                          title="Mở trong tab mới"
+                          aria-label={`Mở ${p.name}`}
+                        >
+                          <ArrowSquareOut size={16} weight="bold" />
+                        </a>
+                        <button
+                          className="ghost small share-icon-btn share-del"
+                          title={folder ? "Xoá thư mục" : "Xoá"}
+                          aria-label={`Xoá ${p.name}`}
+                          onClick={() => remove(p)}
+                        >
+                          <Trash size={16} weight="bold" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {naming && (
+        <ShareNameModal
+          dir={dir}
+          file={naming.file}
+          onClose={() => setNaming(null)}
+          onDone={onNamed}
+        />
+      )}
     </div>
   );
 }
 
+function ShareNameModal({
+  dir,
+  file,
+  onClose,
+  onDone,
+}: {
+  dir: string;
+  file?: SharedPage;
+  onClose: () => void;
+  onDone: (page: SharedPage) => void;
+}) {
+  const [name, setName] = useState(() => (file ? file.name.replace(/\.html?$/i, "") : ""));
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const preview = file ? renamedFileName(name, file.name) : shareSlug(name);
+  const unchanged = !!file && preview === file.name;
+  // Đổi tên: lấy thư mục từ chính file — `dir` có thể đã đổi trong lúc bảng chưa tải lại.
+  const folder = file ? file.path.slice(0, file.path.length - file.name.length) : dir ? `${dir}/` : "";
+  const prefix = `/share/${folder}`;
+  // Đang gửi thì không cho đóng: request xong vẫn gọi onDone (nhảy thư mục / đóng modal khác).
+  const close = () => !busy && onClose();
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!preview || unchanged) return;
+    setError("");
+    setBusy(true);
+    try {
+      const r = file
+        ? await api.admin.renameSharedPage(file.path, name.trim())
+        : await api.admin.createSharedFolder(dir, name.trim());
+      onDone(r.data);
+    } catch (err: any) {
+      setError(err.message || (file ? "Đổi tên thất bại" : "Tạo thư mục thất bại"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={file ? "Đổi tên file" : "Thư mục mới"} onClose={close}>
+      {error && <div className="alert error">{error}</div>}
+      <form onSubmit={submit}>
+        <div className="field">
+          <label>{file ? "Tên mới" : `Tên thư mục trong ${prefix}`}</label>
+          <input
+            autoFocus
+            onFocus={(e) => e.target.select()}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={file ? "VD: Báo cáo quý 4" : "VD: Báo cáo Q4"}
+            maxLength={200}
+          />
+        </div>
+        <div className="share-name-preview">
+          <span className="small muted">Link sau khi lưu</span>
+          <code>{preview ? `${prefix}${preview}${file ? "" : "/"}` : "—"}</code>
+        </div>
+        {file && (
+          <p className="small muted">
+            Link cũ <code>{prefix + file.name}</code> sẽ không mở được nữa, nhớ gửi lại link mới.
+            Dữ liệu người xem đã nhập trên trang vẫn giữ nguyên.
+          </p>
+        )}
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="secondary" onClick={close} disabled={busy}>
+            Hủy
+          </button>
+          <button type="submit" disabled={busy || !preview || unchanged}>
+            {busy ? "Đang lưu…" : file ? "Đổi tên" : "Tạo thư mục"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ---------- Cài đặt ----------
 function SettingsTab() {
   const [settings, setSettings] = useState<PanchatSettings | null>(null);
   const [token, setToken] = useState("");

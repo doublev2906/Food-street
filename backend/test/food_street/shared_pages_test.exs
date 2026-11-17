@@ -109,6 +109,65 @@ defmodule FoodStreet.SharedPagesTest do
     end
   end
 
+  describe "rename/2" do
+    test "chuẩn hoá tên mới, giữ đuôi + thư mục, chuyển dữ liệu đã nhập, link cũ hết" do
+      {:ok, _} = SharedPages.create_folder("", "dir")
+      {:ok, _} = SharedPages.save(upload("a.html", "v1"), "dir")
+      :ok = SharedPages.merge_state("dir/a.html", %{"f:#ten" => "An"}, nil)
+
+      assert {:ok, %{path: "dir/bao-cao-quy-4.html", url: "/share/dir/bao-cao-quy-4.html"}} =
+               SharedPages.rename("dir/a.html", "  Báo cáo quý 4  ")
+
+      assert read("dir/bao-cao-quy-4.html") == "v1"
+      assert SharedPages.page?("dir/bao-cao-quy-4.html")
+      refute SharedPages.page?("dir/a.html")
+      refute SharedPages.page?("dir")
+      assert SharedPages.get_state("dir/bao-cao-quy-4.html") == %{"f:#ten" => "An"}
+      assert SharedPages.get_state("dir/a.html") == %{}
+
+      assert {:ok, %{path: "dir/q4.htm"}} =
+               SharedPages.rename("dir/bao-cao-quy-4.html", "Q4.HTM")
+
+      assert {:ok, %{path: "dir/q4.htm"}} = SharedPages.rename("dir/q4.htm", "q4")
+      assert SharedPages.get_state("dir/q4.htm") == %{"f:#ten" => "An"}
+    end
+
+    test "không ghi đè file/thư mục trùng tên, không mang dữ liệu sót của trang cũ" do
+      {:ok, _} = SharedPages.save(upload("a.html", "a"))
+      {:ok, _} = SharedPages.save(upload("b.html", "b"))
+      {:ok, _} = SharedPages.create_folder("", "c.html")
+
+      assert SharedPages.rename("a.html", "b") == {:error, :already_exists}
+      assert SharedPages.rename("a.html", "c.html") == {:error, :already_exists}
+      assert read("a.html") == "a"
+      assert read("b.html") == "b"
+
+      # Dữ liệu của "d.html" đã bị xoá ngoài app (rsync) không được dính sang trang mới.
+      :ok = SharedPages.merge_state("d.html", %{"k" => "cu"}, nil)
+      assert {:ok, %{path: "d.html"}} = SharedPages.rename("a.html", "d")
+      assert SharedPages.get_state("d.html") == %{}
+    end
+
+    test "từ chối tên rỗng, file không phải HTML, thư mục, đường dẫn thoát ra ngoài" do
+      {:ok, _} = SharedPages.save(upload("a.html", "a"))
+      File.write!(Path.join(SharedPages.dir(), "logo.png"), "png")
+      {:ok, _} = SharedPages.create_folder("", "dir")
+
+      assert SharedPages.rename("a.html", "  !!! ") == {:error, :invalid_name}
+      assert SharedPages.rename("a.html", ".html") == {:error, :invalid_name}
+      assert SharedPages.rename("a.html", nil) == {:error, :invalid_name}
+      assert SharedPages.rename("logo.png", "anh") == {:error, :invalid_extension}
+      assert SharedPages.rename("dir", "khac") == {:error, :not_found}
+      assert SharedPages.rename("", "x") == {:error, :not_found}
+      assert SharedPages.rename("missing.html", "x") == {:error, :not_found}
+      assert SharedPages.rename("../a.html", "x") == {:error, :not_found}
+      assert SharedPages.rename(nil, "x") == {:error, :not_found}
+
+      # "/" trong tên mới bị thay bằng "-": không đẩy file sang thư mục khác.
+      assert {:ok, %{path: "dir-x.html"}} = SharedPages.rename("a.html", "dir/x")
+    end
+  end
+
   describe "delete/1" do
     test "xoá file / cả thư mục kèm dữ liệu đã nhập, không cho thoát ra ngoài, không xoá gốc" do
       {:ok, _} = SharedPages.create_folder("", "dir")

@@ -30,6 +30,9 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
     %Plug.Upload{path: path, filename: filename, content_type: "text/html"}
   end
 
+  defp rename(conn, path, name),
+    do: put(conn, ~p"/api/admin/shared_pages/rename", %{"path" => path, "name" => name})
+
   test "user thường không được upload", %{conn: conn} do
     conn =
       conn
@@ -101,6 +104,24 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
              |> json_response(201)
 
     assert File.read!(Path.join(SharedPages.dir(), "a.html")) == "v2"
+  end
+
+  test "đổi tên file: chuẩn hoá tên, trùng tên 422, không có file 404, user thường 403",
+       %{conn: conn} do
+    admin = login(conn, "admin")
+    post(admin, ~p"/api/admin/shared_pages", %{"files" => [upload("a.html", "a")]})
+    post(admin, ~p"/api/admin/shared_pages", %{"files" => [upload("b.html", "b")]})
+
+    assert %{"data" => %{"path" => "ke-hoach.html", "url" => "/share/ke-hoach.html"}} =
+             admin |> rename("a.html", "Kế hoạch") |> json_response(200)
+
+    assert %{"error" => "already_exists", "message" => _} =
+             admin |> rename("b.html", "ke-hoach") |> json_response(422)
+
+    assert %{"error" => "invalid_name"} = admin |> rename("b.html", " ") |> json_response(422)
+    assert admin |> rename("a.html", "x") |> json_response(404)
+    assert conn |> login("user") |> rename("b.html", "x") |> json_response(403)
+    assert File.read!(Path.join(SharedPages.dir(), "b.html")) == "b"
   end
 
   test "không gửi file → 422", %{conn: conn} do

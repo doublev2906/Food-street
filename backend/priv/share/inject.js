@@ -15,18 +15,22 @@
   var retryTimer = null;
   var restoring = false;
   var badge = null;
+  // Server trả 410: trang đã bị đổi tên / xoá, token gắn đường dẫn cũ -> thử lại vô ích.
+  var gone = false;
 
   // ---------------------------------------------------------------- lưu server
   function queue(key, value) {
-    pending[key] = value;
     if (value === null) delete state[key];
     else state[key] = value;
+    if (gone) return;
+    pending[key] = value;
     clearTimeout(timer);
     setStatus("saving");
     timer = setTimeout(flush, 600);
   }
 
   function flush(keepalive) {
+    if (gone) return;
     var patch = pending;
     pending = {};
     if (!Object.keys(patch).length) return;
@@ -37,6 +41,14 @@
       keepalive: !!keepalive,
     })
       .then(function (r) {
+        if (r.status === 410) {
+          gone = true;
+          pending = {};
+          clearTimeout(timer);
+          clearTimeout(retryTimer);
+          setStatus("gone");
+          return;
+        }
         if (!r.ok) throw new Error("HTTP " + r.status);
         setStatus(Object.keys(pending).length ? "saving" : "saved");
       })
@@ -59,6 +71,7 @@
     saving: ["#b45309", "● Đang lưu…"],
     saved: ["#15803d", "✓ Đã lưu"],
     error: ["#b91c1c", "⚠ Chưa lưu được, đang thử lại…"],
+    gone: ["#b91c1c", "⚠ Trang đã bị đổi tên hoặc xoá — không lưu được nữa, hỏi admin link mới"],
   };
   var hideTimer = null;
 

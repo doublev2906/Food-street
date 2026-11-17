@@ -1,6 +1,6 @@
 defmodule FoodStreetWeb.Admin.SharedPageController do
   @moduledoc """
-  Admin quản lý trang HTML chia sẻ: duyệt thư mục, tạo thư mục, upload, xoá. Trang được
+  Admin quản lý trang HTML chia sẻ: duyệt thư mục, tạo thư mục, upload, đổi tên, xoá. Trang được
   serve (phải đăng nhập) ở `/share/<đường dẫn>` — xem `FoodStreetWeb.ShareController`.
   """
   use FoodStreetWeb, :controller
@@ -65,13 +65,36 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
       {:ok, folder} ->
         conn |> put_status(:created) |> json(%{data: folder})
 
-      {:error, reason} when reason in [:already_exists, :invalid_name] ->
+      {:error, :already_exists} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{error: to_string(reason), message: message(reason)})
+        |> json(%{error: "already_exists", message: "Đã có thư mục/file trùng tên này."})
+
+      {:error, :invalid_name} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid_name", message: message(:invalid_name)})
 
       error ->
         error
+    end
+  end
+
+  # {"path": "a/b/c.html", "name": "Tên mới"} — chỉ đổi tên file, giữ nguyên thư mục.
+  def rename(conn, params) do
+    case SharedPages.rename(params["path"], params["name"]) do
+      {:ok, page} ->
+        json(conn, %{data: page})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "not_found", message: "File không tồn tại."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: to_string(reason), message: rename_message(reason)})
     end
   end
 
@@ -81,6 +104,11 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
       send_resp(conn, :no_content, "")
     end
   end
+
+  defp rename_message(:already_exists), do: "Thư mục này đã có file/thư mục trùng tên mới."
+  defp rename_message(:invalid_name), do: "Tên file không hợp lệ."
+  defp rename_message(:invalid_extension), do: "Chỉ đổi tên được trang .html / .htm."
+  defp rename_message(_), do: "Không đổi tên được trên server."
 
   defp message(:invalid_extension),
     do: "Chỉ nhận file #{Enum.join(SharedPages.allowed_exts(), ", ")}."
