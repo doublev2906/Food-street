@@ -87,12 +87,12 @@ defmodule FoodStreetWeb.ShareListing do
       <!doctype html>
       <html lang="vi"><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>#{esc(title(dir))} · Food Street</title>
+      <title>#{esc(title(dir))} · Share document</title>
       <style>#{@style}</style></head><body>
-      <header><div class="brand"><span class="brand-logo">🍜</span>
-      <span>Food <span class="brand-accent">Street</span></span></div></header>
-      <main><div class="head"><div><h1>🔗 Trang chia sẻ</h1>
-      <nav class="crumbs">#{breadcrumb(dir)}</nav></div>
+      <header><a class="brand" href="/share/" title="Về trang gốc">
+      <span class="brand-logo">📂</span>
+      <span>Share <span class="brand-accent">document</span></span></a></header>
+      <main><div class="head"><div><h1>#{heading(dir)}</h1>#{breadcrumb(dir)}</div>
       <div class="muted small">#{summary(folders, files)}</div></div>
       <div class="card">
       """,
@@ -139,6 +139,12 @@ defmodule FoodStreetWeb.ShareListing do
   defp title(""), do: "share"
   defp title(dir), do: "share/" <> dir
 
+  defp heading(""), do: "Tất cả tài liệu"
+  defp heading(dir), do: "📁 " <> esc(dir |> String.split("/", trim: true) |> List.last())
+
+  # Ở gốc thì breadcrumb chỉ còn 1 chip "share" vô nghĩa -> chỉ hiện khi đã vào thư mục con.
+  defp breadcrumb(""), do: ""
+
   defp breadcrumb(dir) do
     segments = String.split(dir, "/", trim: true)
     last = length(segments)
@@ -158,8 +164,8 @@ defmodule FoodStreetWeb.ShareListing do
         ~s(<span class="sep">/</span>) <> crumb
       end)
 
-    root_cls = if segments == [], do: "crumb current", else: "crumb"
-    ~s(<a class="#{root_cls}" href="/share/">📁 share</a>) <> Enum.join(crumbs)
+    ~s(<nav class="crumbs"><a class="crumb" href="/share/">Tất cả</a>) <>
+      Enum.join(crumbs) <> "</nav>"
   end
 
   defp format_bytes(n) when n < 1024, do: "#{n} B"

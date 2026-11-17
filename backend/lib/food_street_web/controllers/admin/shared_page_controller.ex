@@ -80,7 +80,7 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
     end
   end
 
-  # {"path": "a/b/c.html", "name": "Tên mới"} — chỉ đổi tên file, giữ nguyên thư mục.
+  # {"path": "a/b/c.html" hoặc "a/b", "name": "Tên mới"} — đổi tên file/thư mục tại chỗ.
   def rename(conn, params) do
     case SharedPages.rename(params["path"], params["name"]) do
       {:ok, page} ->
@@ -89,7 +89,7 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{error: "not_found", message: "File không tồn tại."})
+        |> json(%{error: "not_found", message: "Không tìm thấy file/thư mục."})
 
       {:error, reason} ->
         conn
@@ -106,7 +106,7 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
   end
 
   defp rename_message(:already_exists), do: "Thư mục này đã có file/thư mục trùng tên mới."
-  defp rename_message(:invalid_name), do: "Tên file không hợp lệ."
+  defp rename_message(:invalid_name), do: "Tên không hợp lệ."
   defp rename_message(:invalid_extension), do: "Chỉ đổi tên được trang .html / .htm."
   defp rename_message(_), do: "Không đổi tên được trên server."
 

@@ -148,7 +148,7 @@ defmodule FoodStreet.SharedPagesTest do
       assert SharedPages.get_state("d.html") == %{}
     end
 
-    test "từ chối tên rỗng, file không phải HTML, thư mục, đường dẫn thoát ra ngoài" do
+    test "từ chối tên rỗng, file không phải HTML, đường dẫn thoát ra ngoài" do
       {:ok, _} = SharedPages.save(upload("a.html", "a"))
       File.write!(Path.join(SharedPages.dir(), "logo.png"), "png")
       {:ok, _} = SharedPages.create_folder("", "dir")
@@ -157,7 +157,6 @@ defmodule FoodStreet.SharedPagesTest do
       assert SharedPages.rename("a.html", ".html") == {:error, :invalid_name}
       assert SharedPages.rename("a.html", nil) == {:error, :invalid_name}
       assert SharedPages.rename("logo.png", "anh") == {:error, :invalid_extension}
-      assert SharedPages.rename("dir", "khac") == {:error, :not_found}
       assert SharedPages.rename("", "x") == {:error, :not_found}
       assert SharedPages.rename("missing.html", "x") == {:error, :not_found}
       assert SharedPages.rename("../a.html", "x") == {:error, :not_found}
@@ -165,6 +164,32 @@ defmodule FoodStreet.SharedPagesTest do
 
       # "/" trong tên mới bị thay bằng "-": không đẩy file sang thư mục khác.
       assert {:ok, %{path: "dir-x.html"}} = SharedPages.rename("a.html", "dir/x")
+    end
+
+    test "thư mục: chuyển dữ liệu mọi trang bên trong, không ghi đè, không khớp nhầm tên" do
+      {:ok, _} = SharedPages.create_folder("", "a_b")
+      {:ok, _} = SharedPages.create_folder("a_b", "con")
+      {:ok, _} = SharedPages.save(upload("p.html", "p"), "a_b/con")
+      {:ok, _} = SharedPages.create_folder("", "khac")
+      :ok = SharedPages.merge_state("a_b/con/p.html", %{"k" => "1"}, nil)
+      :ok = SharedPages.merge_state("axb/q.html", %{"k" => "2"}, nil)
+      :ok = SharedPages.merge_state("bao-cao/cu.html", %{"k" => "sot"}, nil)
+
+      assert SharedPages.rename("a_b", "khac") == {:error, :already_exists}
+      assert SharedPages.rename("a_b", " !!! ") == {:error, :invalid_name}
+
+      assert {:ok, %{path: "bao-cao", type: :folder, url: "/share/bao-cao/"}} =
+               SharedPages.rename("a_b", "Báo cáo")
+
+      assert read("bao-cao/con/p.html") == "p"
+      refute File.exists?(Path.join(SharedPages.dir(), "a_b"))
+      assert SharedPages.get_state("bao-cao/con/p.html") == %{"k" => "1"}
+      assert SharedPages.get_state("a_b/con/p.html") == %{}
+      assert SharedPages.get_state("axb/q.html") == %{"k" => "2"}
+      assert SharedPages.get_state("bao-cao/cu.html") == %{}
+
+      assert {:ok, %{path: "bao-cao/con-moi"}} = SharedPages.rename("bao-cao/con", "Con mới")
+      assert SharedPages.get_state("bao-cao/con-moi/p.html") == %{"k" => "1"}
     end
   end
 

@@ -197,9 +197,10 @@ defmodule FoodStreet.SharedPages do
   end
 
   @doc """
-  Đổi tên 1 file HTML, giữ nguyên thư mục. Tên mới chuẩn hoá như lúc upload; không gõ đuôi
-  `.html`/`.htm` thì giữ đuôi cũ. Trùng tên file/thư mục khác → `:already_exists` (không
-  ghi đè). Dữ liệu người xem đã nhập chuyển theo sang tên mới; link cũ thành 404.
+  Đổi tên 1 file HTML hoặc 1 thư mục, giữ nguyên vị trí. Tên mới chuẩn hoá như lúc upload /
+  tạo thư mục; file không gõ đuôi `.html`/`.htm` thì giữ đuôi cũ. Trùng tên → `:already_exists`
+  (không ghi đè). Dữ liệu người xem đã nhập (của file, hoặc mọi trang trong thư mục) chuyển
+  theo sang đường dẫn mới; link cũ thành 404.
 
       rename("bao-cao/q4.html", "Báo cáo quý 4")
       #=> {:ok, %{path: "bao-cao/bao-cao-quy-4.html", ...}}
@@ -207,8 +208,8 @@ defmodule FoodStreet.SharedPages do
   @spec rename(String.t() | nil, String.t() | nil) :: {:ok, entry()} | {:error, atom()}
   def rename(rel, new_name) when is_binary(rel) and is_binary(new_name) do
     with {:ok, %{rel: rel, abs: abs}} when rel != "" <- resolve(rel),
-         {:ok, %File.Stat{type: :regular}} <- File.stat(abs),
-         {:ok, name} <- rename_target(abs, new_name) do
+         {:ok, %File.Stat{type: type}} when type in [:regular, :directory] <- File.stat(abs),
+         {:ok, name} <- rename_target(type, abs, new_name) do
       new_rel = rel |> String.split("/") |> Enum.drop(-1) |> Enum.join("/") |> join(name)
       dest = Path.join(Path.dirname(abs), name)
 
@@ -216,7 +217,7 @@ defmodule FoodStreet.SharedPages do
         new_rel == rel -> with :error <- entry(rel), do: {:error, :not_found}
         # lstat: symlink (kể cả symlink hỏng) cũng tính là đã có tên đó.
         match?({:ok, _}, File.lstat(dest)) -> {:error, :already_exists}
-        true -> move(abs, dest, rel, new_rel)
+        true -> move(type, abs, dest, rel, new_rel)
       end
     else
       {:error, reason} when reason in [:invalid_name, :invalid_extension] -> {:error, reason}
@@ -227,8 +228,10 @@ defmodule FoodStreet.SharedPages do
   def rename(rel, _new_name) when is_binary(rel), do: {:error, :invalid_name}
   def rename(_rel, _new_name), do: {:error, :not_found}
 
+  defp rename_target(:directory, _abs, new_name), do: sanitize_folder_name(new_name)
+
   # Chỉ đổi tên trang HTML; file kèm theo (ảnh, css… rsync lên) đổi tên là vỡ trang.
-  defp rename_target(abs, new_name) do
+  defp rename_target(:regular, abs, new_name) do
     old_ext = abs |> Path.extname() |> String.downcase()
     base = String.trim(new_name)
     # Tự so đuôi thay vì Path.extname: Path.extname(".html") == "" (coi là file ẩn) nên
@@ -248,13 +251,10 @@ defmodule FoodStreet.SharedPages do
   end
 
   # File.rename lỗi thì rollback: dữ liệu không trỏ sang đường dẫn không có file.
-  defp move(abs, dest, rel, new_rel) do
+  defp move(type, abs, dest, rel, new_rel) do
     result =
       Repo.transaction(fn ->
-        # Dữ liệu sót của trang cũ trùng tên mới (file bị xoá ngoài app, vd rsync) không
-        # được dính sang trang vừa đổi tên.
-        Repo.delete_all(from s in State, where: s.page_path == ^new_rel)
-        Repo.update_all(from(s in State, where: s.page_path == ^rel), set: [page_path: new_rel])
+        move_states(type, rel, new_rel)
 
         case File.rename(abs, dest) do
           :ok -> :ok
@@ -270,6 +270,39 @@ defmodule FoodStreet.SharedPages do
     end
   end
 
+  # Xoá trước dữ liệu sót ở đường dẫn đích (trang/thư mục cũ bị xoá ngoài app, vd rsync) để
+  # không dính sang cái vừa đổi tên, rồi mới chuyển dữ liệu sang.
+  defp move_states(:regular, rel, new_rel) do
+    Repo.delete_all(from s in State, where: s.page_path == ^new_rel)
+    Repo.update_all(from(s in State, where: s.page_path == ^rel), set: [page_path: new_rel])
+  end
+
+  defp move_states(:directory, rel, new_rel) do
+    Repo.delete_all(from s in State, where: like(s.page_path, ^like_prefix(new_rel)))
+
+    # length() tính theo ký tự ở phía DB, khớp substr (String.length đếm grapheme thì lệch).
+    Repo.update_all(
+      from(s in State,
+        where: like(s.page_path, ^like_prefix(rel)),
+        update: [
+          set: [
+            page_path:
+              fragment(
+                "? || substr(?, length(?) + 1)",
+                type(^new_rel, :string),
+                s.page_path,
+                type(^rel, :string)
+              )
+          ]
+        ]
+      ),
+      []
+    )
+  end
+
+  # Mọi đường dẫn nằm trong thư mục `rel`; escape \ % _ để "a_b" không khớp nhầm "axb/...".
+  defp like_prefix(rel), do: String.replace(rel, ~r/[\\%_]/, "\\\\\\0") <> "/%"
+
   @doc "Xoá 1 file hoặc cả thư mục (kèm toàn bộ bên trong) + dữ liệu đã nhập trên các trang đó."
   @spec delete(String.t()) :: :ok | {:error, :not_found}
   def delete(rel) when is_binary(rel) do
@@ -283,8 +316,7 @@ defmodule FoodStreet.SharedPages do
 
         :directory ->
           File.rm_rf!(abs)
-          prefix = String.replace(rel, ~r/[\\%_]/, "\\\\\\0") <> "/%"
-          Repo.delete_all(from s in State, where: like(s.page_path, ^prefix))
+          Repo.delete_all(from s in State, where: like(s.page_path, ^like_prefix(rel)))
           :ok
 
         _ ->

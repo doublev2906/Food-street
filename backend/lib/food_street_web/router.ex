@@ -128,7 +128,7 @@ defmodule FoodStreetWeb.Router do
     get "/shared_pages", SharedPageController, :index
     post "/shared_pages", SharedPageController, :create
     post "/shared_pages/folders", SharedPageController, :create_folder
-    # {"path": "a/b/c.html", "name": "Tên mới"} — đổi tên file (link cũ thành 404)
+    # {"path": "a/b.html" hoặc "a/b", "name": "Tên mới"} — đổi tên file/thư mục
     put "/shared_pages/rename", SharedPageController, :rename
     # ?path=a/b/c.html — xoá file hoặc cả thư mục
     delete "/shared_pages", SharedPageController, :delete
