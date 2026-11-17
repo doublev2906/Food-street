@@ -1757,7 +1757,6 @@ tbody tr:hover td {
 .share-title {
   margin: 0 0 2px;
 }
-/* Nút có icon: icon + chữ thẳng hàng */
 .share-btn {
   display: inline-flex;
   align-items: center;
@@ -1789,7 +1788,6 @@ tbody tr:hover td {
 .share-alert {
   margin-bottom: 0;
 }
-/* Ô kéo thả: cả ô là <label> bọc input file ẩn */
 label.share-drop {
   position: relative;
   display: flex;
@@ -1867,11 +1865,11 @@ label.share-check {
 .share-note {
   margin: 12px 0 0;
 }
-.share-list {
+/* .card.x: block mobile phía dưới đặt lại .card { padding: 16px } */
+.card.share-list {
   padding: 0;
   overflow: hidden;
 }
-/* Tên file/thư mục: icon vuông + tên, bấm được cả cụm */
 .share-name {
   display: inline-flex;
   align-items: center;
@@ -1915,8 +1913,7 @@ button.share-name:hover {
   justify-content: flex-end;
   gap: 2px;
 }
-/* Nút icon vuông trong bảng / danh sách file chờ upload. button.x để thắng
-   specificity của button.ghost / button.small (khai báo trước). */
+/* button.x ngang specificity button.ghost / button.small, thắng nhờ khai báo sau. */
 button.share-icon-btn,
 a.share-icon-btn {
   display: inline-grid;

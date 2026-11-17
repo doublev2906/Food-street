@@ -119,13 +119,15 @@ defmodule FoodStreet.SharedPagesTest do
                SharedPages.rename("dir/a.html", "  Báo cáo quý 4  ")
 
       assert read("dir/bao-cao-quy-4.html") == "v1"
-      refute File.exists?(Path.join(SharedPages.dir(), "dir/a.html"))
+      assert SharedPages.page?("dir/bao-cao-quy-4.html")
+      refute SharedPages.page?("dir/a.html")
+      refute SharedPages.page?("dir")
       assert SharedPages.get_state("dir/bao-cao-quy-4.html") == %{"f:#ten" => "An"}
       assert SharedPages.get_state("dir/a.html") == %{}
 
-      # Gõ kèm đuôi .htm/.html thì theo đuôi gõ; trùng tên cũ = không làm gì.
       assert {:ok, %{path: "dir/q4.htm"}} =
                SharedPages.rename("dir/bao-cao-quy-4.html", "Q4.HTM")
+
       assert {:ok, %{path: "dir/q4.htm"}} = SharedPages.rename("dir/q4.htm", "q4")
       assert SharedPages.get_state("dir/q4.htm") == %{"f:#ten" => "An"}
     end

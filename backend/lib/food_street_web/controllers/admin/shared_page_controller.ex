@@ -65,10 +65,15 @@ defmodule FoodStreetWeb.Admin.SharedPageController do
       {:ok, folder} ->
         conn |> put_status(:created) |> json(%{data: folder})
 
-      {:error, reason} when reason in [:already_exists, :invalid_name] ->
+      {:error, :already_exists} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{error: to_string(reason), message: message(reason)})
+        |> json(%{error: "already_exists", message: "Đã có thư mục/file trùng tên này."})
+
+      {:error, :invalid_name} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid_name", message: message(:invalid_name)})
 
       error ->
         error

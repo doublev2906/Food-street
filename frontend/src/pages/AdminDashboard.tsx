@@ -2649,11 +2649,10 @@ function FundModal({
   );
 }
 
-// ---------- Cài đặt ----------
+// ---------- Chia sẻ HTML ----------
 const formatBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-// ---------- Chia sẻ HTML ----------
 const SHARE_HTML_EXTS = [".html", ".htm"];
 const isHtmlName = (name: string) => /\.html?$/i.test(name);
 
@@ -2670,7 +2669,7 @@ const shareSlug = (s: string) =>
     .slice(0, 100)
     .replace(/^[.-]+|[.-]+$/g, "");
 
-// Tên file sau khi đổi (giống SharedPages.rename): không gõ đuôi .html/.htm thì giữ đuôi cũ.
+// Phải khớp SharedPages.rename_target (backend).
 const renamedFileName = (input: string, oldName: string) => {
   const base = input.trim();
   const typed = SHARE_HTML_EXTS.find((e) => base.toLowerCase().endsWith(e));
@@ -2710,8 +2709,6 @@ function SharePagesTab() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
-  // Đổi key để reset <input type="file"> sau mỗi lần chọn: chọn lại đúng file đó vẫn ăn.
-  const [inputKey, setInputKey] = useState(0);
   // Modal nhập tên: { file } = đổi tên file đó, {} = tạo thư mục mới.
   const [naming, setNaming] = useState<{ file?: SharedPage } | null>(null);
 
@@ -2735,15 +2732,15 @@ function SharePagesTab() {
     };
   }, [dir, reloadKey, setSearchParams]);
 
-  // Chọn / thả thêm thì cộng dồn vào danh sách chờ; trùng tên thì lấy bản mới chọn.
   const pickFiles = (list: FileList | null) => {
     if (!list) return;
     setMsg(null);
     const all = Array.from(list);
-    const html = all.filter((f) => isHtmlName(f.name));
+    const htmlAll = all.filter((f) => isHtmlName(f.name));
+    // Trùng tên (kể cả trong cùng 1 lần thả từ 2 thư mục) thì giữ bản chọn sau cùng.
+    const html = [...new Map(htmlAll.map((f) => [f.name, f])).values()];
     setFiles((prev) => [...prev.filter((p) => !html.some((f) => f.name === p.name)), ...html]);
-    setSkipped(all.length - html.length);
-    setInputKey((k) => k + 1);
+    setSkipped(all.length - htmlAll.length);
   };
   const unpick = (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name));
   const clearPicked = () => {
@@ -2754,15 +2751,19 @@ function SharePagesTab() {
   const upload = async () => {
     setBusy(true);
     setMsg(null);
+    const sent = files;
     try {
-      const r = await api.admin.uploadSharedPages(files, dir, overwrite);
+      const r = await api.admin.uploadSharedPages(sent, dir, overwrite);
       const saved = r.data.map((p) => `${p.name}${p.replaced ? " (ghi đè)" : ""}`).join(", ");
       const failed = r.errors.map((e) => `${e.name}: ${e.error}`).join("; ");
       setMsg({
         type: failed ? "error" : "ok",
         text: `Đã upload: ${saved}.${failed ? ` Lỗi: ${failed}` : ""}`,
       });
-      clearPicked();
+      // Giữ file lỗi (vd trùng tên -> tick Ghi đè rồi bấm lại) và file thả thêm lúc đang gửi.
+      const failedNames = new Set(r.errors.map((e) => e.name));
+      setFiles((prev) => prev.filter((f) => !sent.includes(f) || failedNames.has(f.name)));
+      setSkipped(0);
       load();
     } catch (err: any) {
       setMsg({
@@ -2777,7 +2778,6 @@ function SharePagesTab() {
     }
   };
 
-  // Modal tạo thư mục / đổi tên lưu xong.
   const onNamed = (page: SharedPage) => {
     const renamedFrom = naming?.file?.name;
     setNaming(null);
@@ -2847,7 +2847,6 @@ function SharePagesTab() {
         </div>
       </div>
 
-      {/* Breadcrumb thư mục đang mở: chip đậm = thư mục hiện tại */}
       <nav className="share-crumbs" aria-label="Thư mục đang mở">
         <button className={`chip${segments.length === 0 ? " active" : ""}`} onClick={() => setDir("")}>
           📁 share
@@ -2883,15 +2882,17 @@ function SharePagesTab() {
           pickFiles(e.dataTransfer.files);
         }}
       >
-        {/* label bọc input ẩn: bấm cả ô là mở chọn file, Tab vẫn focus được */}
         <label className={`share-drop${dragging ? " dragging" : ""}`}>
           <input
-            key={inputKey}
             className="share-file-input"
             type="file"
             accept=".html,.htm,text/html"
             multiple
-            onChange={(e) => pickFiles(e.target.files)}
+            onChange={(e) => {
+              pickFiles(e.target.files);
+              // Xoá giá trị (không remount input -> giữ focus bàn phím) để chọn lại đúng file đó vẫn ăn.
+              e.target.value = "";
+            }}
           />
           <span className="icon-circle">
             <UploadSimple size={26} weight="bold" />
@@ -3085,8 +3086,6 @@ function SharePagesTab() {
   );
 }
 
-// Modal nhập tên: có `file` = đổi tên file đó, không có = tạo thư mục mới trong `dir`.
-// Xem trước link sau khi server chuẩn hoá tên (bỏ dấu, chữ thường, khoảng trắng -> "-").
 function ShareNameModal({
   dir,
   file,
@@ -3104,7 +3103,11 @@ function ShareNameModal({
 
   const preview = file ? renamedFileName(name, file.name) : shareSlug(name);
   const unchanged = !!file && preview === file.name;
-  const prefix = `/share/${dir ? `${dir}/` : ""}`;
+  // Đổi tên: lấy thư mục từ chính file — `dir` có thể đã đổi trong lúc bảng chưa tải lại.
+  const folder = file ? file.path.slice(0, file.path.length - file.name.length) : dir ? `${dir}/` : "";
+  const prefix = `/share/${folder}`;
+  // Đang gửi thì không cho đóng: request xong vẫn gọi onDone (nhảy thư mục / đóng modal khác).
+  const close = () => !busy && onClose();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3124,7 +3127,7 @@ function ShareNameModal({
   };
 
   return (
-    <Modal title={file ? "Đổi tên file" : "Thư mục mới"} onClose={onClose}>
+    <Modal title={file ? "Đổi tên file" : "Thư mục mới"} onClose={close}>
       {error && <div className="alert error">{error}</div>}
       <form onSubmit={submit}>
         <div className="field">
@@ -3149,7 +3152,7 @@ function ShareNameModal({
           </p>
         )}
         <div className="row" style={{ justifyContent: "flex-end" }}>
-          <button type="button" className="secondary" onClick={onClose}>
+          <button type="button" className="secondary" onClick={close} disabled={busy}>
             Hủy
           </button>
           <button type="submit" disabled={busy || !preview || unchanged}>
@@ -3161,6 +3164,7 @@ function ShareNameModal({
   );
 }
 
+// ---------- Cài đặt ----------
 function SettingsTab() {
   const [settings, setSettings] = useState<PanchatSettings | null>(null);
   const [token, setToken] = useState("");

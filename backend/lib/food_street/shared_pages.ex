@@ -213,7 +213,7 @@ defmodule FoodStreet.SharedPages do
       dest = Path.join(Path.dirname(abs), name)
 
       cond do
-        new_rel == rel -> entry(rel)
+        new_rel == rel -> with :error <- entry(rel), do: {:error, :not_found}
         # lstat: symlink (kể cả symlink hỏng) cũng tính là đã có tên đó.
         match?({:ok, _}, File.lstat(dest)) -> {:error, :already_exists}
         true -> move(abs, dest, rel, new_rel)
@@ -227,7 +227,6 @@ defmodule FoodStreet.SharedPages do
   def rename(rel, _new_name) when is_binary(rel), do: {:error, :invalid_name}
   def rename(_rel, _new_name), do: {:error, :not_found}
 
-  # Không gõ đuôi (hoặc gõ đuôi lạ) thì giữ đuôi file cũ: "Báo cáo" -> "bao-cao.html".
   # Chỉ đổi tên trang HTML; file kèm theo (ảnh, css… rsync lên) đổi tên là vỡ trang.
   defp rename_target(abs, new_name) do
     old_ext = abs |> Path.extname() |> String.downcase()
@@ -248,8 +247,7 @@ defmodule FoodStreet.SharedPages do
     end
   end
 
-  # Chuyển dữ liệu đã nhập trước rồi mới đổi tên file, cùng 1 transaction: đổi tên file
-  # lỗi thì rollback, không để dữ liệu nằm ở đường dẫn không có file.
+  # File.rename lỗi thì rollback: dữ liệu không trỏ sang đường dẫn không có file.
   defp move(abs, dest, rel, new_rel) do
     result =
       Repo.transaction(fn ->
@@ -305,6 +303,17 @@ defmodule FoodStreet.SharedPages do
 
   @max_key_length 500
   @max_value_bytes 512 * 1024
+
+  @doc "Đường dẫn còn là 1 file trong folder chia sẻ không (false nếu đã bị đổi tên / xoá)."
+  @spec page?(String.t()) :: boolean()
+  def page?(rel) when is_binary(rel) do
+    case resolve(rel) do
+      {:ok, %{rel: rel, abs: abs}} when rel != "" -> File.regular?(abs)
+      _ -> false
+    end
+  end
+
+  def page?(_), do: false
 
   @doc "Dữ liệu đã lưu của 1 trang (map key -> giá trị), chưa có thì `%{}`."
   @spec get_state(String.t()) :: map()

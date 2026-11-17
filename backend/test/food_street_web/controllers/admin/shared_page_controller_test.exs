@@ -30,6 +30,9 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
     %Plug.Upload{path: path, filename: filename, content_type: "text/html"}
   end
 
+  defp rename(conn, path, name),
+    do: put(conn, ~p"/api/admin/shared_pages/rename", %{"path" => path, "name" => name})
+
   test "user thường không được upload", %{conn: conn} do
     conn =
       conn
@@ -120,9 +123,6 @@ defmodule FoodStreetWeb.Admin.SharedPageControllerTest do
     assert conn |> login("user") |> rename("b.html", "x") |> json_response(403)
     assert File.read!(Path.join(SharedPages.dir(), "b.html")) == "b"
   end
-
-  defp rename(conn, path, name),
-    do: put(conn, ~p"/api/admin/shared_pages/rename", %{"path" => path, "name" => name})
 
   test "không gửi file → 422", %{conn: conn} do
     assert %{"error" => "no_files"} =

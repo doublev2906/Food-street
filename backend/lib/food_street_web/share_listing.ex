@@ -18,7 +18,7 @@ defmodule FoodStreetWeb.ShareListing do
     --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04)}
   @media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#141b25;--surface:#212b38;
     --border:#364252;--text:#eaf0f6;--muted:#9fb0c1;--primary:#e96b26;--primary-text:#ffaa70;
-    --primary-soft:#3a2413;--hover:#2e3a49;--grad-hi:#f57d3b;--accent-shadow:rgba(0,0,0,.3);
+    --primary-soft:#3a2413;--hover:#2e3a49;
     --shadow:0 1px 3px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.3)}}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,
@@ -39,7 +39,7 @@ defmodule FoodStreetWeb.ShareListing do
   .crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
   .crumb{padding:3px 10px;border-radius:99px;font-size:13px;font-weight:600;
     color:var(--muted);border:1px solid transparent}
-  a.crumb:hover{background:var(--hover);color:var(--text)}
+  a.crumb:not(.current):hover{background:var(--hover);color:var(--text)}
   .crumb.current{background:var(--primary-soft);color:var(--primary-text)}
   .sep{color:var(--muted);font-size:13px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
@@ -51,7 +51,7 @@ defmodule FoodStreetWeb.ShareListing do
   tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:var(--hover)}
   .name{display:flex;align-items:center;gap:12px;font-weight:600;word-break:break-word}
-  .name:hover{color:var(--primary-text)}
+  .name:hover,.name:hover .muted{color:var(--primary-text)}
   .ic{width:34px;height:34px;flex-shrink:0;border-radius:9px;display:grid;place-items:center;
     font-size:17px;background:var(--hover)}
   .folder .ic{background:var(--primary-soft)}
