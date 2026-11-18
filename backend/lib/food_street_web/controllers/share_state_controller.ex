@@ -3,8 +3,10 @@ defmodule FoodStreetWeb.ShareStateController do
   Lưu dữ liệu người xem nhập trên trang `/share/*` (gọi từ `priv/share/inject.js`).
 
   Trang chạy trong CSP sandbox (origin `null`) nên request không mang cookie; xác thực
-  bằng token ký sẵn (trang + user) mà `ShareController` nhúng vào lúc trả trang. Body là
-  JSON gửi dạng `text/plain` (simple request, không preflight):
+  bằng token ký sẵn (trang + user) mà `ShareController` nhúng vào lúc trả trang. Trang
+  `/share` công khai nên ai mở được trang cũng lưu được (kể cả chưa đăng nhập); user trong
+  token chỉ để ghi nhận người sửa cuối. Body là JSON gửi dạng `text/plain` (simple
+  request, không preflight):
 
       {"token": "...", "patch": {"f:#ghi-chu": "abc", "ls:theme": null}}
   """
@@ -20,15 +22,14 @@ defmodule FoodStreetWeb.ShareStateController do
     conn = put_resp_header(conn, "access-control-allow-origin", "*")
 
     with {:ok, %{"token" => token, "patch" => patch}, conn} <- read_payload(conn),
-         {:ok, %{"p" => page_path, "u" => user_id}} <-
+         {:ok, %{"p" => page_path} = claims} <-
            Phoenix.Token.verify(FoodStreetWeb.Endpoint, ShareController.state_salt(), token,
              max_age: ShareController.state_max_age()
            ),
-         %{active: true} <- Accounts.get_user(user_id),
          # Token gắn đường dẫn lúc mở trang: trang đã đổi tên / xoá thì không ghi tiếp, kẻo
          # dữ liệu nằm ở đường dẫn cũ (mất, hoặc dính sang file sau này upload trùng tên).
          :ok <- if(SharedPages.page?(page_path), do: :ok, else: {:error, :page_gone}),
-         :ok <- SharedPages.merge_state(page_path, patch, user_id) do
+         :ok <- SharedPages.merge_state(page_path, patch, editor_id(claims["u"])) do
       json(conn, %{ok: true})
     else
       {:error, :too_large} ->
@@ -43,14 +44,19 @@ defmodule FoodStreetWeb.ShareStateController do
       {:error, reason} when reason in [:expired, :invalid, :missing] ->
         error(conn, 401, "invalid_token")
 
-      %{active: false} ->
-        error(conn, 401, "invalid_token")
-
-      nil ->
-        error(conn, 401, "invalid_token")
-
       _ ->
         error(conn, 400, "bad_request")
+    end
+  end
+
+  # Người sửa: user còn hoạt động thì ghi nhận, khách / tài khoản đã khoá hay xoá thì nil
+  # (vẫn lưu như khách — trang công khai; nil cũng tránh lỗi khoá ngoại khi user đã xoá).
+  defp editor_id(nil), do: nil
+
+  defp editor_id(user_id) do
+    case Accounts.get_user(user_id) do
+      %{active: true, id: id} -> id
+      _ -> nil
     end
   end
 

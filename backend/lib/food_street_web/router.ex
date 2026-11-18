@@ -27,7 +27,8 @@ defmodule FoodStreetWeb.Router do
   end
 
   # Trang HTML chia sẻ (Caddy proxy /share/* sang đây). Trình duyệt mở link trực tiếp
-  # (Accept: text/html) nên không qua pipeline :api; xác thực bằng cookie fs_share.
+  # (Accept: text/html) nên không qua pipeline :api. File công khai; riêng trang danh sách
+  # thư mục cần cookie fs_share (đăng nhập).
   scope "/", FoodStreetWeb do
     get "/share/*path", ShareController, :show
   end

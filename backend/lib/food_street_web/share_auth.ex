@@ -2,6 +2,9 @@ defmodule FoodStreetWeb.ShareAuth do
   @moduledoc """
   Cookie đăng nhập cho trang HTML chia sẻ (`/share/*`).
 
+  File trong `/share` công khai (không cần đăng nhập); cookie này chỉ dùng cho trang danh
+  sách thư mục (phải đăng nhập) và để ghi nhận ai sửa dữ liệu nhập trên trang.
+
   Token đăng nhập của app nằm trong localStorage (gửi qua header Authorization), nên
   khi trình duyệt mở thẳng link `/share/...` sẽ không có gì để xác thực. Vì vậy mỗi
   lần đăng nhập / mở app (`/api/me`) backend gắn thêm cookie `fs_share`:
@@ -9,8 +12,7 @@ defmodule FoodStreetWeb.ShareAuth do
     * `HttpOnly` + `Path=/share` — JS không đọc được, chỉ gửi kèm request `/share/*`.
     * Giá trị là `Phoenix.Token` (ký bằng secret_key_base) chứa user id, hạn 30 ngày.
 
-  Caddy dùng `forward_auth` gọi `/api/share_auth` trước khi trả file; backend đọc
-  cookie này để cho qua hoặc redirect sang trang đăng nhập.
+  `FoodStreetWeb.ShareController` đọc cookie này qua `verify/1`.
   """
   import Plug.Conn
 

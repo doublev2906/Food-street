@@ -58,7 +58,9 @@ proxy `/share/*` sang backend (`ShareController`) serve ở `https://<host>/shar
 thư mục không có `index.html` thì hiện trang danh sách. Nội dung folder bị gitignore vì
 repo public — **đừng commit**.
 
-**Phải đăng nhập mới xem được** (user thường cũng xem được). Đăng nhập / mở app
+**File công khai — ai có link cũng xem được, không cần đăng nhập** (cả ảnh/css/js kèm
+trang, và thư mục có `index.html`). Riêng **trang danh sách thư mục** (thư mục không có
+`index.html`) phải đăng nhập để người ngoài không duyệt được hết file: đăng nhập / mở app
 (`/api/login`, `/api/me`) gắn thêm cookie `fs_share` (HttpOnly, `Path=/share`, 30 ngày);
 chưa đăng nhập thì redirect `/login?next=/share/...` rồi quay lại đúng trang. Đăng xuất
 xoá cookie.
@@ -66,7 +68,8 @@ xoá cookie.
 **Tự lưu dữ liệu nhập trên trang.** Mỗi trang `.html` được chèn `priv/share/inject.js`:
 giá trị người xem nhập (input, select, textarea, checkbox, radio, `contenteditable`) và
 `localStorage` của trang được lưu lên server (bảng `shared_page_states`, **dùng chung cho
-mọi người**, ô nào lưu sau thì thắng), mở lại / người khác F5 là thấy. Ghi đè file vẫn giữ
+mọi người**, ô nào lưu sau thì thắng), mở lại / người khác F5 là thấy. Khách chưa đăng
+nhập cũng sửa và lưu được (ai có link là sửa được dữ liệu trang). Ghi đè file vẫn giữ
 dữ liệu (ô nào còn cùng id/name thì khớp lại); xoá file / thư mục thì xoá luôn dữ liệu.
 
 - **Qua UI:** Admin → tab "🔗 Chia sẻ HTML" → vào/tạo thư mục → chọn/kéo thả file

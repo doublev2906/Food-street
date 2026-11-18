@@ -24,12 +24,15 @@ defmodule FoodStreetWeb.ShareStateControllerTest do
     {:ok, user: user}
   end
 
+  # user nil = khách chưa đăng nhập (trang /share công khai).
   defp token(user, page),
     do:
       Phoenix.Token.sign(FoodStreetWeb.Endpoint, ShareController.state_salt(), %{
         "p" => page,
-        "u" => user.id
+        "u" => user && user.id
       })
+
+  defp updated_by(page), do: Repo.get_by!(SharedPages.State, page_path: page).updated_by_id
 
   # Như fetch() từ trang sandbox: body chuỗi JSON, Content-Type text/plain, Origin null.
   defp save(body) do
@@ -49,11 +52,32 @@ defmodule FoodStreetWeb.ShareStateControllerTest do
     save(%{"token" => t, "patch" => %{"ls:theme" => nil}})
     assert SharedPages.get_state("bao-cao/q4.html") == %{"f:#ten" => "An"}
 
-    assert Repo.get_by!(SharedPages.State, page_path: "bao-cao/q4.html").updated_by_id == user.id
+    assert updated_by("bao-cao/q4.html") == user.id
   end
 
-  test "token giả / user bị khoá -> 401; patch sai kiểu -> 422; body hỏng -> 400",
-       %{user: user} do
+  test "khách chưa đăng nhập lưu được, ghi đè người sửa = nil", %{user: user} do
+    save(%{"token" => token(user, "a.html"), "patch" => %{"f:#ten" => "An"}})
+    assert updated_by("a.html") == user.id
+
+    assert save(%{"token" => token(nil, "a.html"), "patch" => %{"f:#tuoi" => "20"}})
+           |> json_response(200)
+
+    assert SharedPages.get_state("a.html") == %{"f:#ten" => "An", "f:#tuoi" => "20"}
+    assert updated_by("a.html") == nil
+  end
+
+  test "user bị khoá / đã xoá -> vẫn lưu như khách (không ghi người sửa)", %{user: user} do
+    t = token(user, "a.html")
+    Repo.update!(Ecto.Changeset.change(user, active: false))
+    assert save(%{"token" => t, "patch" => %{"a" => "b"}}) |> json_response(200)
+    assert updated_by("a.html") == nil
+
+    Repo.delete!(user)
+    assert save(%{"token" => t, "patch" => %{"a" => "c"}}) |> json_response(200)
+    assert SharedPages.get_state("a.html") == %{"a" => "c"}
+  end
+
+  test "token giả -> 401; patch sai kiểu -> 422; body hỏng -> 400", %{user: user} do
     assert save(%{"token" => "gia", "patch" => %{"a" => "b"}}) |> json_response(401)
 
     assert save(%{"token" => token(user, "a.html"), "patch" => %{"a" => %{"x" => 1}}})
@@ -63,10 +87,6 @@ defmodule FoodStreetWeb.ShareStateControllerTest do
            |> put_req_header("content-type", "text/plain")
            |> post(~p"/api/share_state", "not json")
            |> json_response(400)
-
-    t = token(user, "a.html")
-    Repo.update!(Ecto.Changeset.change(user, active: false))
-    assert save(%{"token" => t, "patch" => %{"a" => "b"}}) |> json_response(401)
   end
 
   test "trang đã đổi tên / xoá -> 410, không để lại dữ liệu ở đường dẫn cũ", %{user: user} do

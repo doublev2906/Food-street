@@ -2688,7 +2688,7 @@ const formatShareTime = (iso: string) =>
   });
 
 // Trang HTML chia sẻ: duyệt / tạo thư mục, upload .html vào thư mục đang mở, đổi tên, xoá.
-// Backend serve (phải đăng nhập) ở /share/<đường dẫn> và tự lưu dữ liệu người xem nhập.
+// Backend serve công khai ở /share/<đường dẫn> và tự lưu dữ liệu người xem nhập.
 function SharePagesTab() {
   // Thư mục đang xem lưu trong ?dir=… (F5 giữ nguyên).
   const [searchParams, setSearchParams] = useSearchParams();
@@ -2834,8 +2834,8 @@ function SharePagesTab() {
         <div>
           <h2 className="share-title">Chia sẻ HTML</h2>
           <div className="small muted">
-            Trang xem tại <code>/share/…</code>, phải đăng nhập Food Street mới mở được (user
-            thường cũng xem được).
+            Trang xem tại <code>/share/…</code>, ai có link cũng mở được (không cần đăng
+            nhập). Trang danh sách thư mục thì phải đăng nhập.
           </div>
         </div>
         <div className="row wrap">

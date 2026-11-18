@@ -29,6 +29,22 @@ defmodule FoodStreetWeb.ShareControllerTest do
 
   defp authed(user), do: build_conn() |> put_req_cookie("fs_share", cookie_for(user).value)
 
+  # Claims của token lưu dữ liệu nhúng trong window.__FS_SHARE__.
+  defp token_claims(body) do
+    [_, json] = Regex.run(~r/window\.__FS_SHARE__=(.*?);<\/script>/, body)
+    %{"token" => token} = Jason.decode!(json)
+
+    {:ok, claims} =
+      Phoenix.Token.verify(
+        FoodStreetWeb.Endpoint,
+        FoodStreetWeb.ShareController.state_salt(),
+        token,
+        max_age: 60
+      )
+
+    claims
+  end
+
   describe "đăng nhập" do
     test "login và /me gắn cookie HttpOnly chỉ cho /share", %{conn: conn, user: user} do
       login = post(conn, ~p"/api/login", %{"username" => "viewer", "password" => "password123"})
@@ -46,11 +62,26 @@ defmodule FoodStreetWeb.ShareControllerTest do
              |> response(200)
     end
 
-    test "chưa đăng nhập / cookie giả -> redirect về /login kèm next", %{conn: conn} do
-      put_file("a.html", "x")
+    test "file công khai: chưa đăng nhập / cookie giả vẫn xem được", %{conn: conn} do
+      put_file("a.html", "<head></head>A")
+      put_file("bao-cao/style.css", "body{}")
+      put_file("bao-cao/index.html", "<head></head>INDEX")
 
-      assert conn |> get("/share/a.html?x=1") |> redirected_to(302) ==
-               "/login?next=%2Fshare%2Fa.html%3Fx%3D1"
+      assert conn |> get("/share/a.html?x=1") |> html_response(200) =~ "A"
+      assert build_conn() |> get("/share/bao-cao/style.css") |> response(200) == "body{}"
+      # Thư mục có index.html -> serve file đó, cũng công khai.
+      assert build_conn() |> get("/share/bao-cao/") |> html_response(200) =~ "INDEX"
+
+      assert build_conn()
+             |> put_req_cookie("fs_share", "gia")
+             |> get("/share/a.html")
+             |> html_response(200) =~ "A"
+    end
+
+    test "trang danh sách thư mục: chưa đăng nhập / cookie giả -> redirect /login kèm next",
+         %{conn: conn} do
+      assert conn |> get("/share/bao-cao/?x=1") |> redirected_to(302) ==
+               "/login?next=%2Fshare%2Fbao-cao%2F%3Fx%3D1"
 
       assert build_conn()
              |> put_req_cookie("fs_share", "gia")
@@ -59,20 +90,19 @@ defmodule FoodStreetWeb.ShareControllerTest do
                "/login?next=%2Fshare%2F"
     end
 
-    test "tài khoản bị khoá thì cookie cũ hết tác dụng", %{user: user} do
-      put_file("a.html", "x")
+    test "tài khoản bị khoá thì cookie cũ không mở được danh sách thư mục", %{user: user} do
       cookie = cookie_for(user).value
 
       assert build_conn()
              |> put_req_cookie("fs_share", cookie)
-             |> get("/share/a.html")
+             |> get("/share/")
              |> response(200)
 
       Repo.update!(Ecto.Changeset.change(user, active: false))
 
       assert build_conn()
              |> put_req_cookie("fs_share", cookie)
-             |> get("/share/a.html")
+             |> get("/share/")
              |> response(302)
     end
 
@@ -105,6 +135,13 @@ defmodule FoodStreetWeb.ShareControllerTest do
       # Giá trị người dùng nhập không phá được thẻ <script> (escape html_safe).
       refute body =~ "</script><b>"
       assert body =~ ~s("saveUrl":"\\/api\\/share_state")
+      assert token_claims(body) == %{"p" => "bao-cao/q4.html", "u" => user.id}
+    end
+
+    test "khách chưa đăng nhập: vẫn có token lưu dữ liệu, không gắn user", %{conn: conn} do
+      put_file("a.html", "<head></head>x")
+      body = conn |> get("/share/a.html") |> html_response(200)
+      assert token_claims(body) == %{"p" => "a.html", "u" => nil}
     end
 
     test "HTML không có <head> vẫn chèn sau doctype (không rơi vào quirks mode)", %{user: user} do

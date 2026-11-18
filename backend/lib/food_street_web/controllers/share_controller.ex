@@ -2,11 +2,13 @@ defmodule FoodStreetWeb.ShareController do
   @moduledoc """
   Serve trang HTML chia sẻ ở `/share/<đường dẫn>` (Caddy proxy `/share/*` sang đây).
 
-    * Phải đăng nhập (cookie `fs_share`, xem `FoodStreetWeb.ShareAuth`); chưa thì redirect
-      `/login?next=<trang đang mở>`.
-    * Thư mục: có `index.html` thì serve file đó, không thì hiện trang danh sách.
+    * File (HTML, ảnh, css…): ai có link cũng xem được, không cần đăng nhập.
+    * Thư mục: có `index.html` thì serve file đó (công khai), không thì hiện trang danh
+      sách — trang này PHẢI đăng nhập (cookie `fs_share`, xem `FoodStreetWeb.ShareAuth`)
+      để người ngoài không duyệt được hết file; chưa thì redirect `/login?next=…`.
     * File `.html`: chèn script tự lưu dữ liệu người xem nhập (`priv/share/inject.js`)
-      kèm dữ liệu đã lưu + token để gọi `POST /api/share_state`.
+      kèm dữ liệu đã lưu + token để gọi `POST /api/share_state` (khách chưa đăng nhập
+      cũng lưu được; có đăng nhập thì ghi nhận người sửa).
     * Mọi response kèm CSP `sandbox` → JS của trang chạy ở origin riêng, không đọc được
       token đăng nhập (localStorage) của app cùng domain.
   """
@@ -30,10 +32,13 @@ defmodule FoodStreetWeb.ShareController do
   def state_max_age, do: @state_max_age
 
   def show(conn, %{"path" => segments}) do
-    case ShareAuth.verify(conn) do
-      {:ok, user} -> serve(conn, segments, user)
-      :error -> redirect_to_login(conn)
-    end
+    user =
+      case ShareAuth.verify(conn) do
+        {:ok, user} -> user
+        :error -> nil
+      end
+
+    serve(conn, segments, user)
   end
 
   defp redirect_to_login(conn) do
@@ -69,6 +74,9 @@ defmodule FoodStreetWeb.ShareController do
 
       File.regular?(index) ->
         serve_file(conn, Path.join([rel, "index.html"]) |> String.trim_leading("/"), index, user)
+
+      is_nil(user) ->
+        redirect_to_login(conn)
 
       true ->
         {:ok, listing} = SharedPages.list(rel)
@@ -108,16 +116,20 @@ defmodule FoodStreetWeb.ShareController do
     conn
     |> put_resp_header("content-security-policy", @sandbox <> extra_csp)
     |> put_resp_header("x-content-type-options", "nosniff")
-    # Luôn hỏi lại server: thấy ngay bản mới / dữ liệu người khác vừa nhập, đăng xuất thì
-    # không xem lại được từ cache. private: cấm proxy cache.
+    # Luôn hỏi lại server: thấy ngay bản mới / dữ liệu người khác vừa nhập. private: cấm
+    # proxy cache (trang danh sách phải đăng nhập mới xem).
     |> put_resp_header("cache-control", "private, no-cache")
   end
 
   # Chèn ngay sau <head> để storage giả có trước mọi script của trang.
+  # "u" = người đang xem (nil nếu chưa đăng nhập) -> chỉ để ghi nhận ai sửa cuối.
   defp inject(html, rel, user) do
     config = %{
       token:
-        Phoenix.Token.sign(FoodStreetWeb.Endpoint, @state_salt, %{"p" => rel, "u" => user.id}),
+        Phoenix.Token.sign(FoodStreetWeb.Endpoint, @state_salt, %{
+          "p" => rel,
+          "u" => user && user.id
+        }),
       saveUrl: "/api/share_state",
       state: SharedPages.get_state(rel)
     }

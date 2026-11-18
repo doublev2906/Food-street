@@ -247,7 +247,7 @@ export interface PanchatSettings {
   panchat_token_preview: string;
 }
 
-/** File / thư mục trong /share (phải đăng nhập mới xem được `url`). */
+/** File / thư mục trong /share (`url` của file: công khai; của thư mục: phải đăng nhập). */
 export interface SharedPage {
   name: string;
   /** Đường dẫn tương đối trong share/, vd "bao-cao/q4.html" */

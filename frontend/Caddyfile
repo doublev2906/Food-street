@@ -15,8 +15,8 @@
 		}
 	}
 
-	# Trang HTML chia sẻ (folder share/ của repo): backend serve — kiểm tra đăng nhập,
-	# chèn script tự lưu dữ liệu nhập, CSP sandbox, trang danh sách thư mục.
+	# Trang HTML chia sẻ (folder share/ của repo): backend serve — file công khai, chèn
+	# script tự lưu dữ liệu nhập, CSP sandbox, trang danh sách thư mục (phải đăng nhập).
 	# Đưa file lên bằng tab "Chia sẻ HTML" trong admin hoặc `make share` dưới máy dev.
 	redir /share /share/ 308
 	handle /share/* {
